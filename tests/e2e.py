@@ -1,5 +1,5 @@
-"""브라우저 E2E 테스트 (v0.4.3)
-간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 70:30·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 대화 패널(글 답변만),
+"""브라우저 E2E 테스트 (v0.4.4)
+간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 65:35·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 대화 패널(글 답변만),
 선택 정보(대화 패널 위 접이식)·대화 이력·답변별 엑셀/CSV 내보내기, 필터(부품 분류)·정렬·관심 목록, 새 하위 보기(결제 일정·원자재·인건비·경쟁사·업계 동향),
 업로드 저장 유지, 해상도별 화면을 확인한다.
 실행: (서버 실행 후) python3 tests/e2e.py [http://localhost:5173] [스크린샷 폴더]
@@ -147,7 +147,7 @@ with sync_playwright() as p:
     a = page.locator(".panel-a").bounding_box()
     c = page.locator(".panel-c").bounding_box()
     ratio = round(a["width"] / (a["width"] + c["width"]) * 100)
-    check("1920: 데이터 관리 : AI 대화 = 70:30", abs(ratio - 70) <= 2, f"{ratio}:{100 - ratio}")
+    check("1920: 데이터 관리 : AI 대화 = 65:35", abs(ratio - 65) <= 2, f"{ratio}:{100 - ratio}")
     check("1920: 가로 스크롤 없음", no_hscroll(page))
     check("가운데 챗봇 패널 없음(2분할)", page.locator(".panel-b").count() == 0 and page.locator(".splitter").count() == 1)
     sf = small_fonts(page)
@@ -211,7 +211,7 @@ with sync_playwright() as p:
     page.keyboard.press("ArrowRight")
     check("경계선 키보드(→)로 조절", page.locator(".panel-a").bounding_box()["width"] > a2 + 10)
     page.keyboard.press("Home")
-    check("경계선 Home 키 → 70:30 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
+    check("경계선 Home 키 → 65:35 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
     page.mouse.move(sp["x"] + sp["width"] / 2, sp["y"] + sp["height"] / 2)
     page.mouse.down()
     page.mouse.move(sp["x"] - 200, sp["y"] + sp["height"] / 2, steps=5)
@@ -223,7 +223,7 @@ with sync_playwright() as p:
     a3 = page.locator(".panel-a").bounding_box()["width"]
     check("조절한 너비 새로고침 후 유지", abs(a3 - a2) < 4)
     page.locator(".splitter").dblclick()
-    check("경계선 두 번 누르면 70:30 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
+    check("경계선 두 번 누르면 65:35 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
 
     # 7. 평가 근거 팝오버
     btn = page.locator(".eval-head .eval-basis-btn")
@@ -739,7 +739,7 @@ with sync_playwright() as p:
     cb2 = lap.locator(".panel-c").bounding_box()
     check("1366: 대화 패널 오른쪽 고정·입력창 보임·너비 320 이상", lap.locator("#chat-input").is_visible() and cb2["width"] >= 320 and cb2["x"] > 800, f"{round(cb2['width'])}px")
     ab2 = lap.locator(".panel-a").bounding_box()
-    check("1366: 데이터 관리 : AI 대화 약 70:30", abs(ab2["width"] / (ab2["width"] + cb2["width"]) * 100 - 70) <= 3)
+    check("1366: 데이터 관리 : AI 대화 약 65:35", abs(ab2["width"] / (ab2["width"] + cb2["width"]) * 100 - 65) <= 3)
     sf3 = small_fonts(lap)
     check("1366: 글자 12px 이상", not sf3, ", ".join(sf3))
 
@@ -753,6 +753,12 @@ with sync_playwright() as p:
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 0)")
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 99999)")
     lap.screenshot(path=f"{SHOTS}/09_1366_pager.png")
+    pe = lap.evaluate("() => { const c=document.querySelector('.panel-body-a').getBoundingClientRect(), p=document.querySelector('.pager').getBoundingClientRect(), rs=[...document.querySelectorAll('.data-table tbody tr')], l=rs[rs.length-1].getBoundingClientRect(), el=document.elementFromPoint(p.left+p.width/2, Math.min(p.bottom+2, c.bottom-1)); return {cb:c.bottom, pb:p.bottom, pt:p.top, lb:l.bottom, row:!!(el && el.closest('.data-table tbody tr')), gap:c.bottom-p.bottom}; }")
+    check("v0.4.4 페이지 바: 스크롤 끝에서 영역 맨 아래에 붙음(틈 없음) · 바로 아래에 표 행이 비치지 않음 · 마지막 행이 바 위에 완전히 보임", pe["gap"] <= 1 and not pe["row"] and pe["lb"] <= pe["pt"] + 1, json.dumps(pe))
+    lap.evaluate("() => { const e=document.querySelector('.panel-body-a'); e.scrollTo(0, e.scrollHeight/2) }")
+    pm = lap.evaluate("() => { const c=document.querySelector('.panel-body-a').getBoundingClientRect(), p=document.querySelector('.pager').getBoundingClientRect(), el=document.elementFromPoint(p.left+p.width/2, Math.min(p.bottom+2, c.bottom-1)); return {gap:c.bottom-p.bottom, row:!!(el && el.closest('.data-table tbody tr'))}; }")
+    check("v0.4.4 페이지 바: 스크롤 중간에서도 아래에 틈 없음 · 행이 바 아래로 비치지 않음", pm["gap"] <= 1 and not pm["row"], json.dumps(pm))
+    lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 99999)")
     nxt = lap.locator(".pager .icon-btn[aria-label='다음 쪽']")
     nxt.focus()
     lap.keyboard.press("Shift+Tab")

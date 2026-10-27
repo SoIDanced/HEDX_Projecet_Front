@@ -361,20 +361,18 @@ export function DataManagementTabs() {
               ) : null
             }
           />
-          <div>
-            <DataTable
-              key={tab}
-              label={`${TAB_LABEL[tab]} 표`}
-              rows={view.rows as unknown[]}
-              cols={view.cols as Col<unknown>[]}
-              rowKey={view.key as (r: unknown) => string}
-              selectedKey={selectedKey}
-              onSelect={onSelect}
-              pinned={pinned}
-              initialSort={"initialSort" in view ? view.initialSort : undefined}
-              empty={filtering ? "조건에 맞는 행이 없습니다. 조건 칩의 ×를 누르거나 ‘전체 초기화’를 눌러 보세요." : "데이터가 없습니다. ‘불러오기’로 파일을 올리거나 오른쪽 위 ‘샘플 데이터로 되돌리기’를 눌러 보세요."}
-            />
-          </div>
+          <DataTable
+            key={`${tab}-table`}
+            label={`${TAB_LABEL[tab]} 표`}
+            rows={view.rows as unknown[]}
+            cols={view.cols as Col<unknown>[]}
+            rowKey={view.key as (r: unknown) => string}
+            selectedKey={selectedKey}
+            onSelect={onSelect}
+            pinned={pinned}
+            initialSort={"initialSort" in view ? view.initialSort : undefined}
+            empty={filtering ? "조건에 맞는 행이 없습니다. 조건 칩의 ×를 누르거나 ‘전체 초기화’를 눌러 보세요." : "데이터가 없습니다. ‘불러오기’로 파일을 올리거나 오른쪽 위 ‘샘플 데이터로 되돌리기’를 눌러 보세요."}
+          />
           <p className="data-source">
             출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · {narrow ? "행을 누르면 ‘AI 대화’ 탭에서 상세를 볼 수 있고, AI 질문의 대상(문맥)으로 쓰입니다" : "행을 누르면 오른쪽 AI 대화 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다"}
           </p>

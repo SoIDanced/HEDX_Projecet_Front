@@ -1,5 +1,5 @@
 /* 구매·협력사 AI 분석 플랫폼 v0.4
-   레이아웃: 상단 바 + 요약 지표 + 데이터 관리(70) · AI 대화(30) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
+   레이아웃: 상단 바 + 요약 지표 + 데이터 관리(65) · AI 대화(35) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
    기준 해상도 1920×1080. 글자 단계 12 / 13 / 14 / 16 / 20 (+ 큰 숫자 24·30).
    밝은 업무 화면(아이보리 바탕·흰 패널)에 평가 카드만 차콜, 강조색은 오렌지 하나. */
 :root {
@@ -151,6 +151,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .panel-body { flex: 1; min-height: 0; overflow: auto; }
 .panel-body-a { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .panel-body-a > * { flex: none; }
+.panel-body-a:has(.pager) { padding-bottom: 0; scroll-padding-bottom: 64px; } /* 페이지 바를 영역 맨 아래에 틈 없이 붙임 */
 
 @media (max-width: 1180px) {
   .panel-tabs { display: flex; gap: 6px; padding-block: 8px 0; padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
@@ -267,7 +268,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .fchip { display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 4px 0 10px; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-ink); font-size: var(--fs-12); font-weight: 500; }
 .fchip button { border: 0; background: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: inherit; }
 .fchip button:hover { background: rgba(0, 0, 0, 0.06); }
-.data-source { font-size: var(--fs-12); color: var(--muted); }
+.data-source { font-size: var(--fs-12); color: var(--muted); order: 1; }
 .filter-extra { margin-left: auto; }
 .check-inline { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-13); cursor: pointer; color: var(--ink-2); }
 .check-inline input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; flex: none; }
@@ -283,9 +284,9 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .scroll-shell.can-l .sticky-col { box-shadow: 6px 0 8px -6px rgba(28, 25, 23, 0.3); }
 @media print { .scroll-shell::before, .scroll-shell::after { display: none; } }
 .data-table-wrap { border: 1px solid var(--line); border-radius: var(--r-sm); overflow-x: auto; overflow-y: hidden; }
-.dt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dt { display: contents; } /* v0.4.4: 페이지 바가 스크롤 영역(.tab-body) 전체를 범위로 아래에 붙도록 */
 /* 페이지 나누기 바: 아래에 붙는 단색 바 (스크롤해도 잘리지 않음) */
-.pager { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: var(--fs-13); color: var(--ink); background: var(--surface); border-top: 2px solid var(--line-2); padding: 8px 4px; box-shadow: 0 -6px 8px -6px rgba(28, 25, 23, 0.18); }
+.pager { order: 2; position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; font-size: var(--fs-13); color: var(--ink); background: var(--surface); border-top: 2px solid var(--line-2); padding: 8px 4px; box-shadow: 0 -6px 8px -6px rgba(28, 25, 23, 0.18); }
 .pager-range { font-variant-numeric: tabular-nums; font-weight: 600; }
 .pager-nav { display: inline-flex; align-items: center; gap: 6px; }
 .pager-page { min-width: 72px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }

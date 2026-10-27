@@ -1,4 +1,4 @@
-// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 70) · AI 대화(오른쪽 30) 2분할
+// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 65) · AI 대화(오른쪽 35) 2분할
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { LuDatabase, LuMessagesSquare } from "react-icons/lu";
 import { StoreProvider, useStore, type Panel } from "./store/store";
@@ -62,14 +62,14 @@ function SkipLink() {
   );
 }
 
-const SPLIT_KEY = "split.v2"; // v0.4.0: 기본 비율이 70:30으로 바뀌어 예전 저장값(45)이 덮어쓰지 않게 키를 올림
-const SPLIT_DEFAULT = 70;
+const SPLIT_KEY = "split.v3"; // v0.4.4: 기본 비율이 65:35로 바뀌어 예전 저장값(70)이 덮어쓰지 않게 키를 올림
+const SPLIT_DEFAULT = 65;
 const SPLIT_MIN = 40;
 const SPLIT_MAX = 80;
 const CHAT_MIN_PX = 320; // styles.css 의 .workspace 와 같은 값: 대화 패널 최소 너비
 const SPLITTER_PX = 12;
 
-/** 데이터 관리(왼쪽) : AI 대화(오른쪽) = 70 : 30, 가운데 경계선을 끌거나 화살표 키로 조절 */
+/** 데이터 관리(왼쪽) : AI 대화(오른쪽) = 65 : 35, 가운데 경계선을 끌거나 화살표 키로 조절 */
 function useSplit() {
   const [left, setLeft] = useState<number>(() => {
     const v = readStore<number>(SPLIT_KEY);
@@ -188,7 +188,7 @@ function Workspace() {
             else return;
             e.preventDefault();
           }}
-          title="끌어서 너비 조절 · 두 번 누르면 70:30으로"
+          title="끌어서 너비 조절 · 두 번 누르면 65:35로"
         >
           <span className="splitter-grip" aria-hidden />
         </div>
