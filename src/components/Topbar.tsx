@@ -1,11 +1,12 @@
 // 상단 바: 브랜드 · 데이터 상태 · AI 연결 상태 · 결제 알림 · 데이터 불러오기/샘플로 되돌리기 · 사용자 메뉴
-import { useEffect, useRef, useState } from "react";
-import { LuBell, LuBookOpen, LuChevronDown, LuDatabase, LuFileUp, LuLogOut, LuRotateCcw, LuStar, LuTrash2, LuX } from "react-icons/lu";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { LuBell, LuBookOpen, LuCheck, LuChevronDown, LuMoon, LuSun, LuDatabase, LuFileUp, LuLogOut, LuRotateCcw, LuStar, LuTrash2, LuX } from "react-icons/lu";
 import { useStore } from "../store/store";
 import { useAgent } from "../store/agent";
 import { alertCount } from "../lib/payments";
 import { BrandBlock } from "./Brand";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ACCENTS, setAccent, setTheme, useAccent, useTheme } from "../platform/theme";
 
 function AiStatus() {
   const { state, dispatch } = useStore();
@@ -15,7 +16,7 @@ function AiStatus() {
     <div className="ai-status">
       <span className={`dot ${llmOn ? "dot-on" : provider ? "dot-ready" : "dot-off"}`} aria-hidden />
       <span className="ai-status-text" title="LLM 응답 모드에서는 질문을 외부 LLM API에 보내고, 응답을 채팅에 표시합니다. 실제 연결 여부는 질문을 보낼 때 확인됩니다.">{!providerChecked ? "LLM API 준비 중" : llmOn ? `LLM API 설정됨 · ${provider!.label}` : provider ? "LLM API 설정됨 · 꺼짐" : "LLM 미설정 · 규칙 기반"}</span>
-      <div className="mode" role="radiogroup" aria-label="응답 방식">
+      <div className="mode" role="radiogroup" aria-label="응답 방식" style={{ "--i": state.aiMode === "llm" ? 1 : 0 } as CSSProperties}>
         <button type="button" role="radio" aria-checked={state.aiMode === "rule"} className={state.aiMode === "rule" ? "is-on" : ""} onClick={() => dispatch({ type: "aiMode", mode: "rule" })} title="데이터를 규칙 기반으로 분석합니다 (항상 사용 가능)">
           규칙 기반
         </button>
@@ -31,6 +32,39 @@ function AiStatus() {
           LLM 응답
         </button>
       </div>
+    </div>
+  );
+}
+
+/** 해/달 전환: 눌린 자리에서 물방울처럼 번지며 바뀐다 */
+function ThemeToggle() {
+  const theme = useTheme();
+  const pick = (t: "light" | "dark") => (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTheme(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  };
+  return (
+    <div className="theme-seg" role="radiogroup" aria-label="화면 테마" style={{ "--i": theme === "dark" ? 1 : 0 } as CSSProperties}>
+      <button type="button" role="radio" aria-checked={theme === "light"} className={theme === "light" ? "is-on" : ""} onClick={pick("light")} aria-label="밝게" title="밝은 화면">
+        <LuSun aria-hidden />
+      </button>
+      <button type="button" role="radio" aria-checked={theme === "dark"} className={theme === "dark" ? "is-on" : ""} onClick={pick("dark")} aria-label="어둡게" title="어두운 화면">
+        <LuMoon aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function AccentPicker() {
+  const cur = useAccent();
+  return (
+    <div className="accent-pick" role="radiogroup" aria-label="강조색">
+      <p className="menu-label">강조색</p>
+      {ACCENTS.map((a) => (
+        <button key={a.id} type="button" role="radio" aria-checked={cur === a.id} aria-label={`강조색 ${a.label}`} title={a.label} className="swatch" data-accent-id={a.id} style={{ "--sw": a.color } as CSSProperties} onClick={() => setAccent(a.id)}>
+          <i aria-hidden>{cur === a.id ? <LuCheck /> : null}</i>
+        </button>
+      ))}
     </div>
   );
 }
@@ -114,6 +148,7 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
               <span className="muted small">{u.dept || "소속 미입력"}</span>
             </div>
           </div>
+          <AccentPicker />
           <p className="user-note">시연용 간이 로그인 · 대화·분석 이력·관심 목록·업로드 데이터가 이 브라우저에 사용자별로 저장됩니다.</p>
           <div className="fav-section">
             <p className="menu-label">
@@ -226,20 +261,27 @@ export function Topbar({ onLogout }: { onLogout: (wipe: boolean) => void }) {
   const datasetFor = state.subView[state.tab] === "list" ? state.tab : state.tab;
   return (
     <header className="topbar">
-      <BrandBlock />
-      <div className="topbar-right">
+      <div className="tb-pill tb-brand">
+        <BrandBlock />
+      </div>
+      <div className="tb-pill tb-status">
         <DataStatus />
         <AiStatus />
+      </div>
+      <div className="tb-pill tb-actions">
+        <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: "openImport", dataset: datasetFor })} title="CSV·JSON 파일로 데이터 올리기 (형식 검사 후 반영)">
+          <LuFileUp aria-hidden /> <span className="hide-md">데이터 </span>불러오기
+        </button>
+        <button type="button" className="btn btn-quiet sample-reset" onClick={() => setConfirmReset(true)} title="샘플 데이터로 되돌리기 (업로드한 데이터와 이 브라우저의 저장본이 지워집니다)" aria-label="샘플 데이터로 되돌리기">
+          <LuRotateCcw aria-hidden />
+          <span className="hide-lg">샘플 데이터로 되돌리기</span>
+        </button>
+      </div>
+      <div className="tb-pill tb-tools">
         <NotificationBell />
-        <div className="topbar-actions">
-          <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: "openImport", dataset: datasetFor })} title="CSV·JSON 파일로 데이터 올리기 (형식 검사 후 반영)">
-            <LuFileUp aria-hidden /> <span className="hide-md">데이터 </span>불러오기
-          </button>
-          <button type="button" className="btn btn-quiet sample-reset" onClick={() => setConfirmReset(true)} title="샘플 데이터로 되돌리기 (업로드한 데이터와 이 브라우저의 저장본이 지워집니다)" aria-label="샘플 데이터로 되돌리기">
-            <LuRotateCcw aria-hidden />
-            <span className="hide-lg">샘플 데이터로 되돌리기</span>
-          </button>
-        </div>
+        <ThemeToggle />
+      </div>
+      <div className="tb-pill tb-user">
         <UserMenu onLogout={onLogout} onDeleteUpload={() => setConfirmReset(true)} />
       </div>
       {confirmReset && (

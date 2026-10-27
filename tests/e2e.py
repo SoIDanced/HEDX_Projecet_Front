@@ -1,4 +1,4 @@
-"""브라우저 E2E 테스트 (v0.4.4)
+"""브라우저 E2E 테스트 (v0.5.0)
 간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 65:35·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 대화 패널(글 답변만),
 선택 정보(대화 패널 위 접이식)·대화 이력·답변별 엑셀/CSV 내보내기, 필터(부품 분류)·정렬·관심 목록, 새 하위 보기(결제 일정·원자재·인건비·경쟁사·업계 동향),
 업로드 저장 유지, 해상도별 화면을 확인한다.
@@ -220,6 +220,7 @@ with sync_playwright() as p:
     page.reload(wait_until="domcontentloaded")
     page.wait_for_selector(".eval-card")
     check("새로고침해도 로그인 유지", page.locator(".login-card").count() == 0)
+    page.wait_for_timeout(450)  # v0.5: 진입 동작(<=300ms) 중에는 상자가 살짝 작게 측정된다
     a3 = page.locator(".panel-a").bounding_box()["width"]
     check("조절한 너비 새로고침 후 유지", abs(a3 - a2) < 4)
     page.locator(".splitter").dblclick()
@@ -252,8 +253,8 @@ with sync_playwright() as p:
     check("v0.4.2 알림: 목록 밖에 한 줄 알림 영역(status)·진행 상태는 목록 밖", page.locator(".panel-c > .sr-only[role='status']").count() == 1 and page.locator(".chat-list [role='status']:not(.stale)").count() == 0)
     geo = page.evaluate("() => { const i=document.querySelector('.chat-title-icon').getBoundingClientRect(); const s=document.querySelector('.chat-title-icon svg').getBoundingClientRect(); return {dx: Math.abs((i.x+i.width/2)-(s.x+s.width/2)), dy: Math.abs((i.y+i.height/2)-(s.y+s.height/2)), w: s.width} }")
     check("패널 머리 아이콘이 상자 가운데", geo["dx"] < 1.5 and geo["dy"] < 1.5 and geo["w"] >= 16, json.dumps({k: round(v, 1) for k, v in geo.items()}))
-    check("패널 머리 아이콘 흰색", page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).color") == "rgb(255, 255, 255)")
-    check("말풍선 구분: 내 질문은 어두운 바탕·흰 글자", page.locator(".msg-user p").first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(29, 30, 33)")
+    check("패널 머리 아이콘: 한화 오렌지 바탕·#1B1B1B 글자", page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).color") == "rgb(27, 27, 27)" and page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(243, 115, 33)")
+    check("말풍선 구분: 내 질문은 어두운(solid) 바탕·흰 글자", page.locator(".msg-user p").first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(27, 27, 27)")  # v0.5: 검정(--solid) 바탕
     check("보내기 버튼이 유일한 채운 주황 버튼(주 동작)", page.locator(".panel-c .btn-primary").count() == 0 and page.locator(".panel-c .send-btn").count() == 1)
 
     # 10. ⋯ 메뉴 · 대화 지우기 · 이전 대화
@@ -363,6 +364,7 @@ with sync_playwright() as p:
         page.keyboard.press("Tab")
     check("대화 이력: Tab을 40번 눌러도 초점이 대화상자 밖으로 나가지 않음", page.evaluate("() => document.querySelector('#history-panel').contains(document.activeElement)"))
     page.keyboard.press("Escape")
+    page.wait_for_timeout(150)  # 초점 복귀는 setTimeout(0)으로 이뤄진다 (v0.5: 경합 방지로 잠깐 기다림)
     check("대화 이력: Esc로 닫고 '대화 이력' 버튼으로 초점 복귀", page.locator("#history-panel").count() == 0 and page.evaluate("() => document.activeElement && document.activeElement.classList.contains('history-toggle')"))
     page.click(".history-toggle")
     page.wait_for_selector("#history-panel")
@@ -694,7 +696,7 @@ with sync_playwright() as p:
     check("샘플로 되돌리기 → SAMPLE", page.locator(".badge-demo").inner_text() == "SAMPLE")
     page.reload(wait_until="domcontentloaded")
     page.wait_for_selector(".eval-card")
-    check("새로고침해도 샘플 유지 (저장본 삭제됨)", page.locator(".badge-demo").inner_text() == "SAMPLE")
+    check("새로고침해도 샘플 유지 (저장본 삭제됨)", page.locator(".badge-demo").inner_text() == "SAMPLE", repr(page.locator(".badge-demo").inner_text()))
     page.click(".user-btn")
     check("SAMPLE 상태에서는 '저장된 업로드 데이터 삭제' 비활성", page.locator(".user-pop .menu-item", has_text="저장된 업로드 데이터 삭제").is_disabled())
     page.keyboard.press("Escape")
@@ -909,6 +911,143 @@ with sync_playwright() as p:
     check("터치 화면: 매체 쿼리 (pointer: coarse) 적용", tp.evaluate("() => matchMedia('(pointer: coarse)').matches"))
     hit = tp.evaluate("() => { const e=document.querySelector('.fav-star'); const r=e.getBoundingClientRect(), a=getComputedStyle(e,'::after'); return {vis:r.width, hit:parseFloat(a.width)}; }")
     check("터치 화면: 별표는 보이는 크기 그대로, 누르는 영역은 44px 이상", hit["vis"] < 44 and hit["hit"] >= 44, json.dumps(hit))
+    # 35. v0.5.0 v14 디자인: 어두운 테마 · 강조색 · 진입 동작 · 대비/12px 점검
+    SWEEP = r"""() => {
+  const parse = (c) => { const m = c.match(/[\d.]+/g); if (!m) return null;
+    if (c.startsWith('color(')) { const v=m.slice(0,3).map(x=>Math.round(parseFloat(x)*255)); return [...v, m[3]!==undefined?parseFloat(m[3]):1]; }
+    if (c.startsWith('oklab')||c.startsWith('oklch')||c.startsWith('lab')||c.startsWith('lch')) return null;
+    return [parseFloat(m[0]),parseFloat(m[1]),parseFloat(m[2]), m[3]!==undefined?parseFloat(m[3]):1]; };
+  const lin = v => { v/=255; return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055,2.4); };
+  const L = c => 0.2126*lin(c[0])+0.7152*lin(c[1])+0.0722*lin(c[2]);
+  const blend = (f,b) => [0,1,2].map(i=>f[i]*f[3]+b[i]*(1-f[3])).concat([1]);
+  const bgOf = (el) => { // 합성 배경색, 그라데이션·이미지가 끼면 null
+    const stack=[]; for (let e=el; e; e=e.parentElement) { const cs=getComputedStyle(e); if (cs.backgroundImage!=='none') return null; const c=parse(cs.backgroundColor); if (c===null) return null; stack.push(c); if (c[3]>=1) break; }
+    let acc=[255,255,255,1]; if (getComputedStyle(document.documentElement).colorScheme.includes('dark')) acc=[16,16,16,1];
+    for (let i=stack.length-1;i>=0;i--) acc=blend(stack[i],acc); return acc; };
+  const small=[], low=[]; let n=0;
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  while (w.nextNode()) { const t=w.currentNode; if(!t.textContent.trim()) continue; const el=t.parentElement; if(!el) continue;
+    const r=el.getBoundingClientRect(); if(!r.width||!r.height) continue; const cs=getComputedStyle(el); if(cs.visibility==='hidden'||cs.display==='none') continue;
+    if (el.closest('.sr-only,.step-mini-label,[aria-hidden="true"]')) continue; if (el.closest('option,optgroup,script,style,title')) continue;
+    const fs=parseFloat(cs.fontSize); n++;
+    const id=(el.tagName+'.'+(el.className&&el.className.baseVal!==undefined?el.className.baseVal:el.className)).slice(0,50);
+    if (fs<12 && !el.closest('.brand')) small.push(id+':'+fs);
+    if (el.closest(':disabled,[disabled]')) continue;
+    let fg=parse(cs.color||cs.fill); if(!fg) continue; const bg=bgOf(el); if(!bg) continue;
+    let op=1; for (let e=el;e;e=e.parentElement) op*=parseFloat(getComputedStyle(e).opacity);
+    fg=blend([fg[0],fg[1],fg[2],fg[3]*op],bg);
+    const a=L(fg),b=L(bg); const ratio=(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+    const large = fs>=24 || (fs>=18.66 && parseInt(cs.fontWeight)>=700);
+    if (ratio < (large?3:4.5)) low.push(id+' '+ratio.toFixed(2)+' "'+t.textContent.trim().slice(0,18)+'"');
+  }
+  return {n, small:[...new Set(small)].slice(0,8), low:[...new Set(low)].slice(0,25)};
+}
+"""
+    def sweep(pg, label):
+        r = pg.evaluate(SWEEP)
+        check(f"{label}: 12px 미만 글자 없음", not r["small"], ", ".join(r["small"]))
+        check(f"{label}: 글자 대비 4.5:1 이상 (그라데이션·이미지 바탕 제외, 검사 {r['n']}개)", not r["low"], "; ".join(r["low"][:6]))
+    dctx = browser.new_context(viewport={"width": 1920, "height": 1080}, color_scheme="light")
+    dctx.add_init_script("window.__anim = []; addEventListener('DOMContentLoaded', () => setTimeout(() => { window.__anim = document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations !== Infinity).map(a => { const t = a.effect.getComputedTiming(); return (t.delay || 0) + (t.duration || 0) + (t.endDelay || 0); }); }, 60))")
+    dp = dctx.new_page()
+    dp.goto(URL, wait_until="domcontentloaded")
+    dp.wait_for_selector("#login-demo")
+    dp.click("#login-demo")
+    dp.wait_for_selector(".eval-card")
+    if dp.locator("#ob-skip").count():
+        dp.click("#ob-skip")
+    check("테마: 기본은 운영체제 설정(밝게) · color-scheme 적용", dp.evaluate("() => document.documentElement.dataset.theme") == "light" and dp.evaluate("() => getComputedStyle(document.documentElement).colorScheme") == "light")
+    cv = lambda n: dp.evaluate("n => { const d=document.createElement('i'); d.style.color='var('+n+')'; document.body.appendChild(d); const c=getComputedStyle(d).color; d.remove(); return c; }", n)
+    check("브랜드 팔레트(밝은 테마): --accent #F37321 · 70% #F89B6C · 50% #FBB584", cv("--accent") == "rgb(243, 115, 33)" and cv("--accent-2") == "rgb(248, 155, 108)" and cv("--accent-3") == "rgb(251, 181, 132)", f"{cv('--accent')} {cv('--accent-2')} {cv('--accent-3')}")
+    check("브랜드 검정(밝은 테마): --solid·--ink = #1B1B1B", cv("--solid") == "rgb(27, 27, 27)" and cv("--ink") == "rgb(27, 27, 27)")
+    check("주 버튼: 오렌지 채움 + #1B1B1B 글자 (흰 글자 아님)", dp.evaluate("() => { const b=getComputedStyle(document.querySelector('.topbar .btn-primary')); return b.backgroundColor+'|'+b.color; }") == "rgb(243, 115, 33)|rgb(27, 27, 27)")
+    check("테마 전환: 해/달 선택 상자 (라디오 2개, 접근 이름)", dp.locator(".theme-seg [role='radio']").count() == 2 and dp.locator(".theme-seg").get_attribute("aria-label") == "화면 테마")
+    dp.wait_for_timeout(500)
+    sweep(dp, "밝은 테마")
+    dp.screenshot(path=f"{SHOTS}/v5_light.png")
+    import time as _t
+    t0 = _t.time()
+    dp.locator(".theme-seg button[aria-label='어둡게']").click()
+    dp.wait_for_function("() => document.documentElement.dataset.theme === 'dark'", timeout=3000)
+    dt = (_t.time() - t0) * 1000
+    check("어두운 테마: data-theme가 1.5초 안에 바뀜", dt < 1500, f"{round(dt)}ms")
+    dp.wait_for_timeout(900)
+    check("어두운 테마: 색 구성표·바탕 (page #101010)", dp.evaluate("() => getComputedStyle(document.documentElement).colorScheme") == "dark" and dp.evaluate("() => getComputedStyle(document.body).backgroundColor") == "rgb(16, 16, 16)")
+    check("어두운 테마: 저장됨 (localStorage)", dp.evaluate("() => localStorage.getItem('procure-ai:theme')") == '"dark"')
+    check("전환 뒤 liquid-switching 등 임시 클래스가 남지 않음", dp.evaluate("() => !document.documentElement.classList.contains('liquid-switching') && !document.documentElement.classList.contains('theme-fade')"))
+    dp.locator(".data-table tbody tr").nth(1).click()
+    dp.fill("#chat-input", "납기 준수율이 낮은 협력사를 찾아줘")
+    dp.press("#chat-input", "Enter")
+    dp.wait_for_function("() => !document.querySelector('.progress')", timeout=8000)
+    dp.wait_for_timeout(500)  # 말풍선 진입 동작이 끝난 뒤 측정
+    sweep(dp, "어두운 테마(답변·선택)")
+    dp.screenshot(path=f"{SHOTS}/v5_dark.png")
+    for tname in ("구매조달", "원가-계약", "자재-공급관리"):
+        dp.locator(".tab", has_text=tname).click()
+        for i in range(dp.locator(".subtab").count()):
+            dp.locator(".subtab").nth(i).click()
+            dp.wait_for_timeout(250)
+            sweep(dp, f"어두운 테마 {tname} 보기{i+1}")
+    # 새로고침: 첫 그림 전에 이미 어둡게 (인라인 스크립트)
+    dp.reload(wait_until="commit")
+    dp.wait_for_function("() => !!document.documentElement.dataset.theme")
+    first_theme = dp.evaluate("() => document.documentElement.dataset.theme")
+    check("새로고침: 첫 그림 전에 data-theme=dark 적용 (흰 화면 깜빡임 없음)", first_theme == "dark")
+    dp.wait_for_selector(".eval-card")
+    check("새로고침 후 어두운 테마 유지", dp.evaluate("() => document.documentElement.dataset.theme") == "dark" and dp.locator(".theme-seg button[aria-checked='true']").get_attribute("aria-label") == "어둡게")
+    dp.locator(".user-btn").click()
+    check("강조색 선택: 5개 라디오 (색 이름 접근 이름)", dp.locator(".accent-pick [role='radio']").count() == 5 and dp.locator(".accent-pick [aria-label='강조색 파랑']").count() == 1)
+    base_fill = dp.evaluate("() => getComputedStyle(document.querySelector('.topbar .btn-primary')).backgroundColor")
+    dp.locator(".accent-pick [aria-label='강조색 파랑']").click()
+    dp.keyboard.press("Escape")
+    dp.wait_for_timeout(400)
+    check("강조색 파랑: data-accent·주 버튼 색 변경", dp.evaluate("() => document.documentElement.dataset.accent") == "blue" and dp.evaluate("() => getComputedStyle(document.querySelector('.topbar .btn-primary')).backgroundColor") != base_fill)
+    check("강조색 파랑: 70%·50% 색이 따로 계산됨", cv("--accent-2") != "rgb(248, 155, 108)" and cv("--accent-3") != cv("--accent-2"))
+    check("강조색 저장됨", dp.evaluate("() => localStorage.getItem('procure-ai:accent')") == '"blue"')
+    for lab in ("파랑", "초록", "보라", "분홍", "한화 오렌지"):
+        dp.locator(".user-btn").click()
+        dp.locator(f".accent-pick [aria-label='강조색 {lab}']").click()
+        dp.keyboard.press("Escape")
+        sweep(dp, f"강조색 {lab} · 어두운 테마")
+    dp.locator(".theme-seg button[aria-label='밝게']").click()
+    dp.wait_for_function("() => document.documentElement.dataset.theme === 'light'", timeout=3000)
+    dp.wait_for_timeout(900)
+    for lab in ("파랑", "초록", "보라", "분홍", "한화 오렌지"):
+        dp.locator(".user-btn").click()
+        dp.locator(f".accent-pick [aria-label='강조색 {lab}']").click()
+        dp.keyboard.press("Escape")
+        sweep(dp, f"강조색 {lab} · 밝은 테마")
+    # 진입 동작 ≤ 300ms (지연+길이)
+    dp.reload(wait_until="domcontentloaded")
+    dp.wait_for_selector(".eval-card")
+    dp.wait_for_timeout(200)
+    anim = dp.evaluate("() => window.__anim || []")
+    check("진입 동작: 모두 300ms 이하 (지연 포함)", bool(anim) and max(anim) <= 300, f"최대 {max(anim) if anim else '없음'}ms · {len(anim)}개")
+    # 동작 줄이기
+    rctx = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion="reduce")
+    rp = rctx.new_page()
+    rp.goto(URL, wait_until="domcontentloaded")
+    rp.wait_for_selector("#login-demo")
+    rp.click("#login-demo")
+    rp.wait_for_selector(".eval-card")
+    if rp.locator("#ob-skip").count():
+        rp.click("#ob-skip")
+    check("동작 줄이기: 진입 애니메이션 길이 0.01ms", rp.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.app')).animationDuration) < 0.001"))
+    rp.locator(".theme-seg button[aria-label='어둡게']").click()
+    rp.wait_for_function("() => document.documentElement.dataset.theme === 'dark'", timeout=1500)
+    check("동작 줄이기: 테마가 바로 바뀜(색 페이드)", True)
+    rctx.close()
+    # 운영체제 설정이 어두우면 처음부터 어둡게
+    sctx = browser.new_context(viewport={"width": 1366, "height": 768}, color_scheme="dark")
+    sp = sctx.new_page()
+    sp.goto(URL, wait_until="domcontentloaded")
+    check("처음 방문: 운영체제 어두운 설정을 따름", sp.evaluate("() => document.documentElement.dataset.theme") == "dark")
+    sp.wait_for_selector("#login-demo")
+    sweep(sp, "로그인 화면 · 어두운 테마")
+    sctx.close()
+    dctx.close()
+    sf = lap.evaluate(SWEEP)
+    check("1366 밝은 테마: 12px 미만 글자 없음", not sf["small"], ", ".join(sf["small"]))
     tctx.close()
     browser.close()
 

@@ -1,6 +1,6 @@
 // 차트 렌더러 — 막대(세로·가로)와 선 그래프. Recharts 대신 SVG/HTML로 직접 그린다.
 // 원칙: 막대는 0에서 시작, 축은 하나, 2개 이상 계열이면 범례, 마우스를 올리면 값 표시, 데이터 표 제공
-import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { ChartSpec } from "../../lib/analysisTypes";
 import { fmtInt, fmtNum } from "../../lib/format";
 import { ScrollX } from "../ScrollX";
@@ -151,6 +151,7 @@ function DataTable({ spec }: { spec: ChartSpec }) {
 function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean }) {
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
+  const hid = useId().replace(/:/g, "");
   const H = spec.xMarker ? 254 : 240;
   const m = { t: spec.xMarker ? 36 : 22, r: 12, b: 32, l: 52 };
   const pw = Math.max(10, W - m.l - m.r);
@@ -178,6 +179,11 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
       {W > 0 && (
         <div className="chart-canvas">
           <svg width={W} height={H} role="img" aria-label={spec.title}>
+            <defs>
+              <pattern id={`hatch-${hid}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="2" height="6" fill="rgba(255,255,255,0.36)" />
+              </pattern>
+            </defs>
             {sc.ticks.map((t) => (
               <g key={t}>
                 <line x1={m.l} x2={m.l + pw} y1={y(t)} y2={y(t)} className={t === 0 ? "axis-base" : "grid"} />
@@ -198,6 +204,7 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
                     return (
                       <g key={s.key}>
                         <path d={barPath(x, y(v), bw, y(0))} fill={crit ? "var(--status-critical)" : colorOf(spec, si)} />
+                        {!crit && (k === 1 || si === 1) && <path d={barPath(x, y(v), bw, y(0))} fill={`url(#hatch-${hid})`} pointerEvents="none" />}
                         {showValues && (
                           <text x={x + bw / 2} y={y(v) - 5} className="bar-value" textAnchor="middle">
                             {crit ? "! " : ""}

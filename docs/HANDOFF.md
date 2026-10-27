@@ -154,3 +154,11 @@ claude.ai에서 v0.1.0~v0.3.2까지(v0.4.0은 Claude Code) 만들어 왔고, 여
 규칙: SAMPLE 데이터 외에 수치·업체명을 지어내지 말 것, 새 npm 패키지 추가 금지(필요하면 먼저 물어볼 것),
 API 키·비밀번호·면담 기록은 커밋 금지, 기존 기능은 내가 지우라고 한 것만 지울 것.
 ```
+
+## v0.5.1 메모 (한화 컬러웨이)
+- 팔레트: 오렌지 `#F37321`/`#F89B6C`/`#FBB584`, 검정 `#1B1B1B`. 주황 채움 위 글자는 `--on-accent`(#1B1B1B). 주황 글자는 `--accent-ink`. 강조색 파랑 등은 브랜드 밖 선택지.
+
+## v0.5.0 메모 (디자인)
+- 스타일은 `src/styles.css`(기본 규칙) → `src/styles/v14.css`(v14 적용층, 같은 이름 규칙을 덮어씀) 순으로 번들되고 토큰은 `src/styles/tokens.css`. 테마·강조색은 `<html data-theme data-accent>`, 저장 키 `procure-ai:theme`·`procure-ai:accent`, 첫 그림 전 인라인 스크립트는 `scripts/build.mjs`의 PREPAINT.
+- 글자가 들어가는 채움은 `--accent-fill`(오렌지는 --accent와 같고 위 글자는 --on-accent), 카드 위 강조 글자는 `--accent-ink`, 어두운 히어로 위 글자는 `--accent-text-dk`. 새 색을 쓸 때 `tests/e2e.py`의 대비 점검(4.5:1)을 통과해야 한다.
+- E2E 327개 전부 통과(v0.5.0 시점). 스플리터 너비 상수는 App.tsx `SPLITTER_PX`와 v14.css `--split-gap`(20px)이 같아야 한다.

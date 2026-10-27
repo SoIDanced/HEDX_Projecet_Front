@@ -16,6 +16,12 @@ const FONTS =
   '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
   '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">';
 
+// 첫 화면을 그리기 전에 저장된(없으면 운영체제) 테마·강조색을 <html>에 적용 → 깜빡임 방지 (src/platform/theme.ts와 같은 키)
+const PREPAINT =
+  '<script>(function(){var d=document.documentElement,t="light";try{t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}' +
+  'try{var s=JSON.parse(localStorage.getItem("procure-ai:theme"));if(s==="light"||s==="dark")t=s;var a=JSON.parse(localStorage.getItem("procure-ai:accent"));if(["blue","green","violet","rose"].indexOf(a)>=0)d.setAttribute("data-accent",a)}catch(e){}' +
+  'd.setAttribute("data-theme",t)})()</script>';
+
 const TARGETS = [
   { brand: "hanwha", title: "한화엔진 구매·협력사 AI 분석 플랫폼", out: "index.html", full: true },
   { brand: "neutral", title: "구매·협력사 AI 분석", out: "artifact.html", full: false },
@@ -26,7 +32,7 @@ function writeHtml(target, result) {
   const css = result.outputFiles.find((f) => f.path.endsWith(".css"))?.text ?? "";
   const safeJs = js.replace(/<\/script/gi, "<\\/script");
   const html = target.full
-    ? `<!doctype html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<title>${target.title}</title>\n${FONTS}\n<style>${css}</style></head>\n<body><div id="root"></div><script>${safeJs}</script></body></html>\n`
+    ? `<!doctype html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<meta name="theme-color" content="#f4f4f4">\n<title>${target.title}</title>\n${FONTS}\n<style>${css}</style></head>\n<body><div id="root"></div><script>${safeJs}</script></body></html>\n`
     : `<title>${target.title}</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n${FONTS}\n<style>${css}</style>\n<div id="root"></div>\n<script>${safeJs}</script>\n`;
   writeFileSync(join(dist, target.out), html);
   console.log(`[build] dist/${target.out} (${(Buffer.byteLength(html) / 1024).toFixed(0)} KB, ${target.brand})`);

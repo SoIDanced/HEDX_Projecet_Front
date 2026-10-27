@@ -1,5 +1,5 @@
 // 왼쪽 데이터 관리: 4개 데이터 탭(하위 보기 포함) — 표, 검색·빠른 필터·상세 필터(부품 분류), 정렬, 행 상세, 업로드·엑셀
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type CSSProperties } from "react";
 import { LuFileSpreadsheet, LuFileUp } from "react-icons/lu";
 import { SUB_VIEWS, TAB_LABEL, halfLabel, type TabKey } from "../data/types";
 import { useStore } from "../store/store";
@@ -299,7 +299,7 @@ export function DataManagementTabs() {
 
   return (
     <section className="data-tabs" aria-label="데이터 관리" ref={rootRef}>
-      <div className="tabs" role="tablist" aria-label="데이터 종류" onKeyDown={(e) => tabKeys(e, TABS, tab, (t) => dispatch({ type: "tab", tab: t as TabKey }), (t) => `tab-${t}`)}>
+      <div className="tabs" role="tablist" aria-label="데이터 종류" style={{ "--i": TABS.indexOf(tab) } as CSSProperties} onKeyDown={(e) => tabKeys(e, TABS, tab, (t) => dispatch({ type: "tab", tab: t as TabKey }), (t) => `tab-${t}`)}>
         {TABS.map((t) => (
           <button key={t} type="button" role="tab" id={`tab-${t}`} tabIndex={tab === t ? 0 : -1} aria-selected={tab === t} aria-controls="tab-panel" className={`tab ${tab === t ? "is-active" : ""}`} onClick={() => dispatch({ type: "tab", tab: t })}>
             <span className="tab-label">{TAB_LABEL[t]}</span>
@@ -355,7 +355,7 @@ export function DataManagementTabs() {
             extra={
               view.hasFav ? (
                 <label className="check-inline" title="별표로 고정한 관심 항목을 표 맨 위에 둡니다">
-                  <input type="checkbox" checked={state.pinFav} onChange={(e) => dispatch({ type: "pinFav", on: e.target.checked })} id="pin-fav" />
+                  <input type="checkbox" className="switch" checked={state.pinFav} onChange={(e) => dispatch({ type: "pinFav", on: e.target.checked })} id="pin-fav" />
                   <span>관심 항목 맨 위</span>
                 </label>
               ) : null

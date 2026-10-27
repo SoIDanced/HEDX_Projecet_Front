@@ -1,6 +1,6 @@
 // MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 65) · AI 대화(오른쪽 35) 2분할
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { LuDatabase, LuMessagesSquare } from "react-icons/lu";
+import { LuCheck, LuDatabase, LuMessagesSquare, LuTriangleAlert } from "react-icons/lu";
 import { StoreProvider, useStore, type Panel } from "./store/store";
 import { AgentProvider } from "./store/agent";
 import { SupplierEvaluationCard } from "./components/SupplierEvaluationCard";
@@ -37,7 +37,8 @@ function Toast() {
     <div className="toast-region" role="status" aria-live="polite" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
       {state.toast && (
         <div className={`toast toast-${state.toast.tone}`} key={state.toast.id}>
-          {state.toast.text}
+          <span className="toast-icon" aria-hidden>{state.toast.tone === "warn" ? <LuTriangleAlert /> : <LuCheck />}</span>
+          <span>{state.toast.text}</span>
         </div>
       )}
     </div>
@@ -67,7 +68,7 @@ const SPLIT_DEFAULT = 65;
 const SPLIT_MIN = 40;
 const SPLIT_MAX = 80;
 const CHAT_MIN_PX = 320; // styles.css 의 .workspace 와 같은 값: 대화 패널 최소 너비
-const SPLITTER_PX = 12;
+const SPLITTER_PX = 20; // styles/v14.css 의 --split-gap 과 같은 값
 
 /** 데이터 관리(왼쪽) : AI 대화(오른쪽) = 65 : 35, 가운데 경계선을 끌거나 화살표 키로 조절 */
 function useSplit() {
