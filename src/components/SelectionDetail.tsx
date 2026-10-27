@@ -1,7 +1,7 @@
 // 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 AI 대화 패널 위쪽에 접이식으로 표시
-// 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
+// 기본은 한 줄 요약, 펼치면 2열 상세(높이 제한·내부 스크롤). 질문을 보내거나 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
 import { useMemo, type ReactNode } from "react";
-import { LuChevronUp, LuMessageSquareText, LuX } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp, LuMessageSquareText, LuX } from "react-icons/lu";
 import { TAB_LABEL } from "../data/types";
 import { useStore } from "../store/store";
 import { useAgent } from "../store/agent";
@@ -13,16 +13,32 @@ import { pathText } from "../lib/bom";
 import { buildWageTree, jobsForProcess } from "../lib/market";
 
 /** 표에서 고른 행 선택을 풀고 선택 정보도 닫는다 */
-function ClearSelection() {
+function ClearSelection({ compact }: { compact?: boolean }) {
   const { dispatch } = useStore();
   return (
-    <button type="button" className="link-btn detail-clear" onClick={() => dispatch({ type: "clearSelection", what: "row" })} title="표의 행 선택을 해제합니다">
-      <LuX aria-hidden /> 선택 해제
+    <button type="button" className="link-btn detail-clear" onClick={() => dispatch({ type: "clearSelection", what: "row" })} title="표의 행 선택을 해제합니다" aria-label="표의 행 선택 해제">
+      <LuX aria-hidden />
+      {!compact && " 선택 해제"}
     </button>
   );
 }
 
-function Detail({ title, fields, actions, onClose, star, children }: { title: string; fields: [string, ReactNode][]; actions?: ReactNode; onClose: () => void; star?: ReactNode; children?: ReactNode }) {
+function Detail({ title, summary, fields, actions, onClose, star, children }: { title: string; summary: string[]; fields: [string, ReactNode][]; actions?: ReactNode; onClose: () => void; star?: ReactNode; children?: ReactNode }) {
+  const { state, dispatch } = useStore();
+  // 접힌 상태: 이름 + 핵심 값 3~4개만 한 줄로 (넘치면 …)
+  if (!state.detailOpen)
+    return (
+      <section className="row-summary" aria-label={`${title} 요약`}>
+        <p className="row-summary-text" title={[title, ...summary].join(" · ")}>
+          <b>{title}</b>
+          {summary.map((t) => ` · ${t}`).join("")}
+        </p>
+        <ClearSelection compact />
+        <button type="button" className="icon-btn" onClick={() => dispatch({ type: "detailOpen", open: true })} aria-expanded={false} aria-controls="selection-detail" aria-label="선택 정보 펼치기" title="펼치기">
+          <LuChevronDown aria-hidden />
+        </button>
+      </section>
+    );
   return (
     <section className="row-detail" aria-label={`${title} 상세`} id="selection-detail">
       <div className="row-detail-head">
@@ -30,7 +46,7 @@ function Detail({ title, fields, actions, onClose, star, children }: { title: st
         <h3>{title}</h3>
         <span className="spacer" />
         <ClearSelection />
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="선택 정보 접기" title="접기 (대화 패널 위 아이콘으로 다시 열기)">
+        <button type="button" className="icon-btn" onClick={onClose} aria-expanded={true} aria-controls="selection-detail" aria-label="선택 정보 접기" title="접기 (한 줄 요약으로)">
           <LuChevronUp aria-hidden />
         </button>
       </div>
@@ -86,6 +102,7 @@ export function SelectionDetail() {
           <Detail
             title={`${s.name} · ${s.supplierId}`}
             onClose={close}
+            summary={[`등급 ${ev.grade}`, del ? `납기 ${fmtPct(del.rate)}` : "납기 –"]}
             star={<FavStar kind="suppliers" id={s.supplierId} name={s.name} size="md" />}
             fields={[
               ["평가등급(산정)", <><GradeBadge grade={ev.grade} /> {fmtNum(ev.total)}점</>],
@@ -144,6 +161,7 @@ export function SelectionDetail() {
           <Detail
             title={`${p.poNo} · ${p.itemName}`}
             onClose={close}
+            summary={[p.supplierName, p.status, `납기 ${p.dueDate}`]}
             fields={[
               ["발주 업체", `${p.supplierName} (${p.supplierId})`],
               ["수량 · 단가", `${fmtInt(p.qty)} × ${fmtMoney(p.unitPrice ?? null, p.currency)}`],
@@ -167,6 +185,7 @@ export function SelectionDetail() {
           <Detail
             title={`${c.contractId} · ${c.itemName}`}
             onClose={close}
+            summary={[c.supplierName, `단가 ${fmtSignedPct(c.changeRate)}`, c.expiresInDays !== null ? `종료까지 ${c.expiresInDays}일` : "종료일 –"]}
             fields={[
               ["거래 협력사", `${c.supplierName} (${c.supplierId})`],
               ["규격", c.spec ?? "–"],
@@ -194,6 +213,7 @@ export function SelectionDetail() {
           <Detail
             title={`${v.itemName} · ${v.itemCode}`}
             onClose={close}
+            summary={[`재고 ${fmtInt(v.stockQty)}/${fmtInt(v.safetyStock)} ${v.unit}`, v.shortage ? `부족 ${v.shortage}` : "충분", v.supplierName]}
             star={<FavStar kind="items" id={v.itemCode} name={v.itemName} size="md" />}
             fields={[
               ["재고 / 안전재고", `${fmtInt(v.stockQty)} / ${fmtInt(v.safetyStock)} ${v.unit}${v.shortage ? ` (부족 ${v.shortage})` : ""}`],

@@ -1,5 +1,5 @@
 // 왼쪽 데이터 관리: 4개 데이터 탭(하위 보기 포함) — 표, 검색·빠른 필터·상세 필터(부품 분류), 정렬, 행 상세, 업로드·엑셀
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { LuFileSpreadsheet, LuFileUp } from "react-icons/lu";
 import { SUB_VIEWS, TAB_LABEL, halfLabel, type TabKey } from "../data/types";
 import { useStore } from "../store/store";
@@ -21,8 +21,26 @@ import { BOM_LEVELS, itemsUnder, optionsAt } from "../lib/bom";
 import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { infoSheet, tableSheet, type ExportCol } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
+import { isNarrow } from "../store/agent";
 
 const TABS: TabKey[] = ["suppliers", "purchaseOrders", "contracts", "inventory"];
+
+/** 1180px 이하(탭 전환 화면)인지 — 화면 크기가 바뀌면 다시 그린다 */
+const subscribeNarrow = (cb: () => void) => {
+  const mq = window.matchMedia("(max-width: 1180px)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+
+/** 탭 목록 키보드: ←→ 이동, Home/End 처음·끝 (이동하면 바로 선택) */
+function tabKeys(e: ReactKeyboardEvent, ids: string[], cur: string, go: (id: string) => void, domId: (id: string) => string) {
+  const i = ids.indexOf(cur);
+  const n = e.key === "ArrowRight" ? (i + 1) % ids.length : e.key === "ArrowLeft" ? (i - 1 + ids.length) % ids.length : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
+  if (n < 0) return;
+  e.preventDefault();
+  go(ids[n]);
+  document.getElementById(domId(ids[n]))?.focus();
+}
 
 const Code = ({ children }: { children: ReactNode }) => <span className="code">{children}</span>;
 const NameCell = ({ name, code, star }: { name: string; code: string; star?: ReactNode }) => (
@@ -78,6 +96,7 @@ export function DataManagementTabs() {
   const favSup = state.favorites.suppliers;
   const favItem = state.favorites.items;
   const rootRef = useRef<HTMLElement>(null);
+  const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
 
   // 알림·관심 목록을 누르면 데이터 관리 영역으로 스크롤
   useEffect(() => {
@@ -240,6 +259,7 @@ export function DataManagementTabs() {
   }, [tab, derived, q, fv, itemOpts, supOpts, month, asOf, favSup, favItem, bomDef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSelect = (r: unknown) => {
+    if (isNarrow()) dispatch({ type: "toast", text: "상세는 AI 대화 탭에서 볼 수 있어요" }); // 탭은 저절로 바꾸지 않는다
     if (tab === "suppliers") {
       const s = r as SupplierView;
       dispatch({ type: "selectRow", tab, rowKey: s.supplierId, supplierId: s.supplierId });
@@ -279,24 +299,26 @@ export function DataManagementTabs() {
 
   return (
     <section className="data-tabs" aria-label="데이터 관리" ref={rootRef}>
-      <div className="tabs" role="tablist" aria-label="데이터 종류">
+      <div className="tabs" role="tablist" aria-label="데이터 종류" onKeyDown={(e) => tabKeys(e, TABS, tab, (t) => dispatch({ type: "tab", tab: t as TabKey }), (t) => `tab-${t}`)}>
         {TABS.map((t) => (
-          <button key={t} type="button" role="tab" id={`tab-${t}`} aria-selected={tab === t} aria-controls="tab-panel" className={`tab ${tab === t ? "is-active" : ""}`} onClick={() => dispatch({ type: "tab", tab: t })}>
+          <button key={t} type="button" role="tab" id={`tab-${t}`} tabIndex={tab === t ? 0 : -1} aria-selected={tab === t} aria-controls="tab-panel" className={`tab ${tab === t ? "is-active" : ""}`} onClick={() => dispatch({ type: "tab", tab: t })}>
             <span className="tab-label">{TAB_LABEL[t]}</span>
             <span className="tab-count">{counts[t]}</span>
           </button>
         ))}
       </div>
+      <div className="tab-body" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
       {subviews.length > 1 && (
-        <div className="subtabs" role="tablist" aria-label={`${TAB_LABEL[tab]} 보기`}>
+        <div className="subtabs" role="tablist" aria-label={`${TAB_LABEL[tab]} 보기`} onKeyDown={(e) => tabKeys(e, subviews.map((v) => v.id), sub, (v) => dispatch({ type: "subView", tab, view: v }), (v) => `subtab-${tab}-${v}`)}>
           {subviews.map((v) => (
-            <button key={v.id} type="button" role="tab" aria-selected={sub === v.id} className={`subtab ${sub === v.id ? "is-on" : ""}`} onClick={() => dispatch({ type: "subView", tab, view: v.id })} data-sub={v.id}>
+            <button key={v.id} type="button" role="tab" id={`subtab-${tab}-${v.id}`} tabIndex={sub === v.id ? 0 : -1} aria-controls="subview-panel" aria-selected={sub === v.id} className={`subtab ${sub === v.id ? "is-on" : ""}`} onClick={() => dispatch({ type: "subView", tab, view: v.id })} data-sub={v.id}>
               {v.label}
               {v.id === "payments" && derived.payments.summary["임박"].count > 0 && <span className="subtab-badge">{derived.payments.summary["임박"].count}</span>}
             </button>
           ))}
         </div>
       )}
+      <div className="tab-body" id="subview-panel" role={subviews.length > 1 ? "tabpanel" : undefined} aria-labelledby={subviews.length > 1 ? `subtab-${tab}-${sub}` : undefined}>
       {sub === "payments" ? (
         <PaymentSchedule />
       ) : sub === "materials" ? (
@@ -339,7 +361,7 @@ export function DataManagementTabs() {
               ) : null
             }
           />
-          <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          <div>
             <DataTable
               key={tab}
               label={`${TAB_LABEL[tab]} 표`}
@@ -354,10 +376,12 @@ export function DataManagementTabs() {
             />
           </div>
           <p className="data-source">
-            출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · 행을 누르면 오른쪽 AI 대화 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다
+            출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · {narrow ? "행을 누르면 ‘AI 대화’ 탭에서 상세를 볼 수 있고, AI 질문의 대상(문맥)으로 쓰입니다" : "행을 누르면 오른쪽 AI 대화 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다"}
           </p>
         </>
       )}
+      </div>
+      </div>
     </section>
   );
 }

@@ -27,6 +27,9 @@ export type ChatMessage =
       need?: PendingClarify["need"];
       answered?: string | null;
       suggestions?: string[];
+      /** 오류 안내 답변: '다시 시도'가 같은 질문을 다시 보낸다 */
+      error?: boolean;
+      retryQ?: string;
     };
 
 /** 좁은 화면에서 보이는 영역: A = 데이터 관리, C = AI 대화 */
@@ -123,7 +126,7 @@ export const WELCOME: ChatMessage = {
   at: now(),
   engine: "system",
   text: [
-    "안녕하세요. 구매·협력사 데이터 분석 도우미입니다. 협력사 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요. 답은 글로만 정리해 드립니다.",
+    "안녕하세요. 구매·협력사 데이터 분석 도우미입니다. 협력사 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요.",
     "입력창 위의 추천 질문을 누르거나, 왼쪽 데이터 관리에서 품목·협력사를 고른 뒤 질문하면 그 대상을 기준으로 분석합니다.",
   ],
 };
@@ -274,7 +277,7 @@ function reducer(s: State, a: Action): State {
       if (a.what === "supplier") return { ...s, selection: { ...s.selection, supplierId: null } };
       return { ...s, selection: { ...s.selection, rowKey: null, rowTab: null }, detailOpen: false };
     case "addMessage":
-      return { ...s, messages: [...s.messages, a.message], chatUnread: s.panel !== "C" && a.message.role === "assistant" ? true : s.chatUnread };
+      return { ...s, messages: [...s.messages, a.message], detailOpen: a.message.role === "user" ? false : s.detailOpen, chatUnread: s.panel !== "C" && a.message.role === "assistant" ? true : s.chatUnread };
     case "patchMessage":
       return { ...s, messages: s.messages.map((m) => (m.id === a.id && m.role === "assistant" ? { ...m, ...a.patch } : m)) };
     case "addResult": {

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCheck, LuPencil, LuPin, LuPinOff, LuSearch, LuTrash2, LuX } from "react-icons/lu";
 import { MAX_RESULTS, resultName, useStore } from "../store/store";
+import { trapTab, useReturnFocus } from "./focus";
 import type { AnalysisResult } from "../lib/analysisTypes";
 
 const when = (iso: string) => {
@@ -18,12 +19,17 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
   const [askDel, setAskDel] = useState<string | null>(null); // 삭제는 한 번 더 확인한다 (되돌릴 수 없음)
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const outside = useRef(false); // 바깥을 눌러 닫을 때는 누른 곳에 초점을 두고, 그 밖에는 '대화 이력' 버튼으로 돌려준다
+  useReturnFocus(outside);
 
   useEffect(() => {
     searchRef.current?.focus();
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (ref.current && !ref.current.contains(t) && !t.closest(".history-toggle")) onClose();
+      if (ref.current && !ref.current.contains(t) && !t.closest(".history-toggle")) {
+        outside.current = true;
+        onClose();
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && askDel) {
@@ -67,7 +73,7 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
   };
 
   return (
-    <div className="popover history-pop" ref={ref} role="dialog" aria-label="대화 이력" id="history-panel">
+    <div className="popover history-pop" ref={ref} role="dialog" aria-label="대화 이력" id="history-panel" tabIndex={-1} onKeyDown={(e) => trapTab(e, ref.current)}>
       <div className="pop-head">
         <div>
           <h3>대화 이력</h3>
