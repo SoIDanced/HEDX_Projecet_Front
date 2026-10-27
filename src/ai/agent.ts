@@ -1,5 +1,5 @@
 // AI 계층 ③: 질문 처리 흐름
-// 의도 파악 → 대상 확인(없으면 추가 질문) → 데이터 검색·계산 → 결과 요약 → 템플릿 추천
+// 의도 파악 → 대상 확인(없으면 추가 질문) → 데이터 검색·계산 → 결과 요약 → 글 답변
 import type { DataMeta, DataSet } from "../data/types";
 import type { AnalysisParams, AnalysisResult } from "../lib/analysisTypes";
 import { AnalysisError, KIND_LABEL, PRIORITY, runAnalysis, weightText } from "../lib/analysis";
@@ -43,7 +43,7 @@ export const SUGGESTIONS = [
   "A등급 협력사의 품질 실적을 정리해 줘.",
 ];
 
-export const STEPS = ["질문 의도 파악", "대상·데이터 확인", "계산 및 분석", "결과 형식 추천·표시"];
+export const STEPS = ["질문 의도 파악", "대상·데이터 확인", "계산 및 분석", "답변 정리"];
 
 const catalogOf = (data: DataSet): Catalog => ({
   items: data.items.map((i) => ({ itemCode: i.itemCode, name: i.name })),
@@ -198,7 +198,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
         type: "message",
         text: [
           "협력사·발주·계약·재고 데이터로 다음을 분석할 수 있습니다: 품목별 후보 업체 비교, 납기 준수율 저조 협력사, 단가 상승 품목, 등급별 품질 실적, 협력사 평가 근거, 재고·공급 위험.",
-          "질문하면 알맞은 형식(협력사 비교표·데이터 시각화·종합 평가 카드·분석 보고서)으로 분석 결과창에 바로 보여 드리고, 결과창 상단에서 형식을 바꿀 수 있습니다.",
+          "질문하면 데이터로 계산한 결과를 글로 정리해 이 대화에 바로 답하고, 근거 표는 엑셀·CSV로 내보낼 수 있습니다.",
         ],
         suggestions: SUGGESTIONS,
         engine,

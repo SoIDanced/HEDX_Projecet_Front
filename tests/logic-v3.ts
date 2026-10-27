@@ -8,7 +8,8 @@ import { buildMaterialSeries, buildWageTree, jobsForProcess, toKrwPerKg } from "
 import { KPIS } from "../src/lib/kpi";
 import { itemsUnder, optionsAt, pathText } from "../src/lib/bom";
 import { buildXlsx, colName, crc32, excelDate } from "../src/lib/xlsx";
-import { resultSheets } from "../src/lib/exporters";
+import { resultCsv, resultSheets } from "../src/lib/exporters";
+import { answerSections } from "../src/lib/answerText";
 import { runAnalysis } from "../src/lib/analysis";
 import { validateRows } from "../src/lib/validate";
 
@@ -104,6 +105,15 @@ const res = runAnalysis({ kind: "item_candidates", itemCode: "ITM-1001", priorit
 const bytes = buildXlsx(resultSheets(res, res.title), res.title);
 check("xlsx zip 서명", bytes[0] === 0x50 && bytes[1] === 0x4b && bytes.length > 4000, `${bytes.length} bytes`);
 if (process.argv[2]) writeFileSync(process.argv[2], bytes);
+
+// ── v0.4.0: 글 답변 ──
+const secs = answerSections(res);
+const flat = secs.map((s) => s.items.join("\n")).join("\n");
+check("글 답변: 비교 결과 줄 = 업체 수", secs.find((s) => s.id === "rows")!.items.length === res.rows.length);
+check("글 답변: 위험 요소·평가 근거 구역", secs.some((s) => s.id === "risks") && secs.some((s) => s.id === "basis"));
+check("글 답변: 순위 제외 사유 문장", flat.includes("순위 제외") === res.rows.some((r) => r.excludedReason));
+check("글 답변: 업체명이 모두 들어감", res.rows.every((r) => flat.includes(r.label)));
+check("CSV 내보내기: 머리글 + 업체 행", resultCsv(res).trim().split("\n").length >= res.rows.length + 1);
 
 console.log(`\n${pass}/${pass + fail} 통과`);
 process.exit(fail ? 1 : 0);

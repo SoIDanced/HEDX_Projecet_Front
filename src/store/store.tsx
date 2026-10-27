@@ -4,11 +4,10 @@ import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type
 import type { DataMeta, DataSet, DatasetKey, TabKey } from "../data/types";
 import { SCHEMAS, pkOf } from "../data/schema";
 import { loadSample } from "../data/sampleData";
-import type { AnalysisResult, TemplateId } from "../lib/analysisTypes";
+import type { AnalysisResult } from "../lib/analysisTypes";
 import { derive, type Derived } from "../lib/metrics";
 import type { FilterValues } from "../lib/filters";
 import type { ClarifyOption, Engine, PendingClarify } from "../ai/agent";
-import { clone, DEFAULT_SETTINGS, normalizeSettings, type Preset, type ViewSettings } from "../templates/presets";
 import { readStore, userKey, writeStore } from "../platform/storage";
 import { idbDel, idbGet, idbSet } from "../platform/idb";
 import type { User } from "../platform/users";
@@ -24,14 +23,16 @@ export type ChatMessage =
       text: string[];
       resultId?: string;
       followup?: boolean;
-      shownAs?: TemplateId | null;
       options?: ClarifyOption[];
       need?: PendingClarify["need"];
       answered?: string | null;
       suggestions?: string[];
+      /** 오류 안내 답변: '다시 시도'가 같은 질문을 다시 보낸다 */
+      error?: boolean;
+      retryQ?: string;
     };
 
-/** 좁은 화면에서 보이는 영역: A = 데이터 관리, C = 분석 결과 */
+/** 좁은 화면에서 보이는 영역: A = 데이터 관리, C = AI 대화 */
 export type Panel = "A" | "C";
 
 export interface ResultMeta {
@@ -55,23 +56,20 @@ export interface State {
   messages: ChatMessage[];
   results: Record<string, AnalysisResult>;
   resultMeta: Record<string, ResultMeta>;
-  view: { resultId: string | null; template: TemplateId | null };
+  view: { resultId: string | null }; // 대화에서 마지막으로 보여 준 답변(이력의 '보는 중' 표시)
   lastResultId: string | null;
   pending: PendingClarify | null;
   busy: boolean;
   progress: number;
   aiMode: "rule" | "llm";
   panel: Panel;
-  chatOpen: boolean;
-  chatUnread: boolean;
-  settings: ViewSettings;
-  userPresets: Preset[];
+  chatUnread: boolean; // 좁은 화면에서 다른 탭을 보는 동안 새 답변이 온 경우
   favorites: { suppliers: string[]; items: string[] };
   pinFav: boolean;
   payChecked: string[];
   importFor: DatasetKey | null;
   onboarding: boolean; // 첫 사용 안내 열림
-  detailOpen: boolean; // 분석 결과창 위쪽의 선택 정보(협력사·부품 상세) 펼침
+  detailOpen: boolean; // AI 대화 패널 위쪽의 선택 정보(협력사·부품 상세) 펼침
   toast: { id: number; text: string; tone: "ok" | "warn" } | null;
 }
 
@@ -89,7 +87,7 @@ export type Action =
   | { type: "addMessage"; message: ChatMessage }
   | { type: "patchMessage"; id: string; patch: Partial<Extract<ChatMessage, { role: "assistant" }>> }
   | { type: "addResult"; result: AnalysisResult; asLast?: boolean }
-  | { type: "show"; resultId: string; template: TemplateId }
+  | { type: "show"; resultId: string }
   | { type: "renameResult"; id: string; name: string }
   | { type: "pinResult"; id: string; pinned: boolean }
   | { type: "deleteResult"; id: string }
@@ -97,11 +95,7 @@ export type Action =
   | { type: "busy"; busy: boolean; progress?: number }
   | { type: "aiMode"; mode: "rule" | "llm" }
   | { type: "panel"; panel: Panel }
-  | { type: "chat"; open: boolean }
   | { type: "chatUnread"; unread: boolean }
-  | { type: "settings"; settings: ViewSettings }
-  | { type: "savePreset"; preset: Preset }
-  | { type: "deletePreset"; id: string }
   | { type: "toggleFav"; kind: "suppliers" | "items"; id: string }
   | { type: "pinFav"; on: boolean }
   | { type: "payCheck"; poNo: string; on: boolean }
@@ -141,7 +135,6 @@ export const WELCOME: ChatMessage = {
 export const MAX_RESULTS = 50;
 const MAX_MESSAGES = 80;
 const SESSION = "session.v3";
-const SETTINGS = "view-settings.v2";
 const PREFS = "prefs.v1";
 export const UPLOADS = "uploads";
 export const ONBOARDED = "onboarded.v1";
@@ -173,14 +166,6 @@ function loadSession(uid: string): SavedSession | null {
   return s;
 }
 
-function loadSettings(uid: string): { settings: ViewSettings; userPresets: Preset[] } {
-  const s = readStore<{ settings: unknown; userPresets: Preset[] }>(userKey(uid, SETTINGS));
-  return {
-    settings: s ? normalizeSettings(s.settings) : clone(DEFAULT_SETTINGS),
-    userPresets: Array.isArray(s?.userPresets) ? s!.userPresets.map((p) => ({ ...p, settings: normalizeSettings(p.settings), builtIn: false })) : [],
-  };
-}
-
 /** 이력 보관 개수를 넘으면 고정하지 않은 가장 오래된 결과부터 지운다 */
 function trimResults(results: Record<string, AnalysisResult>, meta: Record<string, ResultMeta>, keepIds: (string | null)[], max = MAX_RESULTS) {
   const list = Object.values(results).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -200,7 +185,7 @@ function compactSession(s: State, maxResults = MAX_RESULTS, maxMessages = MAX_ME
     messages,
     results,
     resultMeta,
-    view: s.view.resultId && results[s.view.resultId] ? s.view : { resultId: null, template: null },
+    view: s.view.resultId && results[s.view.resultId] ? { resultId: s.view.resultId } : { resultId: null },
     lastResultId: s.lastResultId && results[s.lastResultId] ? s.lastResultId : null,
     pending: s.pending,
   };
@@ -211,7 +196,6 @@ const EMPTY_TABS = <T,>(v: () => T): Record<TabKey, T> => ({ suppliers: v(), pur
 function initial(user: User): State {
   const { data, meta } = loadSample();
   const saved = loadSession(user.id);
-  const { settings, userPresets } = loadSettings(user.id);
   const prefs = readStore<SavedPrefs>(userKey(user.id, PREFS)) ?? {};
   return {
     user,
@@ -229,17 +213,14 @@ function initial(user: User): State {
     messages: saved?.messages?.length ? saved.messages : [WELCOME],
     results: saved?.results ?? {},
     resultMeta: saved?.resultMeta ?? {},
-    view: saved?.view ?? { resultId: null, template: null },
+    view: { resultId: saved?.view?.resultId && saved.results[saved.view.resultId] ? saved.view.resultId : null },
     lastResultId: saved?.lastResultId ?? null,
     pending: saved?.pending ?? null,
     busy: false,
     progress: 0,
     aiMode: "rule",
     panel: "A",
-    chatOpen: false,
     chatUnread: false,
-    settings,
-    userPresets,
     favorites: { suppliers: prefs.favorites?.suppliers ?? [], items: prefs.favorites?.items ?? [] },
     pinFav: !!prefs.pinFav,
     payChecked: prefs.payChecked ?? [],
@@ -296,7 +277,7 @@ function reducer(s: State, a: Action): State {
       if (a.what === "supplier") return { ...s, selection: { ...s.selection, supplierId: null } };
       return { ...s, selection: { ...s.selection, rowKey: null, rowTab: null }, detailOpen: false };
     case "addMessage":
-      return { ...s, messages: [...s.messages, a.message], chatUnread: !s.chatOpen && a.message.role === "assistant" ? true : s.chatUnread };
+      return { ...s, messages: [...s.messages, a.message], detailOpen: a.message.role === "user" ? false : s.detailOpen, chatUnread: s.panel !== "C" && a.message.role === "assistant" ? true : s.chatUnread };
     case "patchMessage":
       return { ...s, messages: s.messages.map((m) => (m.id === a.id && m.role === "assistant" ? { ...m, ...a.patch } : m)) };
     case "addResult": {
@@ -306,12 +287,12 @@ function reducer(s: State, a: Action): State {
         ...s,
         results,
         lastResultId: a.asLast === false ? s.lastResultId : a.result.id,
-        detailOpen: false, // 챗봇 결과가 나오면 선택 정보는 접어 상단 아이콘으로
+        detailOpen: false, // 새 답변이 오면 선택 정보는 접어 상단 아이콘으로
         toast: removed.length ? toast(`분석 이력이 ${MAX_RESULTS}건을 넘어 가장 오래된 결과 '${s.resultMeta[removed[0].id]?.name ?? removed[0].title}'를 지웠습니다. 남길 결과는 이력에서 고정하세요.`, "warn") : s.toast,
       };
     }
     case "show":
-      return { ...s, view: { resultId: a.resultId, template: a.template } };
+      return { ...s, view: { resultId: a.resultId } };
     case "renameResult":
       return { ...s, resultMeta: { ...s.resultMeta, [a.id]: { ...s.resultMeta[a.id], name: a.name.trim() || undefined } } };
     case "pinResult":
@@ -325,7 +306,7 @@ function reducer(s: State, a: Action): State {
         ...s,
         results,
         resultMeta,
-        view: s.view.resultId === a.id ? { resultId: null, template: null } : s.view,
+        view: s.view.resultId === a.id ? { resultId: null } : s.view,
         lastResultId: s.lastResultId === a.id ? null : s.lastResultId,
       };
     }
@@ -336,17 +317,9 @@ function reducer(s: State, a: Action): State {
     case "aiMode":
       return { ...s, aiMode: a.mode };
     case "panel":
-      return { ...s, panel: a.panel };
-    case "chat":
-      return { ...s, chatOpen: a.open, chatUnread: a.open ? false : s.chatUnread };
+      return { ...s, panel: a.panel, chatUnread: a.panel === "C" ? false : s.chatUnread };
     case "chatUnread":
       return { ...s, chatUnread: a.unread };
-    case "settings":
-      return { ...s, settings: a.settings };
-    case "savePreset":
-      return { ...s, userPresets: [...s.userPresets.filter((p) => p.id !== a.preset.id), a.preset] };
-    case "deletePreset":
-      return { ...s, userPresets: s.userPresets.filter((p) => p.id !== a.id) };
     case "toggleFav": {
       const list = s.favorites[a.kind];
       const next = list.includes(a.id) ? list.filter((x) => x !== a.id) : [...list, a.id];
@@ -503,9 +476,6 @@ export function StoreProvider({ user, children }: { user: User; children: ReactN
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    writeStore(userKey(uid, SETTINGS), { settings: state.settings, userPresets: state.userPresets });
-  }, [uid, state.settings, state.userPresets]);
   useEffect(() => {
     writeStore(userKey(uid, PREFS), { favorites: state.favorites, pinFav: state.pinFav, payChecked: state.payChecked } satisfies SavedPrefs);
   }, [uid, state.favorites, state.pinFav, state.payChecked]);

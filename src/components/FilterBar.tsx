@@ -79,8 +79,8 @@ export function FilterBar<T>({
           ))}
         </div>
       )}
-      <div className="filter-status" aria-live="polite">
-        <span className="filter-count">
+      <div className="filter-status">
+        <span className="filter-count" aria-live="polite">
           조건에 맞는 행 <b>{shown.toLocaleString()}</b> / 전체 {total.toLocaleString()}
         </span>
         {(active.length > 0 || query) && (

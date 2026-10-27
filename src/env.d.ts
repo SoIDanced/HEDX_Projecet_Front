@@ -5,3 +5,4 @@ declare module "*.png" {
 declare module "virtual:brand" {
   export const BRAND: import("./brand/types").Brand;
 }
+declare module "*.css";

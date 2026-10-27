@@ -1,6 +1,7 @@
 // 내보내기: 분석 결과·데이터 표 → 엑셀 시트
 import type { AnalysisResult, ColumnKind as ResultKind } from "./analysisTypes";
 import type { ColumnKind, XColumn, XSheet, XValue } from "./xlsx";
+import { toCSV } from "./csv";
 
 const KIND: Record<ResultKind, ColumnKind> = {
   text: "text",
@@ -71,4 +72,27 @@ export function tableSheet<T>(name: string, cols: ExportCol<T>[], rows: T[]): XS
 
 export function infoSheet(pairs: [string, XValue][]): XSheet {
   return { name: "조건·출처", columns: [{ header: "항목", width: 22 }, { header: "내용", width: 80 }], rows: pairs.map(([a, b]) => [a, b]) };
+}
+
+/** 답변의 근거 표를 화면에 그리지 않고 CSV 파일로만 내보낸다 */
+export function resultCsv(result: AnalysisResult) {
+  const headers = [
+    ...(result.rows.some((r) => r.rank) ? [{ key: "__rank", label: result.rankLabel ?? "순서" }] : []),
+    { key: "__label", label: "대상" },
+    { key: "__sub", label: "코드" },
+    ...result.columns.map((c) => ({ key: c.key, label: c.label })),
+    { key: "__currency", label: "통화" },
+    { key: "__strengths", label: "강점" },
+    { key: "__risks", label: "위험 요소" },
+  ];
+  const rows = result.rows.map((r) => ({
+    __rank: r.rank ?? "",
+    __label: r.label,
+    __sub: r.sub ?? "",
+    ...r.values,
+    __currency: r.currency ?? "",
+    __strengths: r.strengths.join(" / "),
+    __risks: r.risks.join(" / "),
+  }));
+  return toCSV(headers, rows);
 }

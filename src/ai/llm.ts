@@ -7,7 +7,7 @@ export interface LLMProvider {
   id: "server";
   label: string;
   interpret(prompt: string): Promise<unknown>;
-  generate(prompt: string): Promise<string>;
+  generate(prompt: string, signal?: AbortSignal): Promise<string>;
 }
 
 const GENERATE_URL = "http://localhost:8000/answer";
@@ -49,9 +49,10 @@ export async function detectProvider(): Promise<LLMProvider | null> {
       if (body.error) throw new Error(body.error);
       return tolerantJSON(body.text ?? "");
     },
-    generate: async (prompt) => {
+    generate: async (prompt, signal) => {
       const response = await fetch(GENERATE_URL, {
         method: "POST",
+        signal,
         headers: {
           "content-type": "application/json",
           accept: "application/json",

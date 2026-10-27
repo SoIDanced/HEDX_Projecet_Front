@@ -34,6 +34,65 @@ const STEP_ICON = {
 };
 const STEP_WORD = { done: "완료", warn: "확인 필요", todo: "대기" } as const;
 
+/** 처리 단계 아이콘 줄: 마우스를 올리거나 초점을 주면 모든 단계의 이름·상태·상세를 바로 보여 준다 (카드 밖으로 잘리지 않게 body에 고정 배치) */
+function StepsMini({ steps }: { steps: SupplierEvaluation["steps"] }) {
+  const [active, setActive] = useState<number | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const show = (i: number) => {
+    const r = barRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = Math.min(380, window.innerWidth - 24);
+      setPos({ top: r.bottom + 6, left: Math.max(12, Math.min(r.right - width, window.innerWidth - width - 12)), width });
+    }
+    setActive(i);
+  };
+  const hide = () => setActive(null);
+  useEffect(() => {
+    if (active === null) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && hide();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [active]);
+  return (
+    <div className="eval-steps-mini" ref={barRef}>
+      <span className="steps-mini-title" aria-hidden>처리 단계</span>
+      <ol className="steps-mini-list" aria-label={`처리 단계: ${steps.map((st) => `${st.label} ${STEP_WORD[st.status]}`).join(", ")}`}>
+        {steps.map((st, i) => (
+          <li
+            key={st.label}
+            className={`step-mini step-${st.status}`}
+            tabIndex={0}
+            aria-describedby={active !== null ? "steps-tip" : undefined}
+            onMouseEnter={() => show(i)}
+            onMouseLeave={hide}
+            onFocus={() => show(i)}
+            onBlur={hide}
+          >
+            {STEP_ICON[st.status]}
+            <span className="step-mini-label">{st.label}</span>
+          </li>
+        ))}
+      </ol>
+      {active !== null && pos && createPortal(
+        <div id="steps-tip" role="tooltip" className="steps-tip" style={pos}>
+          {steps.map((st, i) => (
+            <div key={st.label} className={`steps-tip-row tip-${st.status} ${i === active ? "is-active" : ""}`}>
+              <div className="steps-tip-head">
+                {STEP_ICON[st.status]}
+                <b>{st.label}</b>
+                <span className="steps-tip-status">{STEP_WORD[st.status]}</span>
+              </div>
+              {st.detail && <div className="steps-tip-detail">{st.detail}</div>}
+            </div>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 function popoverPos(anchor: HTMLElement) {
   const r = anchor.getBoundingClientRect();
   const width = Math.min(460, window.innerWidth - 24);
@@ -195,17 +254,7 @@ export function SupplierEvaluationCard() {
           </div>
           {ev && (
             // 처리 단계: 카드 아래 큰 영역 대신 오른쪽 위 구석에 작은 아이콘 줄로 (마우스를 올리면 단계 이름·상태)
-            <div className="eval-steps-mini">
-            <span className="steps-mini-title" aria-hidden>처리 단계</span>
-            <ol className="steps-mini-list" aria-label={`처리 단계: ${ev.steps.map((st) => `${st.label} ${STEP_WORD[st.status]}`).join(", ")}`}>
-              {ev.steps.map((st) => (
-                <li key={st.label} className={`step-mini step-${st.status}`} title={`${st.label} · ${STEP_WORD[st.status]}${st.detail ? `\n${st.detail}` : ""}`}>
-                  {STEP_ICON[st.status]}
-                  <span className="step-mini-label">{st.label}</span>
-                </li>
-              ))}
-            </ol>
-            </div>
+            <StepsMini steps={ev.steps} />
           )}
         </div>
       </div>

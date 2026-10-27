@@ -35,12 +35,12 @@ export function StatusPill({ value }: { value: string | null | undefined }) {
   return <span className={`pill pill-${tone}`}>{value}</span>;
 }
 
-export function Chip({ children, onRemove, tone = "neutral" }: { children: ReactNode; onRemove?: () => void; tone?: "neutral" | "accent" }) {
+export function Chip({ children, onRemove, removeLabel = "선택 해제", tone = "neutral" }: { children: ReactNode; onRemove?: () => void; removeLabel?: string; tone?: "neutral" | "accent" }) {
   return (
     <span className={`chip chip-${tone}`}>
       {children}
       {onRemove && (
-        <button type="button" className="chip-x" onClick={onRemove} aria-label="선택 해제">
+        <button type="button" className="chip-x" onClick={onRemove} aria-label={removeLabel}>
           ×
         </button>
       )}
@@ -73,13 +73,3 @@ export function formatCell(kind: ColumnKind, v: unknown, currency = "KRW", digit
 }
 
 export const isNumericKind = (c: Pick<ResultColumn, "kind">) => ["int", "number", "percent", "signedPercent", "money"].includes(c.kind);
-
-export function EmptyState({ title, children, icon }: { title: string; children?: ReactNode; icon?: ReactNode }) {
-  return (
-    <div className="empty">
-      {icon && <div className="empty-icon">{icon}</div>}
-      <p className="empty-title">{title}</p>
-      {children && <div className="empty-body">{children}</div>}
-    </div>
-  );
-}

@@ -21,11 +21,11 @@ export function trapTab(e: KeyboardEvent, root: HTMLElement | null) {
 }
 
 /** 열릴 때 초점이 있던 곳을 기억했다가 닫힐 때 돌려준다 (그 요소가 아직 화면에 있을 때만) */
-export function useReturnFocus() {
+export function useReturnFocus(skip?: { current: boolean }) {
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     return () => {
-      if (prev && prev.isConnected && prev !== document.body) setTimeout(() => prev.isConnected && prev.focus({ preventScroll: true }), 0);
+      if (!skip?.current && prev && prev.isConnected && prev !== document.body) setTimeout(() => prev.isConnected && prev.focus({ preventScroll: true }), 0);
     };
   }, []);
 }
