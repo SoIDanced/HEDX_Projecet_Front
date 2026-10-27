@@ -1,14 +1,13 @@
-// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽) · 분석 결과(오른쪽) 2분할 + 떠 있는 AI 챗봇
+// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 70) · AI 대화(오른쪽 30) 2분할
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { LuDatabase, LuPanelRight } from "react-icons/lu";
+import { LuDatabase, LuMessagesSquare } from "react-icons/lu";
 import { StoreProvider, useStore, type Panel } from "./store/store";
 import { AgentProvider } from "./store/agent";
 import { SupplierEvaluationCard } from "./components/SupplierEvaluationCard";
 import { DataManagementTabs } from "./components/DataManagementTabs";
-import { ChatWidget } from "./components/ChatWidget";
+import { ChatPanel } from "./components/ChatPanel";
 import { readStore, writeStore } from "./platform/storage";
 import { currentUser, logout, type User } from "./platform/users";
-import { ResultPanel } from "./components/ResultPanel";
 import { ImportDialog } from "./components/ImportDialog";
 import { Topbar } from "./components/Topbar";
 import { Onboarding } from "./components/Onboarding";
@@ -17,7 +16,7 @@ import { BRAND } from "./brand";
 
 const PANEL_TABS: { id: Panel; label: string; icon: ReactNode }[] = [
   { id: "A", label: "데이터 관리", icon: <LuDatabase aria-hidden /> },
-  { id: "C", label: "분석 결과", icon: <LuPanelRight aria-hidden /> },
+  { id: "C", label: "AI 대화", icon: <LuMessagesSquare aria-hidden /> },
 ];
 
 function Toast() {
@@ -35,12 +34,12 @@ function Toast() {
   );
 }
 
-const SPLIT_KEY = "split.v1";
-const SPLIT_DEFAULT = 45;
-const SPLIT_MIN = 30;
-const SPLIT_MAX = 70;
+const SPLIT_KEY = "split.v2"; // v0.4.0: 기본 비율이 70:30으로 바뀌어 예전 저장값(45)이 덮어쓰지 않게 키를 올림
+const SPLIT_DEFAULT = 70;
+const SPLIT_MIN = 40;
+const SPLIT_MAX = 80;
 
-/** 데이터 관리(왼쪽) : 분석 결과(오른쪽) = 45 : 55, 가운데 경계선을 끌거나 화살표 키로 조절 */
+/** 데이터 관리(왼쪽) : AI 대화(오른쪽) = 70 : 30, 가운데 경계선을 끌거나 화살표 키로 조절 */
 function useSplit() {
   const [left, setLeft] = useState<number>(() => {
     const v = readStore<number>(SPLIT_KEY);
@@ -56,7 +55,6 @@ function useSplit() {
 
 function Workspace() {
   const { state, dispatch } = useStore();
-  const hasResult = !!state.view.resultId;
   const [left, setLeft] = useSplit();
   const mainRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -83,7 +81,7 @@ function Workspace() {
           <button key={p.id} type="button" className={state.panel === p.id ? "is-active" : ""} aria-pressed={state.panel === p.id} onClick={() => dispatch({ type: "panel", panel: p.id })}>
             {p.icon}
             {p.label}
-            {p.id === "C" && hasResult && state.panel !== "C" && <i className="tab-dot" aria-label="새 결과" />}
+            {p.id === "C" && state.panel !== "C" && (state.chatUnread || (state.detailOpen && !!state.selection.rowKey)) && <i className="tab-dot" aria-label="새 답변 또는 선택 정보" />}
           </button>
         ))}
       </nav>
@@ -104,7 +102,7 @@ function Workspace() {
           className="splitter"
           role="separator"
           aria-orientation="vertical"
-          aria-label="데이터 관리와 분석 결과 너비 조절"
+          aria-label="데이터 관리와 AI 대화 너비 조절"
           aria-valuemin={SPLIT_MIN}
           aria-valuemax={SPLIT_MAX}
           aria-valuenow={Math.round(left)}
@@ -118,15 +116,14 @@ function Workspace() {
             else return;
             e.preventDefault();
           }}
-          title="끌어서 너비 조절 · 두 번 누르면 45:55로"
+          title="끌어서 너비 조절 · 두 번 누르면 70:30으로"
         >
           <span className="splitter-grip" aria-hidden />
         </div>
-        <section className={`panel panel-c ${state.panel === "C" ? "is-active" : ""}`} aria-label="분석 결과">
-          <ResultPanel />
+        <section className={`panel panel-c ${state.panel === "C" ? "is-active" : ""}`} aria-label="AI 대화">
+          <ChatPanel />
         </section>
       </main>
-      <ChatWidget />
     </>
   );
 }

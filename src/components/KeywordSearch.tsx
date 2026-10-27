@@ -18,7 +18,6 @@ export function KeywordSearch() {
     dispatch({ type: "selectRow", tab: h.tab, rowKey: h.rowKey, supplierId: h.supplierId, itemCode: h.itemCode });
     if (isNarrow()) {
       dispatch({ type: "panel", panel: "A" });
-      dispatch({ type: "chat", open: false });
     }
     dispatch({ type: "toast", text: `${h.tabLabel} 탭에서 '${h.title}'을(를) 선택했습니다` });
     setOpen(false);

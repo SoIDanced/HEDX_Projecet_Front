@@ -253,7 +253,6 @@ export function DataManagementTabs() {
       const v = r as InventoryView;
       dispatch({ type: "selectRow", tab, rowKey: v.itemCode, itemCode: v.itemCode, supplierId: v.mainSupplierId ?? undefined });
     }
-    dispatch({ type: "panel", panel: "C" }); // 상세는 오른쪽 분석 결과창에 (태블릿·휴대폰은 결과 탭으로 전환)
   };
 
   const exportExcel = async () => {
@@ -355,7 +354,7 @@ export function DataManagementTabs() {
             />
           </div>
           <p className="data-source">
-            출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · 행을 누르면 오른쪽 분석 결과창에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다
+            출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · 행을 누르면 오른쪽 AI 대화 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다
           </p>
         </>
       )}

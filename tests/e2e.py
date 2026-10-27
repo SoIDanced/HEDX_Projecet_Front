@@ -1,6 +1,6 @@
-"""브라우저 E2E 테스트 (v0.3.0)
-간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 선택 정보(결과창), 2분할·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 떠 있는 챗봇(왼쪽 아래),
-결과 형식·보기 설정·분석 이력·엑셀, 필터(부품 분류)·정렬·관심 목록, 새 하위 보기(결제 일정·원자재·인건비·경쟁사·업계 동향),
+"""브라우저 E2E 테스트 (v0.4.0)
+간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 70:30·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 대화 패널(글 답변만),
+선택 정보(대화 패널 위 접이식)·대화 이력·답변별 엑셀/CSV 내보내기, 필터(부품 분류)·정렬·관심 목록, 새 하위 보기(결제 일정·원자재·인건비·경쟁사·업계 동향),
 업로드 저장 유지, 해상도별 화면을 확인한다.
 실행: (서버 실행 후) python3 tests/e2e.py [http://localhost:5173] [스크린샷 폴더]
 """
@@ -19,8 +19,9 @@ def check(name, cond, detail=""):
 
 
 def open_chat(page):
+    """오른쪽 대화 패널은 항상 열려 있다. 좁은 화면에서만 'AI 대화' 탭으로 전환한다."""
     if not page.locator("#chat-input").is_visible():
-        page.click(".chat-launcher")
+        page.locator(".panel-tabs button", has_text="AI 대화").click()
         page.wait_for_selector("#chat-input")
 
 
@@ -32,8 +33,12 @@ def ask(page, text):
 
 
 def close_chat(page):
-    if page.locator("#chat-window").count():
-        page.locator(".chat-tools button[aria-label='닫기']").click()
+    """대화 패널은 닫히지 않는다 (예전 떠 있는 창의 닫기 동작 대신 아무것도 하지 않음)."""
+    return None
+
+
+def last_ai(page):
+    return page.locator(".msg-ai").last
 
 
 def rows(page, sel=".data-table tbody tr"):
@@ -142,18 +147,24 @@ with sync_playwright() as p:
     a = page.locator(".panel-a").bounding_box()
     c = page.locator(".panel-c").bounding_box()
     ratio = round(a["width"] / (a["width"] + c["width"]) * 100)
-    check("1920: 데이터 관리 : 분석 결과 = 45:55", abs(ratio - 45) <= 2, f"{ratio}:{100 - ratio}")
+    check("1920: 데이터 관리 : AI 대화 = 70:30", abs(ratio - 70) <= 2, f"{ratio}:{100 - ratio}")
     check("1920: 가로 스크롤 없음", no_hscroll(page))
     check("가운데 챗봇 패널 없음(2분할)", page.locator(".panel-b").count() == 0 and page.locator(".splitter").count() == 1)
     sf = small_fonts(page)
     check("모든 글자 12px 이상", not sf, ", ".join(sf))
     vs = v_scrollers(page)
     check("왼쪽 패널 세로 스크롤 영역 1개", len(vs) == 1, ", ".join(vs))
+    # 70%로 넓어져 표가 넘치지 않을 수 있으므로, 최소 40%까지 줄여 가장자리 그림자를 확인한다
+    page.locator(".splitter").focus()
+    [page.keyboard.press("ArrowLeft") for _ in range(16)]
+    page.wait_for_timeout(150)
     check("표가 옆으로 넘치면 오른쪽 가장자리 그림자", page.locator(".panel-a .scroll-shell.can-r").count() >= 1)
     page.locator(".panel-a .scroll-shell.can-r .table-scroll").first.evaluate("e => { e.scrollLeft = e.scrollWidth; e.dispatchEvent(new Event('scroll')); }")
     page.wait_for_timeout(100)
     check("끝까지 밀면 오른쪽 그림자 대신 고정 열 그림자", page.locator(".panel-a .scroll-shell.can-l").count() >= 1 and page.locator(".panel-a .data-table").first.evaluate("t => !t.closest('.scroll-shell').classList.contains('can-r')"))
     page.locator(".panel-a .scroll-shell.can-l .table-scroll").first.evaluate("e => { e.scrollLeft = 0; e.dispatchEvent(new Event('scroll')); }")
+    page.keyboard.press("Home")
+    page.wait_for_timeout(100)
     page.screenshot(path=f"{SHOTS}/01_1920_initial.png")
 
     # 4. 요약 지표 버튼 제거 · 채점 카드는 그대로, 처리 단계만 오른쪽 위 구석에 작게
@@ -177,17 +188,28 @@ with sync_playwright() as p:
     sp = page.locator(".splitter").bounding_box()
     page.mouse.move(sp["x"] + sp["width"] / 2, sp["y"] + sp["height"] / 2)
     page.mouse.down()
-    page.mouse.move(sp["x"] + 200, sp["y"] + sp["height"] / 2, steps=5)
+    page.mouse.move(sp["x"] - 200, sp["y"] + sp["height"] / 2, steps=5)
     page.mouse.up()
     a2 = page.locator(".panel-a").bounding_box()["width"]
-    check("경계선 끌어서 너비 조절", a2 > a["width"] + 150, f"{round(a['width'])} → {round(a2)}px")
+    check("경계선 끌어서 너비 조절", a2 < a["width"] - 150, f"{round(a['width'])} → {round(a2)}px")
+    check("경계선 접근성: 이름·값 범위(40~80)", "AI 대화" in page.locator(".splitter").get_attribute("aria-label") and page.locator(".splitter").get_attribute("aria-valuemin") == "40" and page.locator(".splitter").get_attribute("aria-valuemax") == "80")
+    page.locator(".splitter").focus()
+    page.keyboard.press("ArrowRight")
+    check("경계선 키보드(→)로 조절", page.locator(".panel-a").bounding_box()["width"] > a2 + 10)
+    page.keyboard.press("Home")
+    check("경계선 Home 키 → 70:30 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
+    page.mouse.move(sp["x"] + sp["width"] / 2, sp["y"] + sp["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(sp["x"] - 200, sp["y"] + sp["height"] / 2, steps=5)
+    page.mouse.up()
+    a2 = page.locator(".panel-a").bounding_box()["width"]
     page.reload(wait_until="domcontentloaded")
     page.wait_for_selector(".eval-card")
     check("새로고침해도 로그인 유지", page.locator(".login-card").count() == 0)
     a3 = page.locator(".panel-a").bounding_box()["width"]
     check("조절한 너비 새로고침 후 유지", abs(a3 - a2) < 4)
     page.locator(".splitter").dblclick()
-    check("경계선 두 번 누르면 45:55 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
+    check("경계선 두 번 누르면 70:30 복귀", abs(page.locator(".panel-a").bounding_box()["width"] - a["width"]) < 4)
 
     # 7. 평가 근거 팝오버
     btn = page.locator(".eval-head .eval-basis-btn")
@@ -205,76 +227,26 @@ with sync_playwright() as p:
     page.mouse.click(1400, 700)
     check("바깥을 누르면 닫힘", page.locator("#basis-popover").count() == 0)
 
-    # 8. 템플릿 바: 결과 전 비활성
-    check("결과 전 템플릿 4종 표시·비활성", page.locator(".tpl-btn").count() == 4 and page.locator(".tpl-btn:disabled").count() == 4)
-    labels = page.locator(".tpl-btn-label").all_inner_texts()
-    check("템플릿 이름", labels == ["협력사 비교표", "데이터 시각화", "종합 평가 카드", "분석 보고서"], ", ".join(labels))
+    # 8. 결과 형식·보기 설정은 없어지고 글 답변만
+    check("템플릿 바·보기 설정·분석 결과 패널 없음", page.locator(".tpl-btn").count() == 0 and page.locator(".vs-toggle").count() == 0 and page.locator(".result-titles").count() == 0 and page.locator("section[aria-label='분석 결과']").count() == 0)
 
-    # 9. 챗봇: 왼쪽 아래 아이콘
-    check("챗봇은 닫힌 아이콘으로 시작", page.locator(".chat-launcher").is_visible() and page.locator("#chat-window").count() == 0)
-    lb = page.locator(".chat-launcher").bounding_box()
-    check("챗봇 아이콘은 왼쪽 아래", lb["x"] < 60 and lb["y"] + lb["height"] > 1080 - 60, f"x={round(lb['x'])}, y={round(lb['y'])}")
-    check("아이콘에 'AI에게 질문하기' 글자", "AI에게 질문하기" in page.locator(".chat-launcher").inner_text())
-    check("첫 방문 안내 말풍선", page.locator(".chat-nudge").count() == 1)
-    page.click(".chat-launcher")
-    page.wait_for_selector("#chat-input")
-    page.wait_for_timeout(100)
-    check("아이콘을 누르면 창 열림 + 입력칸 초점", page.evaluate("() => document.activeElement && document.activeElement.id === 'chat-input'"))
-    check("창을 열면 안내 말풍선 사라짐", page.locator(".chat-nudge").count() == 0)
-    wb = page.locator("#chat-window").bounding_box()
-    check("창 기본 위치는 왼쪽 아래(아이콘 위)", wb["x"] < 60 and wb["y"] + wb["height"] < lb["y"] + 10, f"x={round(wb['x'])}")
-    page.wait_for_timeout(300)  # 여는 효과(0.2초)가 끝난 뒤 한 번에 잰다
+    # 9. 챗봇: 오른쪽에 고정된 대화 패널 (떠 있는 창·버튼 없음)
+    check("떠 있는 챗봇 버튼·창 없음", page.locator(".chat-launcher").count() == 0 and page.locator("#chat-window").count() == 0 and page.locator(".chat-nudge").count() == 0)
+    pc = page.locator(".panel-c").bounding_box()
+    check("대화 패널은 오른쪽 고정 영역 안에 입력창 표시", page.locator(".panel-c #chat-input").is_visible() and pc["x"] > a["width"] and "AI 대화" in page.locator(".panel-c .panel-title").inner_text(), f"x={round(pc['x'])}")
+    check("패널 이름 'AI 대화' + 대화 영역 aria-live", page.locator(".panel-c section").count() == 0 and page.locator(".chat-list").get_attribute("aria-live") == "polite" and page.locator("label[for='chat-input']").count() == 1)
     geo = page.evaluate("() => { const i=document.querySelector('.chat-title-icon').getBoundingClientRect(); const s=document.querySelector('.chat-title-icon svg').getBoundingClientRect(); return {dx: Math.abs((i.x+i.width/2)-(s.x+s.width/2)), dy: Math.abs((i.y+i.height/2)-(s.y+s.height/2)), w: s.width} }")
-    check("창 머리 아이콘이 상자 가운데", geo["dx"] < 1.5 and geo["dy"] < 1.5 and geo["w"] >= 16, json.dumps({k: round(v, 1) for k, v in geo.items()}))
-    check("창 머리 아이콘 흰색", page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).color") == "rgb(255, 255, 255)")
-    page.keyboard.press("Escape")
-    check("Esc로 닫힘", page.locator("#chat-window").count() == 0)
-    page.click(".chat-launcher")
-    page.wait_for_selector("#chat-window")
+    check("패널 머리 아이콘이 상자 가운데", geo["dx"] < 1.5 and geo["dy"] < 1.5 and geo["w"] >= 16, json.dumps({k: round(v, 1) for k, v in geo.items()}))
+    check("패널 머리 아이콘 흰색", page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).color") == "rgb(255, 255, 255)")
+    check("말풍선 구분: 내 질문은 어두운 바탕·흰 글자", page.locator(".msg-user p").first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(29, 30, 33)")
+    check("보내기 버튼이 유일한 채운 주황 버튼(주 동작)", page.locator(".panel-c .btn-primary").count() == 0 and page.locator(".panel-c .send-btn").count() == 1)
 
-    # 10. 이동·크기·투명도(⋯ 메뉴) + 기억
-    w0 = page.locator("#chat-window").bounding_box()
-    hb = page.locator(".chat-title").bounding_box()
-    page.mouse.move(hb["x"] + 20, hb["y"] + 10)
-    page.mouse.down()
-    page.mouse.move(hb["x"] + 420, hb["y"] - 60, steps=6)
-    page.mouse.up()
-    w1 = page.locator("#chat-window").bounding_box()
-    check("머리를 끌어 창 이동", w1["x"] > w0["x"] + 300, f"x {round(w0['x'])} → {round(w1['x'])}")
-    se = page.locator(".rz-se").bounding_box()
-    page.mouse.move(se["x"] + 8, se["y"] + 8)
-    page.mouse.down()
-    page.mouse.move(se["x"] + 120, se["y"] + 8, steps=4)
-    page.mouse.up()
-    w2 = page.locator("#chat-window").bounding_box()
-    check("모서리를 끌어 크기 조절", w2["width"] > w1["width"] + 80, f"w {round(w1['width'])} → {round(w2['width'])}")
-    se = page.locator(".rz-se").bounding_box()
-    page.mouse.move(se["x"] + 8, se["y"] + 8)
-    page.mouse.down()
-    page.mouse.move(se["x"] - 900, se["y"] - 900, steps=4)
-    page.mouse.up()
-    w3 = page.locator("#chat-window").bounding_box()
-    check("최소 크기 320×400 제한", w3["width"] >= 319 and w3["height"] >= 399, f"{round(w3['width'])}×{round(w3['height'])}")
-    check("머리에는 제목·아이콘만, 설정은 ⋯ 메뉴", page.locator("#chat-opacity").count() == 0 and page.locator(".chat-menu-btn").count() == 1)
+    # 10. ⋯ 메뉴 · 대화 지우기 · 이전 대화
+    check("머리에는 제목·대화 이력·⋯ 메뉴, 투명도·크기 조절 없음", page.locator("#chat-opacity").count() == 0 and page.locator(".chat-menu-btn").count() == 1 and page.locator(".rz").count() == 0)
     page.click(".chat-menu-btn")
-    page.locator("#chat-opacity").fill("60")
-    op = page.locator("#chat-window").evaluate("e => getComputedStyle(e).opacity")
-    check("투명도 슬라이더(창 전체)", abs(float(op) - 0.6) < 0.01, op)
+    check("⋯ 메뉴: 대화 지우기", page.locator(".chat-menu button[aria-label='대화 지우기']").count() == 1)
     page.keyboard.press("Escape")
-    check("Esc는 메뉴부터 닫음", page.locator(".chat-menu").count() == 0 and page.locator("#chat-window").count() == 1)
-    page.reload(wait_until="domcontentloaded")
-    page.wait_for_selector(".eval-card")
-    page.click(".chat-launcher")
-    page.wait_for_selector("#chat-window")
-    w4 = page.locator("#chat-window").bounding_box()
-    op2 = page.locator("#chat-window").evaluate("e => getComputedStyle(e).opacity")
-    check("창 위치·크기·투명도 새로고침 후 유지", abs(w4["x"] - w3["x"]) < 3 and abs(float(op2) - 0.6) < 0.01)
-    page.click(".chat-menu-btn")
-    page.locator(".chat-menu button[aria-label='위치·크기·투명도 초기화']").click()
-    check("위치·크기·투명도 초기화", page.locator("#chat-window").evaluate("e => getComputedStyle(e).opacity") == "1" and page.locator("#chat-window").bounding_box()["x"] < 60)
-    page.locator(".chat-tools button[aria-label='최소화']").click()
-    check("최소화", page.locator("#chat-input").count() == 0)
-    page.locator(".chat-tools button[aria-label='펼치기']").click()
+    check("Esc는 메뉴를 닫음", page.locator(".chat-menu").count() == 0)
     check("이전 사용자 대화 이전됨(예전 버전 질문)", "예전 버전에서 한 질문" in page.locator(".chat-list").inner_text())
     check("입력창 위 추천 질문 칩", page.locator(".suggest-row .suggest-chip").count() >= 4)
     check("입력 안내(Enter·Shift+Enter)", "Shift+Enter" in page.locator(".composer-hint").inner_text())
@@ -283,134 +255,60 @@ with sync_playwright() as p:
     q = "해당 품목의 과거 거래 업체를 등급, 납기 실적, 최근 단가와 함께 보여주어 품목별 후보 업체 표시해줘."
     page.click(".chat-menu-btn")
     page.locator(".chat-menu button[aria-label='대화 지우기']").click()
-    check("대화 지우기 전 확인 창", page.locator("[role='alertdialog']").count() == 1 and "분석 이력" in page.locator("[role='alertdialog']").inner_text())
+    check("대화 지우기 전 확인 창", page.locator("[role='alertdialog']").count() == 1 and "대화 이력" in page.locator("[role='alertdialog']").inner_text())
     page.keyboard.press("Escape")
-    st = (page.locator("[role='alertdialog']").count(), page.locator("#chat-window").count(), "예전 버전에서 한 질문" in page.locator(".chat-list").inner_text())
-    check("확인 창 Esc → 취소 (대화창·대화 그대로)", st == (0, 1, True), str(st))
+    st = (page.locator("[role='alertdialog']").count(), page.locator(".panel-c #chat-input").count(), "예전 버전에서 한 질문" in page.locator(".chat-list").inner_text())
+    check("확인 창 Esc → 취소 (대화 패널·대화 그대로)", st == (0, 1, True), str(st))
     page.click(".chat-menu-btn")
     page.locator(".chat-menu button[aria-label='대화 지우기']").click()
     page.locator("[role='alertdialog'] [data-confirm]").click()
     check("대화 지우기 → 입력칸으로 초점", page.evaluate("() => new Promise(r => setTimeout(() => r(document.activeElement && document.activeElement.id === 'chat-input'), 50))"))
     page.locator(".ctx-chips .chip-x").first.click() if page.locator(".ctx-chips .chip-accent").count() else None
     ask(page, q)
-    last = page.locator(".msg-ai").last
+    last = last_ai(page)
     check("품목 미선택 → 품목 되묻기", last.locator(".opt-chip").count() >= 5)
-    check("되묻는 단계에서는 결과 미생성", page.locator(".empty-title").count() == 1)
+    check("되묻는 단계에서는 답변 본문 미생성", page.locator(".msg-ai .ans-sec").count() == 0)
     last.locator(".opt-chip", has_text="실린더 라이너").click()
     page.wait_for_function("() => !document.querySelector('.progress')")
-    page.wait_for_selector(".result-table")
-    check("분석 후 추천 형식으로 바로 표시", page.locator(".tpl-btn.is-active .tpl-btn-label").inner_text() == "협력사 비교표")
-    check("추천 표시", page.locator(".tpl-btn.is-active .tpl-rec").count() == 1)
-    check("대화에는 형식 선택 카드 대신 안내", page.locator(".msg-ai").last.locator(".tpl-card").count() == 0 and "분석 결과창 상단에서 선택" in page.locator(".msg-ai").last.inner_text())
-    check("C 비교표 4개 업체 · 조건 상이 1", page.locator(".result-table tbody tr").count() == 4 and page.locator(".result-table tr.is-excluded").count() == 1)
-    body = page.locator(".result").inner_text()
-    for label in ["단가 경쟁력", "납기 실적", "추가 검토가 필요한 위험 요소", "비교에 사용된 데이터와 평가 근거", "자동 확정되지 않습니다"]:
-        check(f"결과에 '{label}'", label in body)
-    close_chat(page)
-    page.screenshot(path=f"{SHOTS}/02_1920_table.png")
+    page.wait_for_selector(".ans-sec")
+    ans = last_ai(page)
+    check("분석 후 글 답변이 대화에 바로 붙음", ans.locator(".ans-sec[data-section='rows']").count() == 1)
+    check("답변은 글만: 표·차트·카드·형식 버튼 없음", page.locator(".panel-c table").count() == 0 and page.locator(".panel-c svg.chart, .panel-c .chart-card, .panel-c .score-card, .panel-c .report-doc").count() == 0 and page.locator(".tpl-card").count() == 0)
+    rowlines = ans.locator(".ans-sec[data-section='rows'] li")
+    check("C 비교 결과 글 4줄 · 순위 제외(조건 상이) 1줄", rowlines.count() == 4 and sum(1 for t in rowlines.all_inner_texts() if "순위 제외" in t) == 1, str(rowlines.count()))
+    body = ans.inner_text()
+    for label in ["단가 경쟁력", "납기 실적", "추가 검토가 필요한 위험 요소", "비교에 사용된 데이터와 평가 근거", "자동 확정되지 않습니다", "기준일"]:
+        check(f"답변에 '{label}'", label in body)
+    check("SAMPLE 표시 유지", "SAMPLE" in ans.locator(".msg-sources").inner_text() and "실제 자료 아님" in ans.locator(".msg-sources").inner_text())
+    check("새 답변은 그 답변의 시작 위치로 스크롤", page.evaluate("() => { const l=document.querySelector('.chat-list'); const m=[...document.querySelectorAll('.msg-ai')].pop(); const a=l.getBoundingClientRect(), b=m.getBoundingClientRect(); return b.top >= a.top - 2 && b.top < a.top + 80 }"))
+    page.screenshot(path=f"{SHOTS}/02_1920_answer.png")
 
-    # 12. 결과표 정렬 두 방향
-    th = page.locator(".result-table thead th", has_text="납기 준수율").locator("button")
-    th.click()
-    s1 = page.locator(".result-table thead th", has_text="납기 준수율").get_attribute("aria-sort")
-    th.click()
-    s2 = page.locator(".result-table thead th", has_text="납기 준수율").get_attribute("aria-sort")
-    check("비교표: 오름·내림 두 방향 정렬", {s1, s2} == {"ascending", "descending"}, f"{s1} → {s2}")
-    th.click()
-    check("비교표: 세 번째 누르면 기본 순서(검토 순서)로", page.locator(".result-table thead th.rank-col").get_attribute("aria-sort") == "ascending")
-    n_s, bad_s = sort_all(page, ".result-table", cycle_none=False)
-    check(f"비교표: 정렬할 수 있는 모든 열({n_s}개) 두 방향 + 위·아래 화살표", n_s >= 5 and not bad_s, ", ".join(bad_s))
-
-    # 13. 템플릿 전환 (재분석 없음) + 보고서 가운데
-    title = page.locator(".result-titles h3").inner_text()
-    for tid, sel in [("chart", ".chart-card"), ("cards", ".score-card"), ("report", ".report-doc"), ("table", ".result-table")]:
-        page.locator(f".tpl-btn[data-template='{tid}']").click()
-        page.wait_for_selector(sel)
-        check(f"상단 템플릿 전환: {tid}", page.locator(sel).count() >= 1)
-        if tid == "report":
-            rb = page.locator(".report-doc").bounding_box()
-            body_box = page.locator(".result-body").bounding_box()
-            check("분석 보고서 가운데 정렬", abs((rb["x"] + rb["width"] / 2) - (body_box["x"] + body_box["width"] / 2)) < 12, f"{round(rb['x'])}")
-    check("템플릿만 바꿔도 같은 결과", page.locator(".result-titles h3").inner_text() == title)
-
-    # 14. 보기 설정·프리셋
-    page.click(".vs-toggle")
-    page.wait_for_selector(".vs-panel")
-    check("보기 설정 열림 · 기본 프리셋 4종", page.locator(".preset").count() == 4)
-    page.locator(".preset[data-preset='delivery']").click()
-    first = page.locator(".result-table tbody tr").first.locator(".sticky-col .name").inner_text()
-    heads = page.locator(".result-table thead th").all_inner_texts()
-    check("프리셋 '납기·공급 리스크': 납기 낮은 순 정렬", first == "업체 D", first)
-    check("프리셋 '납기·공급 리스크': 지연 건수 열 표시", any("지연 건수" in h for h in heads))
-    check("현재 프리셋 이름 표시", "납기·공급 리스크" in page.locator(".vs-current").inner_text())
-    page.locator(".vs-panel .check", has_text="최근 단가").locator("input").uncheck()
-    check("열 선택 해제", not any("최근 단가" in h for h in page.locator(".result-table thead th").all_inner_texts()))
-    page.locator(".seg-ctl button", has_text="촘촘").click()
-    check("행 간격 촘촘", "is-compact" in page.locator(".result-table").get_attribute("class"))
-    page.fill("#preset-name", "내 협상용")
-    page.locator(".preset-save button[type='submit']").click()
-    check("내 프리셋 저장", page.locator(".user-preset", has_text="내 협상용").count() == 1)
-    page.locator(".preset-save button", has_text="기본값으로").click()
-    check("기본값으로 되돌리기", page.locator(".vs-current").inner_text() == "기본" and "is-compact" not in page.locator(".result-table").get_attribute("class"))
-    page.locator(".user-preset", has_text="내 협상용").locator("button").first.click()
-    check("내 프리셋 적용", "내 협상용" in page.locator(".vs-current").inner_text() and "is-compact" in page.locator(".result-table").get_attribute("class"))
-    page.mouse.click(400, 40)
-    page.locator(".tpl-btn[data-template='chart']").click()
-    page.click(".vs-toggle")
-    page.locator(".preset-save button", has_text="기본값으로").click()
-    n_before = page.locator(".chart-card").count()
-    page.locator(".vs-panel .check-grid .check").first.locator("input").uncheck()
-    check("차트 숨기기", page.locator(".chart-card").count() == n_before - 1, f"{n_before} → {page.locator('.chart-card').count()}")
-    page.locator(".seg-ctl button", has_text="1개").click()
-    check("한 줄에 차트 1개", "per-1" in page.locator(".chart-grid").get_attribute("class"))
-    page.mouse.click(400, 40)
-    page.locator(".tpl-btn[data-template='cards']").click()
-    page.click(".vs-toggle")
-    page.locator(".vs-panel .seg-ctl button", has_text="3개").click()
-    check("한 줄에 카드 3개", "per-3" in page.locator(".score-cards").get_attribute("class"))
-    page.select_option("#vs-cards-sort", "onTimeRate")
-    page.locator(".vs-panel .seg-ctl[aria-label='카드 정렬 방향'] button", has_text="오름차순").click()
-    asc_first = page.locator(".score-card h4").first.inner_text()
-    page.locator(".vs-panel .seg-ctl[aria-label='카드 정렬 방향'] button", has_text="내림차순").click()
-    desc_first = page.locator(".score-card h4").first.inner_text()
-    check("카드 정렬 방향(오름·내림) 선택", asc_first == "업체 D" and desc_first == "업체 A", f"{asc_first} / {desc_first}")
-    page.mouse.click(400, 40)
-    page.locator(".tpl-btn[data-template='report']").click()
-    page.click(".vs-toggle")
-    page.locator(".vs-panel .seg-ctl button", has_text="요약형").click()
-    page.locator(".vs-panel .check", has_text="평가 근거·참조 데이터").locator("input").uncheck()
-    check("보고서 요약형·섹션 선택", "is-brief" in page.locator(".report-doc").get_attribute("class") and page.locator(".report-doc section[data-section='basis']").count() == 0)
-    page.screenshot(path=f"{SHOTS}/03_1920_settings.png")
-    page.locator(".preset-save button", has_text="기본값으로").click()
-    page.mouse.click(400, 40)
-    page.locator(".tpl-btn[data-template='table']").click()
+    # 12~14. 예전 비교표 정렬·템플릿 전환·보기 설정은 없어짐 → 없음을 확인하고, 같은 내용이 글로 나오는지 확인
+    check("비교표 정렬 UI 없음 (결과 표 대신 글 순서)", page.locator(".result-table").count() == 0 and page.locator(".panel-c button.th-sort").count() == 0)
+    check("글 답변 순서 = 검토 순서 (1) 로 시작", rowlines.first.inner_text().startswith("1)"))
+    check("템플릿 전환·보기 설정·프리셋·차트 숨기기 UI 없음", page.locator("[data-template]").count() == 0 and page.locator(".preset").count() == 0 and page.locator(".vs-panel").count() == 0)
 
     # 15. 후속 질문
     ask(page, "여기서 단가보다 납기를 우선하면 어떤 업체가 적합해?")
-    page.wait_for_function("() => document.querySelector('.result-titles h3').textContent.includes('납기 우선')")
-    check("후속 질문: 같은 품목·납기 우선으로 바로 표시", "실린더 라이너" in page.locator(".result-titles h3").inner_text())
-    check("후속 질문: 보던 형식 유지", page.locator(".tpl-btn.is-active .tpl-btn-label").inner_text() == "협력사 비교표")
-    check("대화에 '보던 형식' 안내", "보던 형식" in page.locator(".msg-ai").last.inner_text())
-    prev_btn = page.locator(".msg-ai .msg-result button", has_text="이 결과 다시 보기").first
-    check("이전 결과 다시 보기 버튼", prev_btn.count() == 1)
-    prev_btn.click()
-    check("이전 결과로 전환", "납기 우선" not in page.locator(".result-titles h3").inner_text())
+    fu = last_ai(page)
+    check("후속 질문: 같은 품목·납기 우선으로 바로 답함", "직전 분석 대상" in fu.inner_text() and "납기" in fu.inner_text() and "실린더 라이너" in fu.inner_text())
+    check("후속 질문: 글 답변 + 내보내기", fu.locator("button[data-export='xlsx']").count() == 1 and "분석 결과창" not in fu.inner_text())
 
-    # 16. 새로고침해도 대화·결과 유지
+    # 16. 새로고침해도 대화·답변 유지
     n_msgs = page.locator(".msg").count()
-    shown_title = page.locator(".result-titles h3").inner_text()
+    n_sec = page.locator(".ans-sec").count()
     page.reload(wait_until="domcontentloaded")
-    page.wait_for_selector(".result-titles h3")
-    check("새로고침 후 분석 결과 유지", page.locator(".result-titles h3").inner_text() == shown_title)
+    page.wait_for_selector(".ans-sec")
+    check("새로고침 후 답변 유지", page.locator(".ans-sec").count() == n_sec)
     open_chat(page)
     check("새로고침 후 대화 내역 유지", page.locator(".msg").count() == n_msgs, f"{n_msgs}개")
 
     # 17. 다른 질문
-    for qq, tpl in [("납기 준수율이 낮은 협력사를 찾아줘.", "데이터 시각화"), ("최근 단가가 상승한 품목을 보여줘.", "협력사 비교표"), ("A등급 협력사의 품질 실적을 정리해 줘.", "종합 평가 카드")]:
+    for qq, sec in [("납기 준수율이 낮은 협력사를 찾아줘.", "rows"), ("최근 단가가 상승한 품목을 보여줘.", "rows"), ("A등급 협력사의 품질 실적을 정리해 줘.", "rows")]:
         ask(page, qq)
-        check(f"질문 → 바로 표시: {qq}", page.locator(".tpl-btn.is-active .tpl-btn-label").inner_text() == tpl)
+        check(f"질문 → 글 답변: {qq}", last_ai(page).locator(f".ans-sec[data-section='{sec}']").count() == 1)
     ask(page, "오늘 점심 메뉴 추천해줘")
-    check("범위 밖 질문은 추측하지 않음", "추측해서 답하지 않습니다" in page.locator(".msg-ai").last.inner_text())
+    check("범위 밖 질문은 추측하지 않음", "추측해서 답하지 않습니다" in last_ai(page).inner_text())
 
     # 18. 키워드 검색 → 데이터 관리 선택 (다른 쪽에 있어도 그 쪽으로)
     page.fill("#keyword-search", "PO-2024-0003")
@@ -419,11 +317,12 @@ with sync_playwright() as p:
     check("키워드 검색 → 데이터 관리에서 선택 (페이지 이동)", page.locator(".data-table tr.is-selected").count() == 1)
     close_chat(page)
 
-    # 19. 분석 이력
+    # 19. 대화 이력 (예전 분석 이력)
     page.click(".history-toggle")
     page.wait_for_selector("#history-panel")
+    check("대화 이력이 대화 패널 안에서 열림", page.locator(".panel-c #history-panel").count() == 1)
     n_hist = page.locator(".history-item").count()
-    check("분석 이력 목록 (이번 세션 결과들)", n_hist >= 5, str(n_hist))
+    check("대화 이력 목록 (이번 세션 답변들)", n_hist >= 5, str(n_hist))
     page.fill("#history-q", "납기 우선")
     check("이력 검색", page.locator(".history-item").count() == 1)
     page.locator(".history-item").first.locator("button[title='이름 바꾸기']").click()
@@ -433,7 +332,8 @@ with sync_playwright() as p:
     page.locator(".history-item").first.locator("button[title='고정 (자동 삭제에서 제외)']").click()
     check("고정", page.locator(".history-item").first.locator("svg[aria-label='고정됨']").count() == 1)
     page.locator(".history-item .history-open").first.click()
-    check("이력에서 누르면 결과창에 표시 (바꾼 이름)", page.locator(".result-titles h3").inner_text() == "라이너 납기 우선 검토")
+    page.wait_for_selector(".msg-ai.is-flash")
+    check("이력에서 누르면 대화의 그 답변으로 이동·강조", page.locator("#history-panel").count() == 0 and page.locator(".msg-ai.is-flash").count() == 1)
     page.click(".history-toggle")
     page.fill("#history-q", "점심")
     check("없는 검색어 안내", page.locator(".history-item").count() == 0)
@@ -444,12 +344,12 @@ with sync_playwright() as p:
     page.locator(".history-confirm .history-del-yes").click()
     check("이력 삭제", page.locator(".history-item").count() == before - 1)
     page.keyboard.press("Escape")
+    check("Esc로 이력 닫힘", page.locator("#history-panel").count() == 0)
 
     # 20. 엑셀(.xlsx) 내보내기
     import openpyxl
-    page.click(".export-toggle")
     with page.expect_download() as dl:
-        page.locator(".menu-item[data-export='xlsx']").click()
+        page.locator(".msg-ai button[data-export='xlsx']").last.click()
     d1 = dl.value
     x1 = os.path.join(SHOTS, d1.suggested_filename)
     d1.save_as(x1)
@@ -459,6 +359,9 @@ with sync_playwright() as p:
     ws = wb["결과 표"]
     hdr = [c.value for c in ws[1]]
     check("결과 엑셀: 머리글 굵게·틀 고정·숫자 칸", ws["A1"].font.b and ws.freeze_panes == "A2" and any(isinstance(c.value, (int, float)) for c in ws[2]), str(hdr[:4]))
+    with page.expect_download() as dlc:
+        page.locator(".msg-ai button[data-export='csv']").last.click()
+    check("결과 CSV: 답변별 내보내기 (표를 화면에 그리지 않아도 파일로 저장)", dlc.value.suggested_filename.endswith(".csv"), dlc.value.suggested_filename)
     check("결과 엑셀: SAMPLE 표기", any("SAMPLE" in str(r[1].value) for r in wb["조건·근거"].iter_rows()))
     page.locator(".tab", has_text="협력업체").click()
     page.locator(".active-chips .link-btn").click() if page.locator(".active-chips .link-btn").count() else None
@@ -599,8 +502,8 @@ with sync_playwright() as p:
     page.locator(".tab", has_text="협력업체").click()
     page.locator(".data-table tbody tr", has_text="업체 F").locator(".name").click()
     det = page.locator(".row-detail")
-    check("행을 누르면 상세는 오른쪽 분석 결과창에", page.locator(".panel-c #selection-detail").count() == 1 and page.locator(".panel-a .row-detail").count() == 0)
-    check("결과창 머리에 선택 정보 아이콘(펼침)", page.locator(".detail-toggle").get_attribute("aria-expanded") == "true" and "업체 F" in page.locator(".detail-toggle").inner_text())
+    check("행을 누르면 상세는 오른쪽 AI 대화 패널 위쪽에", page.locator(".panel-c #selection-detail").count() == 1 and page.evaluate("() => document.querySelector('.chat-detail').getBoundingClientRect().bottom <= document.querySelector('.chat-list').getBoundingClientRect().top + 1") and page.locator(".panel-a .row-detail").count() == 0)
+    check("대화 패널 머리에 선택 정보 아이콘(펼침)", page.locator(".detail-toggle").get_attribute("aria-expanded") == "true" and "업체 F" in page.locator(".detail-toggle").inner_text())
     check("상세: 등급 타임라인 (평가 5회 + 현재)", det.locator(".tl-item").count() == 6, str(det.locator(".tl-item").count()))
     check("상세: 하락 표시와 변동 사유", "하락" in det.inner_text() and "납기 지연 증가" in det.inner_text())
     check("상세: 마지막 점은 '현재 · 시스템 계산'", "현재 · 시스템 계산" in det.locator(".tl-item").last.inner_text())
@@ -612,9 +515,11 @@ with sync_playwright() as p:
     page.locator(".detail-toggle").click()
     check("아이콘으로 다시 펼치기", page.locator("#selection-detail").count() == 1)
     ask(page, "업체 F의 평가 근거를 정리해 줘")
-    check("챗봇 결과가 나오면 선택 정보는 접히고 아이콘만 남음", page.locator("#selection-detail").count() == 0 and page.locator(".detail-toggle").count() == 1 and page.locator(".result-titles h3").count() == 1)
+    check("새 답변이 나오면 선택 정보는 접히고 아이콘만 남음", page.locator("#selection-detail").count() == 0 and page.locator(".detail-toggle").count() == 1 and last_ai(page).locator(".ans-sec").count() >= 1)
     page.locator(".detail-toggle").click()
-    check("결과 위로 선택 정보 다시 열기", page.locator("#selection-detail").count() == 1 and page.locator(".result-titles h3").count() == 1)
+    check("대화 위로 선택 정보 다시 열기", page.locator("#selection-detail").count() == 1 and page.locator(".ans-sec").count() >= 1)
+    page.locator(".detail-clear").click()
+    check("선택 해제 버튼 → 선택 정보 닫힘", page.locator("#selection-detail").count() == 0 and page.locator(".detail-toggle").count() == 0)
     close_chat(page)
 
     # 25. 대금 결제 일정 + 알림
@@ -702,19 +607,19 @@ with sync_playwright() as p:
     page.wait_for_selector(".validation")
     page.locator(".modal-foot .btn-primary").click()
     page.wait_for_selector(".stale")
-    check("데이터 변경 → 다시 분석 안내", page.locator(".stale").count() == 1)
+    check("데이터 변경 → 다시 분석 안내 (가장 최근 답변에)", page.locator(".stale").count() == 1)
     page.wait_for_selector(".ds-saved")
     page.wait_for_function("() => document.querySelector('.ds-saved').textContent.includes('저장됨')")
     check("헤더: 업로드 데이터 · 브라우저에 저장됨", "브라우저에 저장됨" in page.locator(".ds-saved").inner_text() and page.locator(".badge-demo").inner_text() == "업로드 포함")
     tb_h = page.locator(".topbar").bounding_box()["height"]
     check("업로드 상태에서도 1920 헤더 한 줄·가로 스크롤 없음", tb_h < 72 and no_hscroll(page) and page.locator(".ai-status-text").evaluate("e => e.getClientRects().length === 1"), str(round(tb_h)))
     page.locator(".stale button").click()
-    page.wait_for_timeout(200)
+    page.wait_for_timeout(300)
     check("다시 분석 후 안내 해제", page.locator(".stale").count() == 0)
     page.reload(wait_until="domcontentloaded")
     page.wait_for_selector(".eval-card")
     check("새로고침 후 업로드 데이터 유지", page.locator(".badge-demo").inner_text() == "업로드 포함" and page.locator(".data-table tbody tr", has_text="업체 K").count() == 1)
-    page.wait_for_selector(".result-titles h3")
+    page.wait_for_selector(".ans-sec")
     check("새로고침 후 '다시 분석' 안내가 잘못 뜨지 않음", page.locator(".stale").count() == 0)
     page.click(".user-btn")
     del_item = page.locator(".user-pop .menu-item", has_text="저장된 업로드 데이터 삭제")
@@ -767,8 +672,10 @@ with sync_playwright() as p:
     check("1366: 가로 스크롤 없음", no_hscroll(lap))
     check("1366: 상단 바 한 줄", lap.locator(".topbar").bounding_box()["height"] < 72, str(round(lap.locator(".topbar").bounding_box()["height"])))
     check("1366: 채점 카드 높이 줄어듦 (처리 단계 영역 없음)", lap.locator(".eval-card").bounding_box()["height"] < 360, str(round(lap.locator(".eval-card").bounding_box()["height"])))
-    lb2 = lap.locator(".chat-launcher").bounding_box()
-    check("1366: 챗봇 아이콘 왼쪽 아래", lb2["x"] < 60 and lb2["y"] > 768 - 100)
+    cb2 = lap.locator(".panel-c").bounding_box()
+    check("1366: 대화 패널 오른쪽 고정·입력창 보임·너비 320 이상", lap.locator("#chat-input").is_visible() and cb2["width"] >= 320 and cb2["x"] > 800, f"{round(cb2['width'])}px")
+    ab2 = lap.locator(".panel-a").bounding_box()
+    check("1366: 데이터 관리 : AI 대화 약 70:30", abs(ab2["width"] / (ab2["width"] + cb2["width"]) * 100 - 70) <= 3)
     sf3 = small_fonts(lap)
     check("1366: 글자 12px 이상", not sf3, ", ".join(sf3))
     lap.screenshot(path=f"{SHOTS}/09_1366.png")
@@ -776,29 +683,33 @@ with sync_playwright() as p:
     # 33. 태블릿 900
     tab = browser.new_page(viewport={"width": 900, "height": 1180})
     demo_login(tab)
-    check("태블릿: 데이터 관리/분석 결과 탭 2개", tab.locator(".panel-tabs button").count() == 2 and tab.locator(".panel-a").is_visible() and not tab.locator(".panel-c").is_visible())
-    tab.click(".chat-launcher")
-    tab.wait_for_selector(".chat-window.is-sheet")
-    check("태블릿: 챗봇은 하단 시트", tab.locator(".chat-window.is-sheet").count() == 1)
+    check("태블릿: 데이터 관리/AI 대화 탭 2개", [t.strip() for t in tab.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 대화"] and tab.locator(".panel-a").is_visible() and not tab.locator(".panel-c").is_visible())
+    tab.locator(".panel-tabs button", has_text="AI 대화").click()
+    check("태블릿: AI 대화 탭에서 대화 패널 전체 표시", tab.locator(".panel-c").is_visible() and tab.locator("#chat-input").is_visible() and tab.locator(".chat-launcher").count() == 0)
+    check("태블릿: 보내기·메뉴·추천 질문 44px 이상", tab.locator(".send-btn").bounding_box()["height"] >= 44 and tab.locator(".chat-menu-btn").bounding_box()["height"] >= 44 and tab.locator(".suggest-chip").first.bounding_box()["height"] >= 44)
     tab.fill("#chat-input", "노즐 후보 업체 비교해 줘")
     tab.press("#chat-input", "Enter")
-    tab.wait_for_selector(".result-table")
-    check("태블릿: 분석 후 결과 탭으로 이동", tab.locator(".panel-c").is_visible())
-    tab.locator(".chat-tools button[aria-label='닫기']").click()
+    tab.wait_for_selector(".ans-sec")
+    check("태블릿: 글 답변 표시 (표 없음)", tab.locator(".panel-c").is_visible() and tab.locator(".panel-c table").count() == 0)
     tab.screenshot(path=f"{SHOTS}/10_tablet.png")
     check("태블릿: 가로 스크롤 없음", no_hscroll(tab))
     sf5 = small_fonts(tab)
     check("태블릿: 글자 12px 이상", not sf5, ", ".join(sf5))
     tab.locator(".panel-tabs button", has_text="데이터 관리").click()
     tab.locator(".data-table tbody tr", has_text="업체 B").locator(".name").click()
-    check("태블릿: 행을 누르면 분석 결과 탭으로 바뀌고 선택 정보 표시", tab.locator(".panel-c").is_visible() and tab.locator("#selection-detail").count() == 1)
+    check("태블릿: 행을 눌러도 탭이 저절로 바뀌지 않고, AI 대화 탭에 점 표시", tab.locator(".panel-a").is_visible() and tab.locator(".panel-tabs .tab-dot").count() == 1)
+    tab.locator(".panel-tabs button", has_text="AI 대화").click()
+    check("태블릿: AI 대화 탭 위쪽에 선택 정보 표시", tab.locator("#selection-detail").count() == 1)
 
     # 34. 휴대폰 400
     ph = browser.new_page(viewport={"width": 400, "height": 820})
     demo_login(ph)
     check("휴대폰: 가로 스크롤 없음", no_hscroll(ph))
     check("휴대폰: SAMPLE 표시 유지", ph.locator(".badge-demo").is_visible())
-    check("휴대폰: 챗봇 버튼에 'AI 질문' 글자 (아이콘만 두지 않음)", "AI 질문" in ph.locator(".chat-launcher").inner_text())
+    check("휴대폰: 탭 이름 데이터 관리 / AI 대화", [t.strip() for t in ph.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 대화"])
+    ph.locator(".panel-tabs button", has_text="AI 대화").click()
+    check("휴대폰: 대화 패널·입력창 보임, 가로 스크롤 없음, 보내기 버튼 44px", ph.locator("#chat-input").is_visible() and no_hscroll(ph) and ph.locator(".send-btn").bounding_box()["width"] >= 44)
+    ph.locator(".panel-tabs button", has_text="데이터 관리").click()
     check("휴대폰: 상단 바 두 줄 (브랜드·알림·사용자 / 데이터 상태·불러오기)", ph.locator(".user-btn").bounding_box()["y"] < ph.locator(".topbar .btn-primary").bounding_box()["y"])
     sf4 = small_fonts(ph)
     check("휴대폰: 글자 12px 이상", not sf4, ", ".join(sf4))

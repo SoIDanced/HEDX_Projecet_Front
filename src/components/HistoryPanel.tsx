@@ -1,9 +1,7 @@
-// 분석 이력: 지난 결과를 이름·질문으로 찾고, 다시 보기·이름 바꾸기·고정·삭제
+// 대화 이력: 지난 답변을 이름·질문으로 찾고, 대화에 다시 보기·이름 바꾸기·고정·삭제
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCheck, LuPencil, LuPin, LuPinOff, LuSearch, LuTrash2, LuX } from "react-icons/lu";
 import { MAX_RESULTS, resultName, useStore } from "../store/store";
-import { useAgent } from "../store/agent";
-import { templateLabel } from "../templates/registry";
 import type { AnalysisResult } from "../lib/analysisTypes";
 
 const when = (iso: string) => {
@@ -11,9 +9,8 @@ const when = (iso: string) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
-export function HistoryPanel({ onClose }: { onClose: () => void }) {
+export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen: (resultId: string) => void }) {
   const { state, dispatch } = useStore();
-  const { choose } = useAgent();
   const [q, setQ] = useState("");
   const [order, setOrder] = useState<"new" | "name">("new");
   const [editing, setEditing] = useState<string | null>(null);
@@ -70,15 +67,15 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="popover history-pop" ref={ref} role="dialog" aria-label="분석 이력" id="history-panel">
+    <div className="popover history-pop" ref={ref} role="dialog" aria-label="대화 이력" id="history-panel">
       <div className="pop-head">
         <div>
-          <h3>분석 이력</h3>
+          <h3>대화 이력</h3>
           <p className="muted small">
             {total}건 저장 · 최대 {MAX_RESULTS}건, 넘으면 고정하지 않은 오래된 결과부터 지웁니다
           </p>
         </div>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="분석 이력 닫기">
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="대화 이력 닫기">
           <LuX aria-hidden />
         </button>
       </div>
@@ -136,10 +133,10 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
                   type="button"
                   className="history-open"
                   onClick={() => {
-                    choose(r.id, state.view.template && r.templates.includes(state.view.template) ? state.view.template : r.recommended);
+                    onOpen(r.id);
                     onClose();
                   }}
-                  title="결과창에 표시"
+                  title="대화에서 이 답변 보기"
                 >
                   <span className="history-name">
                     {pinned && <LuPin aria-label="고정됨" />} {resultName(state, r)}
@@ -148,7 +145,6 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
                   <span className="history-meta">
                     <span>{when(r.createdAt)}</span>
                     <span>{r.kindLabel}</span>
-                    <span>추천 {templateLabel(r.recommended)}</span>
                     <span>{r.dataLabel.includes("업로드") ? "업로드 데이터" : "SAMPLE"}</span>
                     {stale && <span className="pill pill-warn">다시 분석 필요</span>}
                     {current && <span className="pill pill-info">보는 중</span>}
@@ -199,7 +195,7 @@ export function HistoryPanel({ onClose }: { onClose: () => void }) {
             </li>
           );
         })}
-        {!list.length && <li className="table-empty">{total ? "검색어와 맞는 결과가 없습니다." : "아직 분석 결과가 없습니다. AI에게 질문하면 결과가 여기에 쌓입니다."}</li>}
+        {!list.length && <li className="table-empty">{total ? "검색어와 맞는 결과가 없습니다." : "아직 분석한 답변이 없습니다. AI에게 질문하면 답변이 여기에 쌓입니다."}</li>}
       </ul>
     </div>
   );

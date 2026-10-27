@@ -73,13 +73,3 @@ export function formatCell(kind: ColumnKind, v: unknown, currency = "KRW", digit
 }
 
 export const isNumericKind = (c: Pick<ResultColumn, "kind">) => ["int", "number", "percent", "signedPercent", "money"].includes(c.kind);
-
-export function EmptyState({ title, children, icon }: { title: string; children?: ReactNode; icon?: ReactNode }) {
-  return (
-    <div className="empty">
-      {icon && <div className="empty-icon">{icon}</div>}
-      <p className="empty-title">{title}</p>
-      {children && <div className="empty-body">{children}</div>}
-    </div>
-  );
-}

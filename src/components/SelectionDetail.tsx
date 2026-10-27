@@ -1,5 +1,5 @@
-// 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 분석 결과창 위쪽에 표시
-// 챗봇 결과가 새로 나오면 접히고, 결과창 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
+// 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 AI 대화 패널 위쪽에 접이식으로 표시
+// 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
 import { useMemo, type ReactNode } from "react";
 import { LuChevronUp, LuMessageSquareText, LuX } from "react-icons/lu";
 import { TAB_LABEL } from "../data/types";
@@ -30,7 +30,7 @@ function Detail({ title, fields, actions, onClose, star, children }: { title: st
         <h3>{title}</h3>
         <span className="spacer" />
         <ClearSelection />
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="선택 정보 접기" title="접기 (결과창 위 아이콘으로 다시 열기)">
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="선택 정보 접기" title="접기 (대화 패널 위 아이콘으로 다시 열기)">
           <LuChevronUp aria-hidden />
         </button>
       </div>
@@ -48,7 +48,7 @@ function Detail({ title, fields, actions, onClose, star, children }: { title: st
   );
 }
 
-/** 지금 선택된 행의 제목 (결과창 머리 아이콘에 표시) */
+/** 지금 선택된 행의 제목 (대화 패널 머리 아이콘에 표시) */
 export function useSelectionTitle(): string | null {
   const { state, derived } = useStore();
   const { rowTab, rowKey } = state.selection;

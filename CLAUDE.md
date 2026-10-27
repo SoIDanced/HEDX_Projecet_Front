@@ -3,7 +3,7 @@
 이 파일은 Claude Code가 이 저장소에서 작업할 때마다 먼저 읽는 지시서입니다. 전체 개발 과정·결정 사항·화면별 상세는 `docs/HANDOFF.md`에 있습니다. **처음 작업을 시작하면 `docs/HANDOFF.md`, `README.md`, `CHANGELOG.md`를 모두 읽고 시작하세요.**
 
 ## 프로젝트 한 줄 요약
-한화엔진 구매·품질 실무자용 시연 웹앱(학생 DX팀 과제). 협력업체·구매조달·원가-계약·자재-공급 데이터를 한 화면에서 보고, 자연어로 질문하면 코드가 데이터로 계산한 결과를 4가지 형식(비교표·시각화·평가 카드·보고서)으로 보여 준다. 현재 버전 **v0.3.2**.
+한화엔진 구매·품질 실무자용 시연 웹앱(학생 DX팀 과제). 협력업체·구매조달·원가-계약·자재-공급 데이터를 한 화면에서 보고, 자연어로 질문하면 코드가 데이터로 계산한 결과를 오른쪽 고정 AI 대화 패널에 글로만 답한다(표·차트 없음, 근거 표는 엑셀·CSV로 내보내기). 데이터 관리 : AI 대화 = 70:30. 현재 버전 **v0.4.0**.
 
 ## 반드시 지킬 규칙 (모든 작업에 적용)
 1. **데이터를 지어내지 않는다.** 수치·업체명·근거를 만들어 내지 않는다. 새 데이터는 모두 SAMPLE(가상)로 만들고 화면에 "SAMPLE · 실제 자료 아님"을 표시한다. 가상 수치의 출처로 실제 기관·거래소 이름을 쓰지 않는다.
@@ -27,8 +27,8 @@ npm run dev          # 감시 빌드 + http://localhost:5173 (server/index.mjs�
 npm start            # 빌드 후 서버
 npm run build        # dist/index.html(hanwha) + dist/artifact.html(neutral, body만)
 npm run sample       # 샘플 JSON 재생성 (시드 고정 — 기존 발주·재고 데이터가 바뀌지 않게 주의)
-npm run test:logic   # tests/logic-smoke.ts + tests/logic-v3.ts (46개)
-npm start & npm run test:e2e   # tests/e2e.py (Python Playwright + openpyxl, 235개)
+npm run test:logic   # tests/logic-smoke.ts + tests/logic-v3.ts (51개)
+npm start & npm run test:e2e   # tests/e2e.py (Python Playwright + openpyxl, 215개)
 npm run typecheck
 ```
 - 변경 후에는 **빌드 → 로직 테스트 → E2E 전부 통과**를 확인하고, 1920·1366·태블릿(900)·휴대폰(400) 화면을 캡처로 확인한다(가로 스크롤 없음, 12px 미만 글자 없음, 콘솔 오류 없음).
