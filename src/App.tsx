@@ -14,6 +14,9 @@ import { Onboarding } from "./components/Onboarding";
 import { KeywordSearch } from "./components/KeywordSearch";
 import { LoginScreen } from "./components/LoginScreen";
 import { BRAND } from "./brand";
+import { Words } from "./components/ui";
+import { armEnter, useReplayOn } from "./lib/motion";
+import { isNarrow } from "./store/agent";
 
 const PANEL_TABS: { id: Panel; label: string; icon: ReactNode }[] = [
   { id: "A", label: "데이터 관리", icon: <LuDatabase aria-hidden /> },
@@ -90,6 +93,7 @@ function Workspace() {
   const mainRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const [contentW, setContentW] = useState(0);
+  useReplayOn(mainRef, state.panel, isNarrow()); // 좁은 화면에서 데이터 관리 ↔ AI 대화 탭을 바꿀 때만 다시 재생
 
   // 화면 폭이 좁으면 CSS가 데이터 관리 칸을 (폭 - 332px)로 줄이므로, 화면에 실제로 보이는 값을 따로 계산한다
   useEffect(() => {
@@ -142,7 +146,7 @@ function Workspace() {
 
   return (
     <>
-      <nav className="panel-tabs" aria-label="화면 전환">
+      <nav className="panel-tabs" aria-label="화면 전환" style={{ "--i": state.panel === "C" ? 1 : 0 } as CSSProperties}>
         {PANEL_TABS.map((p) => (
           <button key={p.id} type="button" className={state.panel === p.id ? "is-active" : ""} aria-pressed={state.panel === p.id} onClick={() => dispatch({ type: "panel", panel: p.id })}>
             {p.icon}
@@ -160,7 +164,7 @@ function Workspace() {
         <section className={`panel panel-a ${state.panel === "A" ? "is-active" : ""}`} aria-label="데이터 관리">
           <div className="panel-head">
             <div className="panel-title-row">
-              <h2 className="panel-title">데이터 관리</h2>
+              <Words as="h2" className="panel-title" text="데이터 관리" />
               <span className="panel-sub">협력사 평가 요약 · 협력업체·구매조달·원가-계약·자재-공급 데이터</span>
               <KeywordSearch />
             </div>
@@ -210,7 +214,7 @@ export function App() {
   return (
     <StoreProvider key={user.id} user={user}>
       <AgentProvider>
-        <div className="app">
+        <div className="app is-entering" ref={armEnter}>
           <SkipLink />
           <Topbar
             onLogout={async (wipe) => {

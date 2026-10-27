@@ -1,5 +1,5 @@
 // 원가-계약 › 인건비 동향: 직종 대·중·소 분류 트리 + 월평균 임금 추이·전년 대비 상승률·상위 분류 비교
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { LuChevronDown, LuChevronRight, LuInfo } from "react-icons/lu";
 import { useStore } from "../../store/store";
 import { Chart } from "../charts/Chart";
@@ -55,7 +55,13 @@ export function LaborWages() {
       }
     : null;
 
-  const toggle = (k: string) => setOpen((o) => {
+  const fresh = useRef<string | null>(null); // 방금 펼친 줄: 이 줄의 하위 목록만 accIn(0fr→1fr)으로 열린다
+  const toggle = (k: string) => {
+    fresh.current = k;
+    window.setTimeout(() => { if (fresh.current === k) fresh.current = null; }, 700);
+    setOpen2(k);
+  };
+  const setOpen2 = (k: string) => setOpen((o) => {
     const n = new Set(o);
     if (n.has(k)) n.delete(k);
     else n.add(k);
@@ -86,11 +92,13 @@ export function LaborWages() {
           </span>
         </div>
         {n.children.length > 0 && isOpen && (
-          <ul>
-            {n.children.map((c) => (
-              <Node key={c.name} n={c} />
-            ))}
-          </ul>
+          <div className={`acc ${fresh.current === k ? "acc-in" : ""}`}>
+            <ul>
+              {n.children.map((c) => (
+                <Node key={c.name} n={c} />
+              ))}
+            </ul>
+          </div>
         )}
       </li>
     );

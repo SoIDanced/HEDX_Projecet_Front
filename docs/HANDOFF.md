@@ -155,10 +155,16 @@ claude.ai에서 v0.1.0~v0.3.2까지(v0.4.0은 Claude Code) 만들어 왔고, 여
 API 키·비밀번호·면담 기록은 커밋 금지, 기존 기능은 내가 지우라고 한 것만 지울 것.
 ```
 
+## v0.5.2 메모 (v14 모션 세트)
+- 모션은 `src/styles/motion.css`(키프레임 전부 + 규칙, 배율 `--k:.38` 하나로 전체 속도 조절)와 `src/lib/motion.ts`(재생 제어기)로 끝. 시간은 "v14 디자인 시간(ms)"으로 적고 `calc(… * var(--k))`를 곱한다.
+- 재생 범위: `.app.is-entering`(처음 열 때, JSX className에 처음부터 있고 `armEnter`가 1.4초 뒤 뗌) · `#tab-panel`(탭·하위 보기 변경, `useReplayOn`) · `.workspace`(좁은 화면 화면 전환). 필터·정렬·페이지는 클래스가 없어 동작 없음. 새 진입 동작은 반드시 `.is-entering` 아래 선택자로 쓸 것(안 그러면 필터 때도 재생됨).
+- 순서 번호 `--r`는 CSS nth-child 목록(motion.css 중간)이 정함, 낱말 `--i`는 `Words`(ui.tsx), 차트 막대·선 `--i`는 Chart.tsx 인라인. CountUp(ui.tsx)은 `.is-entering` 안에서 마운트·재생 이벤트(`motion-replay`) 때만 센다; 값은 항상 `data-final`·글자로 DOM에 있음.
+- 이 버전은 v0.5.0의 "진입 ≤300ms" 결정을 사용자 요청으로 번복한 것(CHANGELOG 참고). E2E의 로그인/새로고침 대기는 `.is-entering` 종료까지 기다린다(`tests/e2e.py` 맨 위 `_wfs`, `settled`).
+
 ## v0.5.1 메모 (한화 컬러웨이)
 - 팔레트: 오렌지 `#F37321`/`#F89B6C`/`#FBB584`, 검정 `#1B1B1B`. 주황 채움 위 글자는 `--on-accent`(#1B1B1B). 주황 글자는 `--accent-ink`. 강조색 파랑 등은 브랜드 밖 선택지.
 
 ## v0.5.0 메모 (디자인)
 - 스타일은 `src/styles.css`(기본 규칙) → `src/styles/v14.css`(v14 적용층, 같은 이름 규칙을 덮어씀) 순으로 번들되고 토큰은 `src/styles/tokens.css`. 테마·강조색은 `<html data-theme data-accent>`, 저장 키 `procure-ai:theme`·`procure-ai:accent`, 첫 그림 전 인라인 스크립트는 `scripts/build.mjs`의 PREPAINT.
 - 글자가 들어가는 채움은 `--accent-fill`(오렌지는 --accent와 같고 위 글자는 --on-accent), 카드 위 강조 글자는 `--accent-ink`, 어두운 히어로 위 글자는 `--accent-text-dk`. 새 색을 쓸 때 `tests/e2e.py`의 대비 점검(4.5:1)을 통과해야 한다.
-- E2E 327개 전부 통과(v0.5.0 시점). 스플리터 너비 상수는 App.tsx `SPLITTER_PX`와 v14.css `--split-gap`(20px)이 같아야 한다.
+- E2E 347개 전부 통과(v0.5.2 시점). 스플리터 너비 상수는 App.tsx `SPLITTER_PX`와 v14.css `--split-gap`(20px)이 같아야 한다.

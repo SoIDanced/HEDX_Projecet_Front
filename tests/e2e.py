@@ -5,7 +5,26 @@
 실행: (서버 실행 후) python3 tests/e2e.py [http://localhost:5173] [스크린샷 폴더]
 """
 import sys, os, json, tempfile
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Page
+
+# v0.5.2: 첫 화면 진입 동작이 약 1초라, 로그인·새로고침 직후(.eval-card 대기)에는 .is-entering 이 끝날 때까지 기다린다
+_orig_wfs = Page.wait_for_selector
+
+
+def _wfs(self, selector, **kw):
+    r = _orig_wfs(self, selector, **kw)
+    if selector == ".eval-card":
+        self.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    return r
+
+
+Page.wait_for_selector = _wfs
+
+
+def settled(pg):
+    """탭·하위 보기 전환 재생(.is-entering)이 끝나고 숫자 올라가기가 최종 값에 닿을 때까지"""
+    pg.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    pg.wait_for_timeout(350)  # 강조색·테마 바꾼 뒤 색 전환(0.2~0.3초)도 끝나게
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5173"
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else tempfile.mkdtemp()
@@ -592,6 +611,7 @@ with sync_playwright() as p:
     bell = page.locator(".bell-badge").inner_text()
     check("헤더 알림 6건 (임박 5 + 지급 확인 필요 1)", bell == "6", bell)
     page.click(".bell")
+    settled(page)
     check("알림 → 구매조달 › 대금 결제 일정", page.locator(".subtab[data-sub='payments']").get_attribute("aria-selected") == "true")
     pv = page.locator(".subview")
     check("결제 일정: SAMPLE·기준일·출처 표시", "SAMPLE" in pv.locator(".sv-head").inner_text() and "기준일 2026-10-15" in pv.locator(".sv-head").inner_text())
@@ -944,11 +964,19 @@ with sync_playwright() as p:
 }
 """
     def sweep(pg, label):
+        settled(pg)
         r = pg.evaluate(SWEEP)
         check(f"{label}: 12px 미만 글자 없음", not r["small"], ", ".join(r["small"]))
         check(f"{label}: 글자 대비 4.5:1 이상 (그라데이션·이미지 바탕 제외, 검사 {r['n']}개)", not r["low"], "; ".join(r["low"][:6]))
     dctx = browser.new_context(viewport={"width": 1920, "height": 1080}, color_scheme="light")
-    dctx.add_init_script("window.__anim = []; addEventListener('DOMContentLoaded', () => setTimeout(() => { window.__anim = document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations !== Infinity).map(a => { const t = a.effect.getComputedTiming(); return (t.delay || 0) + (t.duration || 0) + (t.endDelay || 0); }); }, 60))")
+    # v0.5.2: 로드 직후 1.6초 동안 30ms마다 document.getAnimations() 를 기록 → 이름별 시작·끝(앱 시작 기준)
+    dctx.add_init_script("""window.__tl = {}; window.__t0 = null;
+addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
+  for (const a of document.getAnimations()) { const tm = a.effect.getComputedTiming(); const n = a.animationName || a.transitionProperty || '?'; if (a.transitionProperty) continue;
+    const st = a.startTime; if (st == null) continue; if (window.__t0 === null || st < window.__t0) window.__t0 = st;
+    const inf = tm.iterations === Infinity; const e = window.__tl[n] || (window.__tl[n] = {s: 1e9, e: 0, n: 0, inf});
+    e.s = Math.min(e.s, st + (tm.delay || 0)); e.e = Math.max(e.e, inf ? 0 : st + tm.endTime); e.n++; }
+  if (performance.now() > 2200) clearInterval(iv); }, 30); })""")
     dp = dctx.new_page()
     dp.goto(URL, wait_until="domcontentloaded")
     dp.wait_for_selector("#login-demo")
@@ -1017,12 +1045,61 @@ with sync_playwright() as p:
         dp.locator(f".accent-pick [aria-label='강조색 {lab}']").click()
         dp.keyboard.press("Escape")
         sweep(dp, f"강조색 {lab} · 밝은 테마")
-    # 진입 동작 ≤ 300ms (지연+길이)
+    # v0.5.2: 진입 동작 예산 — 첫 화면 전체 ≤ 1100ms (이전 v0.5.1의 '모두 300ms 이하'를 사용자 결정으로 대체), 핵심 숫자·표 첫 행은 400ms 안에 시작
     dp.reload(wait_until="domcontentloaded")
     dp.wait_for_selector(".eval-card")
-    dp.wait_for_timeout(200)
-    anim = dp.evaluate("() => window.__anim || []")
-    check("진입 동작: 모두 300ms 이하 (지연 포함)", bool(anim) and max(anim) <= 300, f"최대 {max(anim) if anim else '없음'}ms · {len(anim)}개")
+    tl = dp.evaluate("() => ({tl: window.__tl, t0: window.__t0})")
+    names = tl["tl"]; t0 = tl["t0"] or 0
+    ends = {n: round(v["e"] - t0) for n, v in names.items() if not v["inf"] and v["e"] > 0}
+    starts = {n: round(v["s"] - t0) for n, v in names.items()}
+    mx = max(ends.values()) if ends else 9999
+    check("진입 동작: 첫 화면 전체가 1100ms 안에 끝남 (지연 포함)", bool(ends) and mx <= 1100, f"최대 {mx}ms · {len(names)}종 · " + json.dumps(ends, ensure_ascii=False))
+    check("진입 동작: 핵심 숫자(막대·도넛)와 표 첫 행이 400ms 안에 시작", starts.get("rowIn", 9999) <= 400 and starts.get("fillIn", 9999) <= 400 and starts.get("dash", 9999) <= 400, f"rowIn {starts.get('rowIn')} · fillIn {starts.get('fillIn')} · dash {starts.get('dash')}")
+    need = ["shellIn", "popPill", "logoIn", "wipeIn", "rise", "wordIn", "cardIn", "tileIn", "glowIn", "indIn", "fillIn", "dash", "rowIn"]
+    miss = [n for n in need if n not in names]
+    check("v14 모션 세트: 로드 때 실제로 실행되는 동작 이름 13종 (getAnimations)", not miss, "없음: " + ", ".join(miss))
+    check("반복 장식(알림 점 pulse·상태 점 livePulse)이 무한 반복으로 돈다", names.get("pulse", {}).get("inf") and names.get("livePulse", {}).get("inf"))
+    kf = dp.evaluate("() => { const o = new Set(); for (const sh of document.styleSheets) { try { for (const r of sh.cssRules) if (r.type === CSSRule.KEYFRAMES_RULE) o.add(r.name); } catch (e) {} } return [...o]; }")
+    kmiss = [n for n in ["popPill", "logoIn", "wipeIn", "rise", "wordIn", "cardIn", "barGrow", "lineDraw", "rowIn", "panelIn", "fillIn", "dash", "pulse"] if n not in kf]
+    check("v14 모션 세트: 키프레임 13종 정의됨", not kmiss, "없음: " + ", ".join(kmiss))
+    # 제목 낱말: 접근 가능한 글자는 그대로
+    tp = dp.evaluate("() => [...document.querySelectorAll('.panel-title, #eval-title')].map(h => ({al: h.getAttribute('aria-label'), tx: h.textContent.replace(/\s+/g,' ').trim(), words: h.querySelectorAll('.word[aria-hidden=true]').length, vis: [...h.querySelectorAll('.word')].every(w => w.getAttribute('aria-hidden') === 'true')}))")
+    check("제목 낱말 분리: aria-label 과 보이는 글자가 같고 낱말 조각은 aria-hidden", len(tp) == 3 and all(t["al"] == t["tx"] and t["words"] >= 2 and t["vis"] for t in tp), json.dumps(tp, ensure_ascii=False))
+    dp.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    fin = dp.evaluate("() => [...document.querySelectorAll('[data-final]')].filter(e => e.textContent !== e.dataset.final).length")
+    check("숫자 올라가기: 끝나면 모든 값이 data-final 과 같음", fin == 0 and dp.locator("[data-final]").count() >= 8, f"불일치 {fin}")
+    # 재생 규칙: 탭 전환은 재생, 필터·정렬·페이지는 재생 안 함
+    live = "() => document.getAnimations().filter(a => a.animationName && a.effect.getComputedTiming().iterations !== Infinity && !/^(popOpen|tipIn|modalIn|toastIn|bubbleIn|fadeIn)$/.test(a.animationName)).map(a => a.animationName)"
+    dp.get_by_role("tab", name="구매조달").click()
+    got = set(dp.evaluate(live))
+    check("탭 전환(구매조달): 표 행 rowIn·panelIn 이 다시 재생됨", {"rowIn", "panelIn"} <= got, str(sorted(got)))
+    settled(dp)
+    dp.locator(".pager-size select").select_option("50")
+    dp.wait_for_timeout(60)
+    check("한 쪽 행 수·페이지 변경: 진입 동작 재생 없음", dp.evaluate(live) == [])
+    dp.locator(".filters .chip-btn").nth(1).click()
+    dp.wait_for_timeout(60)
+    check("필터 변경: 진입 동작 재생 없음 (바로 최종 모습)", dp.evaluate(live) == [] and dp.locator(".is-entering").count() == 0, str(dp.evaluate(live)))
+    dp.locator(".th-sort").first.click()
+    dp.wait_for_timeout(60)
+    check("정렬 변경: 진입 동작 재생 없음", dp.evaluate(live) == [])
+    dp.locator(".subtab[data-sub='payments']").click()
+    got = set(dp.evaluate(live))
+    check("하위 보기 전환(결제 일정): 재생됨 (표 행·막대 barGrow)", {"rowIn", "barGrow"} <= got, str(sorted(got)))
+    settled(dp)
+    dp.get_by_role("tab", name="원가-계약").click()
+    dp.locator(".subtab[data-sub='materials']").click()
+    got = set(dp.evaluate(live))
+    check("하위 보기 전환(원자재 시세): 꺾은선 lineDraw 재생됨", "lineDraw" in got, str(sorted(got)))
+    settled(dp)
+    dp.get_by_role("tab", name="협력업체").click()
+    settled(dp)
+    # 손잡이 위 올림은 1px 이하
+    hb = dp.locator(".tb-actions .btn-primary")
+    hb.hover()
+    dp.wait_for_timeout(450)
+    ty = dp.evaluate("() => { const m = new DOMMatrix(getComputedStyle(document.querySelector('.tb-actions .btn-primary')).transform); return m.m42; }")
+    check("호버 올림 1px 이하 유지", ty >= -1.01, f"translateY {ty}")
     # 동작 줄이기
     rctx = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion="reduce")
     rp = rctx.new_page()
@@ -1033,6 +1110,12 @@ with sync_playwright() as p:
     if rp.locator("#ob-skip").count():
         rp.click("#ob-skip")
     check("동작 줄이기: 진입 애니메이션 길이 0.01ms", rp.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.app')).animationDuration) < 0.001"))
+    rinf = rp.evaluate("() => document.getAnimations().filter(a => a.effect.getComputedTiming().iterations === Infinity && a.animationName && a.animationName !== 'spin').map(a => a.animationName)")
+    check("동작 줄이기: 반복 장식(pulse·livePulse) 멈춤", rinf == [], str(rinf))
+    rmax = rp.evaluate("() => Math.max(0, ...document.getAnimations().filter(a => a.animationName).map(a => { const t = a.effect.getComputedTiming(); return (t.delay || 0) + (t.duration || 0); }))")
+    check("동작 줄이기: 모든 CSS 동작의 지연+길이 ≈ 0", rmax <= 1, f"{rmax}ms")
+    rcnt = rp.evaluate("() => [...document.querySelectorAll('[data-final]')].every(e => e.textContent === e.dataset.final)")
+    check("동작 줄이기: 숫자 올라가기 없이 바로 최종 값", rcnt and rp.locator("[data-final]").count() >= 8)
     rp.locator(".theme-seg button[aria-label='어둡게']").click()
     rp.wait_for_function("() => document.documentElement.dataset.theme === 'dark'", timeout=1500)
     check("동작 줄이기: 테마가 바로 바뀜(색 페이드)", True)

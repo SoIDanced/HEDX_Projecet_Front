@@ -1,20 +1,23 @@
 // 관심 협력사·부품 고정 (별 아이콘) — 사용자별로 이 브라우저에 저장
+import { useState } from "react";
 import { LuStar } from "react-icons/lu";
 import { useStore } from "../store/store";
 
 export function FavStar({ kind, id, name, size = "sm" }: { kind: "suppliers" | "items"; id: string; name: string; size?: "sm" | "md" }) {
   const { state, dispatch } = useStore();
   const on = state.favorites[kind].includes(id);
+  const [pop, setPop] = useState(false); // 눌러서 켠 때만 starPop (표를 다시 그릴 때는 재생하지 않음)
   const what = kind === "suppliers" ? "관심 협력사" : "관심 부품";
   return (
     <button
       type="button"
-      className={`fav-star fav-${size} ${on ? "is-on" : ""}`}
+      className={`fav-star fav-${size} ${on ? "is-on" : ""} ${on && pop ? "is-pop" : ""}`}
       aria-pressed={on}
       aria-label={on ? `${name} ${what}에서 빼기` : `${name} ${what}로 고정`}
       title={on ? `${what}에서 빼기` : `${what}로 고정`}
       onClick={(e) => {
         e.stopPropagation();
+        setPop(!on);
         dispatch({ type: "toggleFav", kind, id });
         dispatch({ type: "toast", text: on ? `'${name}'을(를) ${what}에서 뺐습니다` : `'${name}'을(를) ${what}로 고정했습니다` });
       }}

@@ -8,6 +8,7 @@ import { useAgent } from "../store/agent";
 import { EVAL_CONFIG, type SupplierEvaluation } from "../lib/evaluation";
 import { fmtNum } from "../lib/format";
 import { FavStar } from "./FavStar";
+import { CountUp, Words } from "./ui";
 
 function Donut({ value, grade }: { value: number | null; grade: string | null }) {
   const r = 44;
@@ -21,7 +22,7 @@ function Donut({ value, grade }: { value: number | null; grade: string | null })
         {grade ?? "–"}
       </text>
       <text x="54" y="72" className="donut-sub" textAnchor="middle">
-        {value === null ? "산정 불가" : `종합 ${fmtNum(value)}점`}
+        {value === null ? "산정 불가" : (<>종합 <CountUp as="tspan" value={value} format={(n) => fmtNum(n)} delay={400} />점</>)}
       </text>
     </svg>
   );
@@ -240,7 +241,7 @@ export function SupplierEvaluationCard() {
       <div className="eval-head">
         <div>
           <p className="eval-eyebrow">AI Scoring Agent</p>
-          <h2 id="eval-title">AI 에이전트 자동 채점·평가</h2>
+          <Words as="h2" id="eval-title" text="AI 에이전트 자동 채점·평가" />
           <p className="eval-sub">ISO 9001 관련 품질관리 원칙을 참고한 협력사 평가 항목 및 근거 분석</p>
         </div>
         <div className="eval-head-side">
@@ -297,7 +298,7 @@ export function SupplierEvaluationCard() {
                   <span className="eval-bar-track" aria-hidden>
                     <span className={`eval-bar-fill ${c.score === null ? "is-missing" : ""}`} style={{ width: `${c.score ?? 0}%` }} />
                   </span>
-                  <span className="eval-bar-val">{c.score === null ? "누락" : fmtNum(c.score, 0)}</span>
+                  <span className="eval-bar-val">{c.score === null ? "누락" : <CountUp value={c.score} format={(n) => fmtNum(n, 0)} delay={500} />}</span>
                 </li>
               ))}
             </ul>

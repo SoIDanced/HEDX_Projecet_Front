@@ -1,22 +1,8 @@
 /* v0.5.1 — Dashboard v14 디자인 적용층 (styles.css 뒤에 불러와 같은 이름의 규칙을 덮어쓴다)
    기능·마크업·2분할은 그대로 두고 모양만 바꾼다. v14와 다른 점은 접근성 때문에 정한 것뿐:
-   12px 미만 글자 없음 · 보조 글자 4.5:1 · 키보드 초점 링 유지 · 터치 44px · 짧은 진입 동작(≤300ms). */
+   12px 미만 글자 없음 · 보조 글자 4.5:1 · 키보드 초점 링 유지 · 터치 44px · 진입 동작은 styles/motion.css (v0.5.2: 첫 화면 약 1초). */
 
-/* ── 동작: 전체 규칙 (v14와 같은 방식) ── */
-@keyframes shellIn { from { opacity: 0; transform: scale(0.985); } }
-@keyframes popPill { from { opacity: 0; transform: translateY(-8px) scale(0.96); } }
-@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } }
-@keyframes popOpen { from { opacity: 0; transform: translateY(-6px) scale(0.95); } }
-@keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
-@keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(0.94); } }
-@keyframes fadeIn { from { opacity: 0; } }
-[data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
-  animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-  .typing i { animation: none !important; opacity: 0.6; }
-}
+/* ── 동작: 키프레임·진입 동작·전체 줄이기 규칙은 모두 styles/motion.css (v0.5.2) ── */
 
 /* ── 테마 전환 (src/platform/theme.ts) ── */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
@@ -33,12 +19,12 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 ::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
 #root { padding: var(--frame-y) var(--frame-x); }
 #root:has(> .login), #root:has(> .boot) { padding: 0; }
-.app { height: 100%; background: var(--shell); border-radius: var(--r-xl); padding: 16px clamp(12px, 1.6vw, 28px) clamp(12px, 1.6vw, 24px); gap: 16px; --gutter-l: 0px; --gutter-r: 0px; animation: shellIn 0.28s var(--ease) both; position: relative; }
+.app { height: 100%; background: var(--shell); border-radius: var(--r-xl); padding: 16px clamp(12px, 1.6vw, 28px) clamp(12px, 1.6vw, 24px); gap: 16px; --gutter-l: 0px; --gutter-r: 0px; position: relative; }
 @media (max-width: 640px) { .app { border-radius: 24px; padding: 10px 10px 10px; gap: 10px; } }
 
 /* ── 상단 바: 둥근 흰 알약 4개 ── */
 .topbar { background: none; border: 0; padding: 0; min-height: 0; gap: 14px; position: relative; z-index: 30; flex-wrap: nowrap; }
-.tb-pill { height: 60px; border-radius: 999px; background: var(--card); display: flex; align-items: center; animation: popPill 0.26s var(--ease) both; min-width: 0; }
+.tb-pill { height: 60px; border-radius: 999px; background: var(--card); display: flex; align-items: center; min-width: 0; }
 .tb-brand { padding: 0 24px 0 14px; flex: none; }
 .tb-status { flex: 1 1 0; justify-content: center; padding: 0 20px; gap: 18px; overflow: hidden; }
 .tb-tools, .tb-actions { gap: 6px; padding: 0 8px; flex: none; }
@@ -121,8 +107,7 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 
 /* ── 패널 = v14 카드 ── */
 .workspace { grid-template-columns: minmax(0, min(var(--split), calc(100% - var(--split-gap) - 320px))) var(--split-gap) minmax(0, 1fr); padding-block: 0; }
-.panel { background: var(--card); border: 0; border-radius: var(--r-lg); box-shadow: none; animation: cardIn 0.26s var(--ease) both; }
-.panel-c { animation-delay: 0.04s; }
+.panel { background: var(--card); border: 0; border-radius: var(--r-lg); box-shadow: none; }
 .panel-head { border-bottom: 0; padding: 18px 20px 6px; }
 .panel-title { font-size: var(--fs-16); font-weight: 600; letter-spacing: -0.1px; }
 .panel-sub { color: var(--muted); }
@@ -294,7 +279,7 @@ th.sticky-col { background: var(--soft); }
 .rel-comp { background: var(--solid); color: var(--on-solid); border-color: var(--solid); }
 
 /* ── 메뉴·팝오버·모달·알림 ── */
-.popover, .menu, .chat-menu, .kw-results { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-pop); animation: popOpen 0.2s var(--ease) both; }
+.popover, .menu, .chat-menu, .kw-results { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-pop); animation: popOpen 0.25s var(--ease) both; }
 .menu, .chat-menu { padding: 8px; }
 .menu-item { height: 40px; padding: 0 12px; border-radius: 11px; font-size: var(--fs-13); color: var(--ink-2); transition: background-color 0.15s, padding 0.2s var(--ease); }
 .menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--soft); color: var(--ink); padding-left: 14px; }
@@ -304,7 +289,7 @@ th.sticky-col { background: var(--soft); }
 .pop-head h3 { font-weight: 600; }
 .pop-foot { border-top: 0; }
 .modal-backdrop { background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fadeIn 0.2s ease both; }
-.modal { border-radius: 28px; box-shadow: var(--shadow-pop); background: var(--card); animation: modalIn 0.28s var(--spring) both; }
+.modal { border-radius: 28px; box-shadow: var(--shadow-pop); background: var(--card); animation: modalIn 0.42s var(--spring) both; }
 .modal-head { border-bottom: 0; padding: 22px 24px 6px; }
 .modal-head h2 { font-size: var(--fs-20); font-weight: 600; letter-spacing: -0.3px; }
 .modal-body { padding: 14px 24px 18px; }
@@ -329,7 +314,7 @@ th.sticky-col { background: var(--soft); }
 
 /* 알림 = v14 토스트: 오른쪽 아래 어두운 알약 */
 .toast-region { left: auto; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
-.toast { display: flex; align-items: center; gap: 12px; width: 360px; max-width: calc(100vw - 32px); padding: 14px 18px 14px 14px; border-radius: 18px; background: var(--solid); color: var(--on-solid); font-size: var(--fs-13); box-shadow: var(--shadow-pop); animation: toastIn 0.3s var(--spring) both; }
+.toast { display: flex; align-items: center; gap: 12px; width: 360px; max-width: calc(100vw - 32px); padding: 14px 18px 14px 14px; border-radius: 18px; background: var(--solid); color: var(--on-solid); font-size: var(--fs-13); box-shadow: var(--shadow-pop); animation: toastIn 0.45s var(--spring) both; }
 .toast-warn { background: var(--solid); }
 .toast-icon { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-fill); color: var(--on-accent); flex: none; font-size: 16px; }
 .toast-warn .toast-icon { background: var(--warn); color: var(--card); }
@@ -375,7 +360,7 @@ th.sticky-col { background: var(--soft); }
 /* ── 진입·호버 (짧게, 변형·투명도만) ── */
 .btn:hover:not(:disabled), .chip-btn:hover, .subtab:hover { transform: translateY(-1px); }
 .btn:active:not(:disabled), .chip-btn:active, .subtab:active { transform: scale(0.97); }
-.msg { animation: cardIn 0.22s var(--ease) both; }
+.msg { animation: bubbleIn 0.45s var(--spring) both; }
 @media (pointer: coarse) {
   .bell, .tb-actions .btn, .theme-seg button, .mode button, .tab, .menu-item, .swatch, input[type="checkbox"], input[type="radio"], .user-btn { min-height: 44px; }
   .theme-seg button, .mode button { min-width: 44px; }

@@ -1,6 +1,6 @@
 // 차트 렌더러 — 막대(세로·가로)와 선 그래프. Recharts 대신 SVG/HTML로 직접 그린다.
 // 원칙: 막대는 0에서 시작, 축은 하나, 2개 이상 계열이면 범례, 마우스를 올리면 값 표시, 데이터 표 제공
-import { useId, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { ChartSpec } from "../../lib/analysisTypes";
 import { fmtInt, fmtNum } from "../../lib/format";
 import { ScrollX } from "../ScrollX";
@@ -195,7 +195,7 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
             {spec.categories.map((c, ci) => {
               const gx = m.l + band * ci + (band - groupW) / 2;
               return (
-                <g key={c + ci} opacity={hover === null || hover === ci ? 1 : 0.45}>
+                <g key={c + ci} opacity={hover === null || hover === ci ? 1 : 0.45} style={{ "--i": ci } as CSSProperties}>
                   {spec.series.map((s, si) => {
                     const v = s.values[ci];
                     if (v === null || v === undefined) return null;
@@ -203,8 +203,8 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
                     const crit = k === 1 && spec.statusOf?.[ci] === "critical";
                     return (
                       <g key={s.key}>
-                        <path d={barPath(x, y(v), bw, y(0))} fill={crit ? "var(--status-critical)" : colorOf(spec, si)} />
-                        {!crit && (k === 1 || si === 1) && <path d={barPath(x, y(v), bw, y(0))} fill={`url(#hatch-${hid})`} pointerEvents="none" />}
+                        <path className="bar" d={barPath(x, y(v), bw, y(0))} fill={crit ? "var(--status-critical)" : colorOf(spec, si)} />
+                        {!crit && (k === 1 || si === 1) && <path className="bar" d={barPath(x, y(v), bw, y(0))} fill={`url(#hatch-${hid})`} pointerEvents="none" />}
                         {showValues && (
                           <text x={x + bw / 2} y={y(v) - 5} className="bar-value" textAnchor="middle">
                             {crit ? "! " : ""}
@@ -381,10 +381,10 @@ function LineChart({ spec }: { spec: ChartSpec }) {
             )}
             {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={m.t} y2={m.t + ph} className="crosshair" />}
             {paths.map((d, si) => (
-              <path key={si} d={d} fill="none" stroke={colorOf(spec, si)} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              <path key={si} className="line-path" pathLength={1} style={{ "--i": si } as CSSProperties} d={d} fill="none" stroke={colorOf(spec, si)} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
             ))}
             {ends.map((e) => (
-              <circle key={`end-${e.si}`} cx={x(e.i)} cy={y(e.v)} r={4} fill={colorOf(spec, e.si)} stroke="var(--surface)" strokeWidth={2} />
+              <circle key={`end-${e.si}`} className="end-dot" cx={x(e.i)} cy={y(e.v)} r={4} fill={colorOf(spec, e.si)} stroke="var(--surface)" strokeWidth={2} />
             ))}
             {hover !== null &&
               spec.series.map((s, si) =>

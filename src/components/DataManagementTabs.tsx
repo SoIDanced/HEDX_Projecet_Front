@@ -22,6 +22,8 @@ import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { infoSheet, tableSheet, type ExportCol } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
 import { isNarrow } from "../store/agent";
+import { CountUp } from "./ui";
+import { useReplayOn } from "../lib/motion";
 
 const TABS: TabKey[] = ["suppliers", "purchaseOrders", "contracts", "inventory"];
 
@@ -96,6 +98,8 @@ export function DataManagementTabs() {
   const favSup = state.favorites.suppliers;
   const favItem = state.favorites.items;
   const rootRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useReplayOn(bodyRef, `${tab}/${sub}`); // 탭·하위 보기를 바꿀 때만 표·차트 진입 동작을 다시 재생 (필터·정렬·페이지는 재생 안 함)
   const narrow = useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
 
   // 알림·관심 목록을 누르면 데이터 관리 영역으로 스크롤
@@ -303,11 +307,11 @@ export function DataManagementTabs() {
         {TABS.map((t) => (
           <button key={t} type="button" role="tab" id={`tab-${t}`} tabIndex={tab === t ? 0 : -1} aria-selected={tab === t} aria-controls="tab-panel" className={`tab ${tab === t ? "is-active" : ""}`} onClick={() => dispatch({ type: "tab", tab: t })}>
             <span className="tab-label">{TAB_LABEL[t]}</span>
-            <span className="tab-count">{counts[t]}</span>
+            <span className="tab-count"><CountUp value={counts[t]} format={fmtInt} delay={600} /></span>
           </button>
         ))}
       </div>
-      <div className="tab-body" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+      <div className="tab-body" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} ref={bodyRef}>
       {subviews.length > 1 && (
         <div className="subtabs" role="tablist" aria-label={`${TAB_LABEL[tab]} 보기`} onKeyDown={(e) => tabKeys(e, subviews.map((v) => v.id), sub, (v) => dispatch({ type: "subView", tab, view: v }), (v) => `subtab-${tab}-${v}`)}>
           {subviews.map((v) => (

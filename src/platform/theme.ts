@@ -1,5 +1,5 @@
 // 테마(밝게/어둡게)·강조색: <html data-theme data-accent>. 첫 화면 전에 빌드 템플릿의 인라인 스크립트가 먼저 적용한다.
-// 전환은 View Transitions API로 물방울처럼 번지게(550ms), 지원하지 않거나 '동작 줄이기'면 200ms 색 페이드. 어느 쪽이든 data-theme는 곧바로(≤900ms) 바뀐다.
+// 전환은 View Transitions API로 물방울처럼 번지게(900ms), 지원하지 않거나 '동작 줄이기'면 200ms 색 페이드. 어느 쪽이든 data-theme는 곧바로(≤900ms) 바뀐다.
 import { useSyncExternalStore } from "react";
 import { readStore, writeStore } from "./storage";
 
@@ -109,7 +109,7 @@ export function setTheme(next: Theme, origin?: { x: number; y: number }) {
   r.classList.add("liquid-switching");
   try {
     const vt = d.startViewTransition(apply);
-    vt.ready.then(() => r.animate(blobFrames(x, y, window.innerWidth, window.innerHeight), { duration: 550, easing: "linear", pseudoElement: "::view-transition-new(root)" })).catch(() => {});
+    vt.ready.then(() => r.animate(blobFrames(x, y, window.innerWidth, window.innerHeight), { duration: 900, easing: "linear", pseudoElement: "::view-transition-new(root)" })).catch(() => {});
     vt.finished.catch(() => {}).finally(() => r.classList.remove("liquid-switching"));
   } catch {
     apply();
