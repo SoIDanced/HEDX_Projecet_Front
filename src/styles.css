@@ -1,9 +1,11 @@
-/* 구매·협력사 AI 분석 플랫폼 v0.4
+/* RAG 기반 협력사 평가 AI 에이전트 v0.4
    레이아웃: 상단 바 + 요약 지표 + 데이터 관리(65) · AI 대화(35) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
    기준 해상도 1920×1080. 글자 단계 12 / 13 / 14 / 16 / 20 (+ 큰 숫자 24·30).
    밝은 업무 화면(아이보리 바탕·흰 패널)에 평가 카드만 차콜, 강조색은 오렌지 하나. */
 @import "./styles/tokens.css";
 :root {
+  /* 브랜드 글자: 본문(IBM Plex Sans KR)과 다른, 운영체제 기본 한글 고딕. 새 글꼴 파일·외부 요청 없음 */
+  --font-brand: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --fs-12: 12px;
@@ -64,10 +66,10 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .brand-hanwha { gap: 12px; }
 .brand-logo { height: 34px; width: auto; flex: none; display: block; }
 .brand-co { display: inline-grid; grid-template-columns: max-content; row-gap: 2px; line-height: 1; }
-.brand-ko, .brand-en { display: flex; justify-content: space-between; white-space: nowrap; }
-.brand-ko { font-size: 26px; font-weight: 800; letter-spacing: 0; color: var(--ink); line-height: 1.05; }
-.brand-en { font-size: 12px; font-weight: 600; color: var(--ink-2); line-height: 1.2; }
-.sp-gap { width: 0.5em; }
+.brand-ko, .brand-en { display: block; white-space: nowrap; letter-spacing: 0; word-spacing: 0; text-align: left; }
+.brand-ko, .brand-en { font-family: var(--font-brand); }
+.brand-ko { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.05; }
+.brand-en { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-2); line-height: 1.2; }
 .brand-divider { width: 1px; height: 32px; background: var(--line-2); flex: none; }
 .topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; min-width: 0; }
 .data-status { display: flex; align-items: center; gap: 8px; font-size: var(--fs-13); color: var(--ink-2); flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
@@ -124,7 +126,8 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
   .ds-counts, .ds-asof { display: none; }
 }
 @media (max-width: 640px) {
-  .hide-sm, .ai-status, .brand-divider, .brand-hanwha .brand-product, .data-status svg { display: none; }
+  .hide-sm, .ai-status, .brand-divider, .data-status svg { display: none; }
+  .brand-hanwha .brand-product { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* v0.5.4: 좁은 폭에서도 제품 이름은 접근 가능한 이름으로 남김(눈에는 안 보임) */
   .panel-head { padding: 12px 14px 10px; }
   .panel-body-a { padding: 12px; }
 }
@@ -810,6 +813,7 @@ fieldset.import-mode label { display: flex; gap: 6px; align-items: center; }
 .login-card { width: min(460px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 28px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 14px; }
 .login-brand { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .login-brand .brand { flex-wrap: wrap; }
+.login-brand .brand-divider { display: none; } /* v0.5.4: 제품 이름이 아래 줄로 내려가면 구분선만 덩그러니 남음 */
 .login-title { font-size: var(--fs-20); font-weight: 800; }
 .login-lead { font-size: var(--fs-14); color: var(--ink-2); }
 .login-form { display: flex; flex-direction: column; gap: 12px; }

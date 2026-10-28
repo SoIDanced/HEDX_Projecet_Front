@@ -126,6 +126,13 @@
 :is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(9) { --r: 8; }
 :is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(n + 10) { --r: 9; }
 
+/* ── 2-2) 선택 바꿈 이어서 움직이기 (v0.5.4): 평가 대상·소재·직종·기간이 바뀌어도 0에서 다시 시작하지 않는다 ──
+   도넛 호 길이·점수 막대 너비는 CSS 전환(transition)이 '지금 보이는 크기'에서 새 값까지 키우거나 줄이고(도중에 또 바뀌면 그 자리에서 다시 출발),
+   숫자는 CountUp(data-tween 안), 꺾은선은 Chart.tsx 의 morph. 길이는 숫자·꺾은선과 같은 1600ms × --k(약 600ms), 이징은 ease-out-quart. */
+:root { --ease-q: cubic-bezier(0.25, 1, 0.5, 1); }
+.donut-arc { transition: stroke-dasharray calc(1600ms * var(--k)) var(--ease-q); }
+.eval-bar-fill { transition: width calc(1600ms * var(--k)) var(--ease-q); }
+
 /* ── 3) 자기 신호로 움직이는 것 (재생 범위와 무관): 팝오버·모달·토스트·말풍선·툴팁 ── */
 .msg { animation: bubbleIn 450ms var(--spring) both; }
 .app.is-entering .chat-list > .msg { animation: bubbleIn calc(450ms * var(--k)) var(--spring) calc((var(--base) + 500ms + min(var(--r, 0), 6) * 40ms) * var(--k)) both; }

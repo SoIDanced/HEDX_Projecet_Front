@@ -23,8 +23,8 @@ const PREPAINT =
   'd.setAttribute("data-theme",t)})()</script>';
 
 const TARGETS = [
-  { brand: "hanwha", title: "한화엔진 구매·협력사 AI 분석 플랫폼", out: "index.html", full: true },
-  { brand: "neutral", title: "구매·협력사 AI 분석", out: "artifact.html", full: false },
+  { brand: "hanwha", title: "한화엔진 RAG 기반 협력사 평가 AI 에이전트", out: "index.html", full: true },
+  { brand: "neutral", title: "RAG 기반 협력사 평가 AI 에이전트", out: "artifact.html", full: false },
 ];
 
 function writeHtml(target, result) {

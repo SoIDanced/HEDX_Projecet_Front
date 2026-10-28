@@ -1,8 +1,8 @@
 {
   "name": "procure-ai-platform",
   "private": true,
-  "version": "0.5.2",
-  "description": "구매·협력사 AI 분석 DX 플랫폼 (시연용, SAMPLE 데이터)",
+  "version": "0.5.5",
+  "description": "RAG 기반 협력사 평가 AI 에이전트 (시연용, SAMPLE 데이터)",
   "type": "module",
   "engines": {
     "node": ">=18"

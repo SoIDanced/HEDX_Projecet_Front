@@ -11,7 +11,7 @@ html.liquid-switching *, html.liquid-switching *::before, html.liquid-switching 
 html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after { transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, fill 0.2s ease, stroke 0.2s ease !important; }
 
 /* ── 쪽 틀: 회색 바탕 + 둥근 셸 ── */
-:root { --frame-x: clamp(8px, 2.2vw, 32px); --frame-y: 32px; --split-gap: 20px; }
+:root { --frame-x: clamp(8px, 3.2vw, 52px); --frame-y: 32px; --split-gap: 20px; }
 @media (max-height: 820px) { :root { --frame-y: 14px; } }
 @media (max-width: 1180px) { :root { --frame-x: 10px; --frame-y: 10px; } }
 @media (max-width: 640px) { :root { --frame-x: 6px; --frame-y: 6px; } }
@@ -31,8 +31,8 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 .tb-user { padding: 0 6px; flex: none; }
 .topbar .brand { gap: 12px; }
 .topbar .brand-product { font-size: var(--fs-16); font-weight: 600; }
-.topbar .brand-logo { height: 32px; }
-.topbar .brand-ko { font-size: 22px; }
+.topbar .brand-logo { height: 40px; }
+.topbar .brand-ko { font-size: 26px; }
 .topbar .brand-divider { height: 28px; background: var(--line-2); }
 .topbar-right { display: contents; }
 .data-status { gap: 10px; }
@@ -65,11 +65,16 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 .theme-seg button.is-on svg { color: var(--accent-ink); }
 
 @media (max-width: 2100px) { .ds-counts { display: none; } }
-@media (max-width: 1700px) { .ai-status-text { display: none; } }
+@media (max-width: 1700px) {
+  .ai-status-text, .ds-asof { display: none; } /* v0.5.4: 제품 이름이 길어져 1700px 이하에서 기준일도 접음 */
+  .topbar .brand-product { white-space: normal; max-width: 9.6em; line-height: 1.2; } /* 두 줄: "RAG 기반 협력사 / 평가 AI 에이전트" */
+}
 @media (max-width: 1500px) {
   .topbar { gap: 10px; }
-  .tb-brand { padding: 0 18px 0 12px; }
-  .tb-status { padding: 0 14px; gap: 12px; }
+  .tb-brand { padding: 0 14px 0 12px; }
+  .tb-status { padding: 0 10px; gap: 8px; } /* v0.5.3: 로고·여백이 커진 만큼 상태 알약 안 SAMPLE 표시가 잘리지 않게 */
+  .mode button { padding: 0 10px; }
+  .ai-status { gap: 8px; }
   .ai-status-text, .hide-lg { display: none; }
   .ds-asof { display: none; }
   .data-status svg { display: none; }
@@ -77,8 +82,8 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 @media (max-width: 1320px) {
   .user-name, .hide-md { display: none; }
   .topbar .brand-product { font-size: var(--fs-14); }
-  .topbar .brand-ko { font-size: 20px; }
-  .topbar .brand-logo { height: 28px; }
+  .topbar .brand-ko { font-size: 23px; }
+  .topbar .brand-logo { height: 35px; }
   .tb-pill { height: 54px; }
   .topbar .brand { gap: 9px; }
   .mode button { padding: 0 10px; }
@@ -86,6 +91,7 @@ body { background: var(--page); font-feature-settings: "tnum" 0; }
 @media (max-width: 1024px) {
   .topbar { flex-wrap: wrap; row-gap: 8px; }
   .tb-brand { flex: 1 1 0; }
+  .topbar .brand-product { white-space: nowrap; max-width: none; }
   .tb-status { order: 5; flex: 1 1 100%; justify-content: flex-start; height: auto; min-height: 48px; padding: 6px 14px; border-radius: 28px; flex-wrap: wrap; }
   .tb-actions { order: 6; flex: 1 1 100%; justify-content: flex-start; height: auto; padding: 6px 8px; border-radius: 28px; }
   .tb-actions .btn { height: 40px; }
@@ -373,3 +379,45 @@ th.sticky-col { background: var(--soft); }
 .skip-link:focus { top: 8px; }
 
 .swatch[data-accent-id="orange"] i { color: #1b1b1b; }
+
+/* ── v0.5.5 선택 정보: 접힘·펼침이 같은 머리 줄(같은 상자·같은 오른쪽 두 칸) — [선택 해제] [접기/펼치기] 위치 고정 ── */
+.chat-detail:has(.row-summary), .chat-detail:has(.row-detail) { padding: 10px; scrollbar-gutter: stable; } /* 클래식 스크롤바(Windows)에서 펼침 때만 스크롤바가 생겨 버튼이 옆으로 밀리지 않게 자리를 항상 비워 둔다 */
+.chat-detail :is(.row-detail, .row-summary) { padding: 6px 8px 8px 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--card); animation: none; gap: 8px; display: flex; flex-direction: column; min-width: 0; }
+.row-detail-head { display: flex; align-items: center; align-self: stretch; gap: 6px; min-height: 36px; }
+.row-detail-head > :is(.detail-clear, .icon-btn) { flex: none; }
+.row-detail-head .detail-clear { height: 32px; padding: 0 8px; border-radius: 8px; white-space: nowrap; }
+.row-summary .spacer { display: none; }
+.row-summary-text { padding-right: 4px; }
+
+/* ── v0.5.5 채점 평가 카드 스크롤 도킹: 카드가 위로 사라지면 같은 값으로 그린 간단 막대가 패널 맨 위에 붙는다 ──
+   높이 0짜리 sticky 래퍼(음수 아래 여백으로 flex gap 상쇄) 안에 막대를 absolute 로 얹어 내용을 밀지 않는다 → 스크롤 위치 점프 없음.
+   보이기/숨기기는 transform·opacity 만. 숨은 동안은 inert(초점·스크린리더 제외). */
+.panel-body-a { scroll-padding-top: 64px; --pb-pt: 12px; } /* --pb-pt = 위쪽 안쪽 여백: sticky 는 이 안쪽 선에 붙으므로 그만큼 올려 패널 맨 위에 맞춘다 */
+@media (max-width: 640px) { .panel-body-a { --pb-pt: 8px; } }
+.eval-dock { position: sticky; top: calc(-1 * var(--pb-pt)); z-index: 6; height: 0; margin-bottom: -18px; pointer-events: none; }
+.eval-dock-bar { position: absolute; top: 0; left: 0; right: 0; height: 56px; box-sizing: border-box; container-type: inline-size; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--char-ink); background: var(--char); border: 1px solid var(--char-3); border-top: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); box-shadow: 0 10px 18px -10px rgba(0, 0, 0, 0.45);
+  opacity: 0; visibility: hidden; transform: translateY(-14px) scale(0.97); transform-origin: 50% 0;
+  transition: transform 300ms var(--ease), opacity 250ms var(--ease), visibility 0s linear 300ms; }
+.eval-dock.is-on .eval-dock-bar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; transition-timing-function: var(--spring), var(--ease), linear; }
+.dock-ring { position: relative; flex: none; width: 40px; height: 40px; display: grid; place-items: center; }
+.dock-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dock-ring b { font-size: var(--fs-14); font-weight: 700; color: var(--char-ink); }
+.dock-track { fill: none; stroke: var(--char-3); stroke-width: 10; }
+.dock-arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray calc(1600ms * var(--k)) var(--ease-q); }
+.dock-info { display: flex; flex-direction: column; min-width: 0; flex: 0 1 150px; line-height: 1.35; }
+.dock-name { font-size: var(--fs-13); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-total { font-size: var(--fs-12); color: var(--char-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dock-bars { list-style: none; margin: 0; padding: 0; flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.dock-bars li { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.dock-bar-head { display: flex; justify-content: space-between; gap: 4px; font-size: var(--fs-12); color: var(--char-muted); line-height: 1.2; }
+.dock-bar-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-bar-head b { color: var(--char-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dock-track-bar { height: 5px; border-radius: 999px; background: var(--char-3); overflow: hidden; }
+.dock-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); transform-origin: 0 50%; transition: width calc(1600ms * var(--k)) var(--ease-q); }
+.dock-fill.is-missing { background: transparent; }
+.dock-select { flex: 0 1 150px; min-width: 0; height: 36px; margin-left: auto; background-color: var(--char-2); color: var(--char-ink); border: 1px solid var(--char-3); border-radius: 12px; font-size: var(--fs-13); }
+.dock-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app.is-entering .dock-arc { --c: 277; animation: dash calc(1400ms * var(--k)) var(--ease) calc((var(--base) + 450ms) * var(--k)) both; }
+.app.is-entering .dock-fill { animation: fillIn calc(1400ms * var(--k)) var(--ease) calc((var(--base) + 500ms) * var(--k)) both; }
+@container (max-width: 600px) { .dock-bars { display: none; } .dock-info { flex: 1 1 auto; } }
+@media (pointer: coarse) { .dock-select { height: 44px; } }

@@ -7,8 +7,15 @@ import type { ChartSpec } from "../../lib/analysisTypes";
 import { fmtInt, fmtSignedPct, round } from "../../lib/format";
 import { buildWageTree, findNode, jobsForProcess, type WageNode } from "../../lib/market";
 import { SubViewHead } from "./SubViewHead";
+import { CountUp } from "../ui";
 
 const LEVEL = ["대분류", "중분류", "소분류"];
+
+/** 선택이 바뀔 때 이전 값에서 새 값으로 세는 변동률 (값이 없으면 –) */
+function DeltaCount({ v }: { v: number | null }) {
+  if (v === null) return <span className="muted">–</span>;
+  return <span className={v > 0 ? "delta-up" : v < 0 ? "delta-down" : ""}><CountUp value={v} format={(n) => fmtSignedPct(n)} /></span>;
+}
 
 function Delta({ v }: { v: number | null }) {
   if (v === null) return <span className="muted">–</span>;
@@ -129,23 +136,23 @@ export function LaborWages() {
             ))}
           </ul>
         </div>
-        <div className="wage-main">
+        <div className="wage-main" data-tween>
           {sel && (
             <div className="hl-row">
               <div className="hl">
                 <span className="hl-label">{LEVEL[sel.level]} · 최근 월평균 임금</span>
-                <span className="hl-value">{fmtInt(sel.latest)}원</span>
+                <span className="hl-value">{sel.latest === null ? "–" : <><CountUp value={sel.latest} format={fmtInt} />원</>}</span>
               </div>
               <div className="hl">
                 <span className="hl-label">전년 같은 달 대비</span>
                 <span className="hl-value">
-                  <Delta v={sel.yoy} />
+                  <DeltaCount v={sel.yoy} />
                 </span>
               </div>
               <div className="hl">
                 <span className="hl-label">{cmpLabel} 대비</span>
                 <span className="hl-value">
-                  <Delta v={gap} />
+                  <DeltaCount v={gap} />
                 </span>
               </div>
             </div>
@@ -157,7 +164,7 @@ export function LaborWages() {
               </button>
             ))}
           </div>
-          {spec && <Chart spec={spec} valueLabels={false} />}
+          {spec && <Chart spec={spec} valueLabels={false} morph />}
           {sel?.level === 2 && (
             <p className="small muted">
               관련 협력사(공정 기준):{" "}

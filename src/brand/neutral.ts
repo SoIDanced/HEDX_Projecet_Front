@@ -6,6 +6,6 @@ export const BRAND: Brand = {
   logo: null,
   company: null,
   companyEn: null,
-  product: "구매·협력사 AI 분석 플랫폼",
-  docTitle: "구매·협력사 AI 분석",
+  product: "RAG 기반 협력사 평가 AI 에이전트",
+  docTitle: "RAG 기반 협력사 평가 AI 에이전트",
 };
