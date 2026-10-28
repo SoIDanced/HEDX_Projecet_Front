@@ -13,7 +13,7 @@ import type { AnalysisResult } from "../lib/analysisTypes";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { HistoryPanel } from "./HistoryPanel";
 import { SelectionDetail, useSelectionTitle } from "./SelectionDetail";
-import { Chip } from "./ui";
+import { Chip, Words } from "./ui";
 
 /** 'AI와 대화'임이 바로 보이는 아이콘: 말풍선 + 반짝임 */
 export function AiChatIcon({ size = 22 }: { size?: number }) {
@@ -322,7 +322,7 @@ export function ChatPanel() {
               <AiChatIcon size={18} />
             </span>
             <div className="chat-title-text">
-              <h2 className="panel-title">AI 대화</h2>
+              <Words as="h2" className="panel-title" text="AI 대화" />
               <span>{state.aiMode === "llm" ? "LLM 응답 모드" : "규칙 기반 분석 · 글 답변"}</span>
             </div>
           </div>

@@ -12,54 +12,62 @@ import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "../lib/
 import { pathText } from "../lib/bom";
 import { buildWageTree, jobsForProcess } from "../lib/market";
 
-/** 표에서 고른 행 선택을 풀고 선택 정보도 닫는다 */
-function ClearSelection({ compact }: { compact?: boolean }) {
+/** 표에서 고른 행 선택을 풀고 선택 정보도 닫는다 (접힘·펼침 모두 같은 글자·같은 크기: 위치가 달라지면 잘못 누르기 쉽다) */
+function ClearSelection() {
   const { dispatch } = useStore();
   return (
     <button type="button" className="link-btn detail-clear" onClick={() => dispatch({ type: "clearSelection", what: "row" })} title="표의 행 선택을 해제합니다" aria-label="표의 행 선택 해제">
-      <LuX aria-hidden />
-      {!compact && " 선택 해제"}
+      <LuX aria-hidden /> 선택 해제
     </button>
   );
 }
 
 function Detail({ title, summary, fields, actions, onClose, star, children }: { title: string; summary: string[]; fields: [string, ReactNode][]; actions?: ReactNode; onClose: () => void; star?: ReactNode; children?: ReactNode }) {
   const { state, dispatch } = useStore();
-  // 접힌 상태: 이름 + 핵심 값 3~4개만 한 줄로 (넘치면 …)
-  if (!state.detailOpen)
-    return (
-      <section className="row-summary" aria-label={`${title} 요약`}>
-        <p className="row-summary-text" title={[title, ...summary].join(" · ")}>
-          <b>{title}</b>
-          {summary.map((t) => ` · ${t}`).join("")}
-        </p>
-        <ClearSelection compact />
-        <button type="button" className="icon-btn" onClick={() => dispatch({ type: "detailOpen", open: true })} aria-expanded={false} aria-controls="selection-detail" aria-label="선택 정보 펼치기" title="펼치기">
-          <LuChevronDown aria-hidden />
-        </button>
-      </section>
-    );
+  const open = state.detailOpen;
+  // 머리 줄(요소·CSS 상자)은 접힘·펼침이 같다: [왼쪽: 제목 또는 한 줄 요약] [선택 해제] [접기/펼치기] — 오른쪽 두 칸 위치 고정
   return (
-    <section className="row-detail" aria-label={`${title} 상세`} id="selection-detail">
+    <section className={open ? "row-detail" : "row-summary"} aria-label={`${title} ${open ? "상세" : "요약"}`} id={open ? "selection-detail" : undefined}>
       <div className="row-detail-head">
-        {star}
-        <h3>{title}</h3>
+        {open ? (
+          <>
+            {star}
+            <h3>{title}</h3>
+          </>
+        ) : (
+          <p className="row-summary-text" title={[title, ...summary].join(" · ")}>
+            <b>{title}</b>
+            {summary.map((t) => ` · ${t}`).join("")}
+          </p>
+        )}
         <span className="spacer" />
         <ClearSelection />
-        <button type="button" className="icon-btn" onClick={onClose} aria-expanded={true} aria-controls="selection-detail" aria-label="선택 정보 접기" title="접기 (한 줄 요약으로)">
-          <LuChevronUp aria-hidden />
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => (open ? onClose() : dispatch({ type: "detailOpen", open: true }))}
+          aria-expanded={open}
+          aria-controls="selection-detail"
+          aria-label={open ? "선택 정보 접기" : "선택 정보 펼치기"}
+          title={open ? "접기 (한 줄 요약으로)" : "펼치기"}
+        >
+          {open ? <LuChevronUp aria-hidden /> : <LuChevronDown aria-hidden />}
         </button>
       </div>
-      <dl className="kv">
-        {fields.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd>{v ?? "–"}</dd>
-          </div>
-        ))}
-      </dl>
-      {children}
-      {actions && <div className="row-detail-actions">{actions}</div>}
+      {open && (
+        <>
+          <dl className="kv">
+            {fields.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v ?? "–"}</dd>
+              </div>
+            ))}
+          </dl>
+          {children}
+          {actions && <div className="row-detail-actions">{actions}</div>}
+        </>
+      )}
     </section>
   );
 }

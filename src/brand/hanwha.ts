@@ -7,6 +7,6 @@ export const BRAND: Brand = {
   logo,
   company: "한화엔진",
   companyEn: "HANWHA ENGINE",
-  product: "구매·협력사 AI 분석 플랫폼",
-  docTitle: "한화엔진 구매·협력사 AI 분석 플랫폼",
+  product: "RAG 기반 협력사 평가 AI 에이전트",
+  docTitle: "한화엔진 RAG 기반 협력사 평가 AI 에이전트",
 };

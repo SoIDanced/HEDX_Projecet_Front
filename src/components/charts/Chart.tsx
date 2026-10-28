@@ -1,9 +1,10 @@
 // 차트 렌더러 — 막대(세로·가로)와 선 그래프. Recharts 대신 SVG/HTML로 직접 그린다.
 // 원칙: 막대는 0에서 시작, 축은 하나, 2개 이상 계열이면 범례, 마우스를 올리면 값 표시, 데이터 표 제공
-import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { ChartSpec } from "../../lib/analysisTypes";
 import { fmtInt, fmtNum } from "../../lib/format";
 import { ScrollX } from "../ScrollX";
+import { motionScale, reducedMotion } from "../../lib/motion";
 
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 const colorOf = (spec: ChartSpec, i: number) => (spec.series.length === 1 ? "var(--series-single)" : SERIES[i % SERIES.length]);
@@ -151,6 +152,7 @@ function DataTable({ spec }: { spec: ChartSpec }) {
 function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean }) {
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
+  const hid = useId().replace(/:/g, "");
   const H = spec.xMarker ? 254 : 240;
   const m = { t: spec.xMarker ? 36 : 22, r: 12, b: 32, l: 52 };
   const pw = Math.max(10, W - m.l - m.r);
@@ -178,6 +180,11 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
       {W > 0 && (
         <div className="chart-canvas">
           <svg width={W} height={H} role="img" aria-label={spec.title}>
+            <defs>
+              <pattern id={`hatch-${hid}`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="2" height="6" fill="rgba(255,255,255,0.36)" />
+              </pattern>
+            </defs>
             {sc.ticks.map((t) => (
               <g key={t}>
                 <line x1={m.l} x2={m.l + pw} y1={y(t)} y2={y(t)} className={t === 0 ? "axis-base" : "grid"} />
@@ -189,7 +196,7 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
             {spec.categories.map((c, ci) => {
               const gx = m.l + band * ci + (band - groupW) / 2;
               return (
-                <g key={c + ci} opacity={hover === null || hover === ci ? 1 : 0.45}>
+                <g key={c + ci} opacity={hover === null || hover === ci ? 1 : 0.45} style={{ "--i": ci } as CSSProperties}>
                   {spec.series.map((s, si) => {
                     const v = s.values[ci];
                     if (v === null || v === undefined) return null;
@@ -197,7 +204,8 @@ function BarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolean
                     const crit = k === 1 && spec.statusOf?.[ci] === "critical";
                     return (
                       <g key={s.key}>
-                        <path d={barPath(x, y(v), bw, y(0))} fill={crit ? "var(--status-critical)" : colorOf(spec, si)} />
+                        <path className="bar" d={barPath(x, y(v), bw, y(0))} fill={crit ? "var(--status-critical)" : colorOf(spec, si)} />
+                        {!crit && (k === 1 || si === 1) && <path className="bar" d={barPath(x, y(v), bw, y(0))} fill={`url(#hatch-${hid})`} pointerEvents="none" />}
                         {showValues && (
                           <text x={x + bw / 2} y={y(v) - 5} className="bar-value" textAnchor="middle">
                             {crit ? "! " : ""}
@@ -300,46 +308,105 @@ function HBarChart({ spec, valueLabels }: { spec: ChartSpec; valueLabels: boolea
   );
 }
 
-function LineChart({ spec }: { spec: ChartSpec }) {
+// ── v0.5.4 꺾은선 이어서 바뀌기(morph): 선택(소재·직종·기간)이 바뀌면 0에서 다시 그리지 않고, 지금 보이는 선·눈금 범위에서 새 선·범위로 풀어 옮긴다 ──
+// 점 개수가 다르면 둘 중 많은 쪽 개수로 두 선을 같은 비율 위치에서 다시 뽑아(선형) 점끼리 섞는다. 끝나면 진짜 새 선으로 바꾼다.
+type Pts = { vals: (number | null)[][]; lo: number; hi: number };
+const resample = (v: (number | null)[], m: number) =>
+  Array.from({ length: m }, (_, j) => {
+    if (v.length <= 1) return v[0] ?? null;
+    const u = (j / (m - 1)) * (v.length - 1);
+    const i = Math.min(v.length - 2, Math.floor(u));
+    const f = u - i;
+    const a = v[i];
+    const b = v[i + 1];
+    return a === null || b === null ? (f < 0.5 ? a : b) : a + (b - a) * f;
+  });
+function blend(a: Pts, b: Pts, e: number): Pts {
+  const m = Math.max(a.vals[0]?.length ?? 0, b.vals[0]?.length ?? 0, 2);
+  const mix = (x: number | null, y: number | null) => (x === null ? y : y === null ? x : x + (y - x) * e);
+  return {
+    lo: a.lo + (b.lo - a.lo) * e,
+    hi: a.hi + (b.hi - a.hi) * e,
+    vals: b.vals.map((sv, si) => {
+      const ra = resample(a.vals[si], m);
+      return resample(sv, m).map((y, j) => mix(ra[j], y));
+    }),
+  };
+}
+/** sig 가 바뀔 때만(= 보여 줄 값이 바뀔 때만) 약 600ms 섞는다. 크기 변경·마우스 올림·테마 전환은 sig 가 같아 움직임 없음. 도중에 또 바뀌면 그 순간의 모양에서 다시 출발 */
+function useMorph(on: boolean, sig: string, tgt: Pts) {
+  const [a, setA] = useState<{ from: Pts; to: Pts; e: number } | null>(null);
+  const shown = useRef<Pts | null>(null);
+  const prev = useRef(sig);
+  const raf = useRef(0);
+  const cur = a ? blend(a.from, a.to, a.e) : tgt;
+  useLayoutEffect(() => {
+    const from = shown.current;
+    shown.current = cur;
+    if (prev.current === sig) return;
+    prev.current = sig;
+    cancelAnimationFrame(raf.current);
+    if (!on || !from || reducedMotion() || from.vals.length !== tgt.vals.length) return setA(null);
+    const t0 = performance.now();
+    const dur = 1600 * motionScale();
+    setA({ from, to: tgt, e: 0 });
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur);
+      if (t < 1) {
+        setA({ from, to: tgt, e: 1 - Math.pow(1 - t, 4) });
+        raf.current = requestAnimationFrame(tick);
+      } else setA(null);
+    };
+    raf.current = requestAnimationFrame(tick);
+  });
+  useLayoutEffect(() => () => cancelAnimationFrame(raf.current), []);
+  return { cur, morphing: a !== null };
+}
+
+function LineChart({ spec, morph }: { spec: ChartSpec; morph: boolean }) {
   const [ref, W] = useWidth<HTMLDivElement>();
-  const [hover, setHover] = useState<number | null>(null);
+  const [hoverRaw, setHover] = useState<number | null>(null);
   const H = 250;
   const endLabels = spec.series.length >= 2 && spec.series.length <= 4;
   const m = { t: 16, r: endLabels ? 84 : 16, b: 32, l: 56 };
   const pw = Math.max(10, W - m.l - m.r);
   const ph = H - m.t - m.b;
   const vals = spec.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
-  if (!vals.length) return <p className="muted small">표시할 값이 없습니다.</p>;
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
+  const lo = vals.length ? Math.min(...vals) : 0;
+  const hi = vals.length ? Math.max(...vals) : 0;
   const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1;
   const sc = niceScale(lo - pad, hi + pad, 4, false, spec.unit);
   if (spec.unit === "%") {
     sc.max = Math.min(sc.max, 100);
   }
+  const { cur: d, morphing } = useMorph(morph, `${spec.id}|${JSON.stringify(spec.series.map((s) => s.values))}`, { vals: spec.series.map((s) => s.values), lo: sc.min, hi: sc.max });
+  if (!vals.length) return <p className="muted small">표시할 값이 없습니다.</p>;
+  const hover = morphing ? null : hoverRaw; // 섞이는 동안은 마우스 표시 숨김
   const n = spec.categories.length;
   const x = (i: number) => m.l + (n <= 1 ? pw / 2 : (pw * i) / (n - 1));
-  const y = (v: number) => m.t + ph - ((v - sc.min) / (sc.max - sc.min || 1)) * ph;
+  const L = d.vals[0]?.length ?? 0; // 지금 그리는 점 개수 (섞이는 동안은 둘 중 많은 쪽, 아니면 n)
+  const xp = (j: number) => m.l + (L <= 1 ? pw / 2 : (pw * j) / (L - 1));
+  const y = (v: number) => m.t + ph - ((v - d.lo) / (d.hi - d.lo || 1)) * ph;
   const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(pw / 66))));
-  const paths = spec.series.map((s) => {
-    let d = "";
+  const paths = d.vals.map((vs) => {
+    let p = "";
     let pen = false;
-    s.values.forEach((v, i) => {
+    vs.forEach((v, i) => {
       if (v === null) {
         pen = false;
         return;
       }
-      d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+      p += `${pen ? "L" : "M"}${xp(i).toFixed(1)},${y(v).toFixed(1)}`;
       pen = true;
     });
-    return d;
+    return p;
   });
   // 끝점 라벨: 겹치지 않게 세로 위치를 벌린다
-  const ends = spec.series
-    .map((s, si) => {
+  const ends = d.vals
+    .map((vs, si) => {
       let li = -1;
-      s.values.forEach((v, i) => v !== null && (li = i));
-      return li < 0 ? null : { si, i: li, v: s.values[li] as number, yy: y(s.values[li] as number) };
+      vs.forEach((v, i) => v !== null && (li = i));
+      return li < 0 ? null : { si, i: li, v: vs[li] as number, yy: y(vs[li] as number) };
     })
     .filter(Boolean) as { si: number; i: number; v: number; yy: number }[];
   ends.sort((a, b) => a.yy - b.yy);
@@ -354,9 +421,9 @@ function LineChart({ spec }: { spec: ChartSpec }) {
     <div className="chart" ref={ref}>
       <Legend spec={spec} />
       {W > 0 && (
-        <div className="chart-canvas">
+        <div className="chart-canvas" data-morphing={morphing ? "1" : undefined}>
           <svg width={W} height={H} role="img" aria-label={spec.title}>
-            {sc.ticks.map((t) => (
+            {sc.ticks.filter((t) => !morphing || (y(t) >= m.t - 1 && y(t) <= m.t + ph + 1)).map((t) => (
               <g key={t}>
                 <line x1={m.l} x2={m.l + pw} y1={y(t)} y2={y(t)} className="grid" />
                 <text x={m.l - 6} y={y(t)} className="tick" textAnchor="end" dominantBaseline="middle">
@@ -374,10 +441,10 @@ function LineChart({ spec }: { spec: ChartSpec }) {
             )}
             {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={m.t} y2={m.t + ph} className="crosshair" />}
             {paths.map((d, si) => (
-              <path key={si} d={d} fill="none" stroke={colorOf(spec, si)} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+              <path key={si} className="line-path" pathLength={1} style={{ "--i": si } as CSSProperties} d={d} fill="none" stroke={colorOf(spec, si)} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
             ))}
             {ends.map((e) => (
-              <circle key={`end-${e.si}`} cx={x(e.i)} cy={y(e.v)} r={4} fill={colorOf(spec, e.si)} stroke="var(--surface)" strokeWidth={2} />
+              <circle key={`end-${e.si}`} className="end-dot" cx={xp(e.i)} cy={y(e.v)} r={4} fill={colorOf(spec, e.si)} stroke="var(--surface)" strokeWidth={2} />
             ))}
             {hover !== null &&
               spec.series.map((s, si) =>
@@ -385,7 +452,7 @@ function LineChart({ spec }: { spec: ChartSpec }) {
               )}
             {endLabels &&
               ends.map((e) => (
-                <text key={`lbl-${e.si}`} x={x(e.i) + 8} y={e.yy} className="end-label" dominantBaseline="middle">
+                <text key={`lbl-${e.si}`} x={xp(e.i) + 8} y={e.yy} className="end-label" dominantBaseline="middle">
                   {truncate(spec.series[e.si].label, 7)}
                 </text>
               ))}
@@ -409,7 +476,7 @@ function LineChart({ spec }: { spec: ChartSpec }) {
   );
 }
 
-export function Chart({ spec: raw, valueLabels = true, refLine = true }: { spec: ChartSpec; valueLabels?: boolean; refLine?: boolean }) {
+export function Chart({ spec: raw, valueLabels = true, refLine = true, morph = false }: { spec: ChartSpec; valueLabels?: boolean; refLine?: boolean; morph?: boolean }) {
   const spec = refLine ? raw : { ...raw, refLine: undefined };
   const hasData = spec.series.some((s) => s.values.some((v) => v !== null)) && spec.categories.length > 0;
   return (
@@ -420,7 +487,7 @@ export function Chart({ spec: raw, valueLabels = true, refLine = true }: { spec:
       ) : spec.type === "hbar" ? (
         <HBarChart spec={spec} valueLabels={valueLabels} />
       ) : spec.type === "line" ? (
-        <LineChart spec={spec} />
+        <LineChart spec={spec} morph={morph} />
       ) : (
         <BarChart spec={spec} valueLabels={valueLabels} />
       )}

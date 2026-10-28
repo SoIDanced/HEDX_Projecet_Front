@@ -8,6 +8,7 @@ import { useAgent } from "../store/agent";
 import { EVAL_CONFIG, type SupplierEvaluation } from "../lib/evaluation";
 import { fmtNum } from "../lib/format";
 import { FavStar } from "./FavStar";
+import { CountUp, Words } from "./ui";
 
 function Donut({ value, grade }: { value: number | null; grade: string | null }) {
   const r = 44;
@@ -16,12 +17,12 @@ function Donut({ value, grade }: { value: number | null; grade: string | null })
   return (
     <svg className="donut" viewBox="0 0 108 108" role="img" aria-label={grade ? `${grade}등급, 종합 ${fmtNum(value)}점` : "평가 불가"}>
       <circle cx="54" cy="54" r={r} className="donut-track" />
-      <circle cx="54" cy="54" r={r} className="donut-arc" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 54 54)" />
+      <circle cx="54" cy="54" r={r} className="donut-arc" style={{ strokeDasharray: `${c * p} ${c}` }} transform="rotate(-90 54 54)" />
       <text x="54" y="52" className="donut-grade" textAnchor="middle">
         {grade ?? "–"}
       </text>
       <text x="54" y="72" className="donut-sub" textAnchor="middle">
-        {value === null ? "산정 불가" : `종합 ${fmtNum(value)}점`}
+        {value === null ? "산정 불가" : (<>종합 <CountUp as="tspan" value={value} format={(n) => fmtNum(n)} delay={400} />점</>)}
       </text>
     </svg>
   );
@@ -221,26 +222,128 @@ function BasisPopover({ anchor, ev, supplierName, onClose }: { anchor: HTMLEleme
   );
 }
 
+/** 평가 대상 <option> 목록: 전체 카드 선택기와 스크롤 도킹 막대가 같이 쓴다 */
+function SupplierOptions() {
+  const { state, derived } = useStore();
+  const fav = state.favorites.suppliers;
+  const favList = derived.supplierViews.filter((s) => fav.includes(s.supplierId));
+  return (
+    <>
+      {favList.length > 0 && (
+        <optgroup label="★ 관심 협력사">
+          {favList.map((s) => (
+            <option key={`f-${s.supplierId}`} value={s.supplierId}>
+              ★ {s.name} ({s.supplierId})
+            </option>
+          ))}
+        </optgroup>
+      )}
+      <optgroup label="전체 협력사">
+        {derived.supplierViews
+          .filter((s) => !fav.includes(s.supplierId))
+          .map((s) => (
+            <option key={s.supplierId} value={s.supplierId}>
+              {s.name} ({s.supplierId})
+            </option>
+          ))}
+      </optgroup>
+    </>
+  );
+}
+
+const DOCK_H = 56; // styles/v14.css 의 .eval-dock-bar 높이와 같은 값
+const DOCK_HYST = 24; // 다시 숨길 때는 이만큼 더 올라와야 한다(문턱 근처 깜빡임 방지)
+
+/** 전체 카드가 스크롤로 사라지면 true. 보일 때는 DOCK_H 만큼, 숨길 때는 DOCK_H+DOCK_HYST 만큼 안쪽 기준으로 판단 */
+function useDocked(cardRef: React.RefObject<HTMLElement | null>, on: boolean) {
+  const [docked, setDocked] = useState(false);
+  useEffect(() => {
+    const card = cardRef.current;
+    const root = card?.closest(".panel-body-a");
+    if (!on || !card || !root || typeof IntersectionObserver === "undefined") {
+      setDocked(false);
+      return;
+    }
+    const mk = (margin: number, cb: (e: IntersectionObserverEntry) => void) => {
+      const io = new IntersectionObserver((es) => cb(es[es.length - 1]), { root, rootMargin: `-${margin}px 0px 0px 0px`, threshold: 0 });
+      io.observe(card);
+      return io;
+    };
+    const showIo = mk(DOCK_H, (e) => !e.isIntersecting && e.boundingClientRect.top < (e.rootBounds?.top ?? 0) && setDocked(true));
+    const hideIo = mk(DOCK_H + DOCK_HYST, (e) => e.isIntersecting && setDocked(false));
+    return () => {
+      showIo.disconnect();
+      hideIo.disconnect();
+    };
+  }, [cardRef, on]);
+  return docked;
+}
+
+/** 스크롤 도킹 막대: 같은 값(ev)으로 그리므로 평가 대상이 바뀌면 숨어 있어도 호·숫자가 이어서 움직인다 (v0.5.4 전환 그대로) */
+function EvalDock({ docked, sid, name, ev }: { docked: boolean; sid: string; name: string; ev: SupplierEvaluation }) {
+  const { dispatch } = useStore();
+  const c = 2 * Math.PI * 44;
+  const p = ev.total === null ? 0 : Math.max(0, Math.min(100, ev.total)) / 100;
+  return (
+    <div className={`eval-dock ${docked ? "is-on" : ""}`} inert={!docked}>
+      <div className="eval-dock-bar" role="region" aria-label="채점 요약" data-tween>
+        <span className="dock-ring" aria-hidden>
+          <svg viewBox="0 0 108 108">
+            <circle cx="54" cy="54" r="44" className="dock-track" />
+            <circle cx="54" cy="54" r="44" className="dock-arc" style={{ strokeDasharray: `${c * p} ${c}` }} transform="rotate(-90 54 54)" />
+          </svg>
+          <b>{ev.grade ?? "–"}</b>
+        </span>
+        <div className="dock-info">
+          <b className="dock-name">{name}</b>
+          <span className="dock-total">
+            {ev.total === null ? "산정 불가" : (<>종합 <CountUp value={ev.total} format={(n) => fmtNum(n)} delay={400} />점</>)}
+            {ev.grade ? ` · ${ev.grade}등급` : ""}
+          </span>
+        </div>
+        <ul className="dock-bars" aria-label="항목별 점수">
+          {ev.criteria.map((cr) => (
+            <li key={cr.key} title={`${cr.label} ${cr.score === null ? "누락" : `${fmtNum(cr.score, 0)}점`}`}>
+              <span className="dock-bar-head">
+                <span>{cr.label}</span>
+                <b>{cr.score === null ? "누락" : <CountUp value={cr.score} format={(n) => fmtNum(n, 0)} delay={500} />}</b>
+              </span>
+              <span className="dock-track-bar" aria-hidden>
+                <span className={`dock-fill ${cr.score === null ? "is-missing" : ""}`} style={{ width: `${cr.score ?? 0}%` }} />
+              </span>
+            </li>
+          ))}
+        </ul>
+        <select className="dock-select" aria-label="평가 대상" value={sid} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
+          <SupplierOptions />
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export function SupplierEvaluationCard() {
   const { state, derived, dispatch } = useStore();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const sid = state.selection.supplierId;
   const sup = sid ? derived.suppliersById.get(sid) : undefined;
   const ev = sid ? derived.evaluations.get(sid) : undefined;
-  const fav = state.favorites.suppliers;
-  const favList = derived.supplierViews.filter((s) => fav.includes(s.supplierId));
+  const docked = useDocked(cardRef, !!(sup && ev));
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     if (restoreFocus) btnRef.current?.focus();
   }, []);
 
   return (
-    <section className="eval-card" aria-labelledby="eval-title">
+    <>
+    {sup && ev && <EvalDock docked={docked} sid={sup.supplierId} name={sup.name} ev={ev} />}
+    <section className="eval-card" aria-labelledby="eval-title" ref={cardRef}>
       <div className="eval-head">
         <div>
           <p className="eval-eyebrow">AI Scoring Agent</p>
-          <h2 id="eval-title">AI 에이전트 자동 채점·평가</h2>
+          <Words as="h2" id="eval-title" text="AI 에이전트 자동 채점·평가" />
           <p className="eval-sub">ISO 9001 관련 품질관리 원칙을 참고한 협력사 평가 항목 및 근거 분석</p>
         </div>
         <div className="eval-head-side">
@@ -262,24 +365,7 @@ export function SupplierEvaluationCard() {
       <div className="eval-picker">
         <label htmlFor="eval-supplier">평가 대상</label>
         <select id="eval-supplier" value={sid ?? ""} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
-          {favList.length > 0 && (
-            <optgroup label="★ 관심 협력사">
-              {favList.map((s) => (
-                <option key={`f-${s.supplierId}`} value={s.supplierId}>
-                  ★ {s.name} ({s.supplierId})
-                </option>
-              ))}
-            </optgroup>
-          )}
-          <optgroup label="전체 협력사">
-            {derived.supplierViews
-              .filter((s) => !fav.includes(s.supplierId))
-              .map((s) => (
-                <option key={s.supplierId} value={s.supplierId}>
-                  {s.name} ({s.supplierId})
-                </option>
-              ))}
-          </optgroup>
+          <SupplierOptions />
         </select>
         {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
       </div>
@@ -288,7 +374,7 @@ export function SupplierEvaluationCard() {
         <p className="eval-empty">협력업체 데이터가 없습니다. 상단의 데이터 불러오기로 협력업체 파일을 올려 주세요.</p>
       ) : (
         <>
-          <div className="eval-body">
+          <div className="eval-body" data-tween>
             <Donut value={ev.total} grade={ev.grade} />
             <ul className="eval-bars">
               {ev.criteria.map((c) => (
@@ -297,7 +383,7 @@ export function SupplierEvaluationCard() {
                   <span className="eval-bar-track" aria-hidden>
                     <span className={`eval-bar-fill ${c.score === null ? "is-missing" : ""}`} style={{ width: `${c.score ?? 0}%` }} />
                   </span>
-                  <span className="eval-bar-val">{c.score === null ? "누락" : fmtNum(c.score, 0)}</span>
+                  <span className="eval-bar-val">{c.score === null ? "누락" : <CountUp value={c.score} format={(n) => fmtNum(n, 0)} delay={500} />}</span>
                 </li>
               ))}
             </ul>
@@ -306,5 +392,6 @@ export function SupplierEvaluationCard() {
         </>
       )}
     </section>
+    </>
   );
 }

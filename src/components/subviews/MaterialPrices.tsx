@@ -83,7 +83,7 @@ export function MaterialPrices() {
           ))}
         </div>
       </div>
-      {spec && <Chart spec={spec} valueLabels={false} />}
+      {spec && <Chart spec={spec} valueLabels={false} morph />}
       {cur?.notes.map((n) => (
         <p key={n} className="note-warn">
           {n}

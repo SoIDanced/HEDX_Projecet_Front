@@ -1,0 +1,180 @@
+/* v0.5.2 — Dashboard v14 모션 세트 (원래 구조·순서·이징 그대로, 전체 길이만 압축)
+   ─ 시간은 모두 'v14 디자인 시간(ms)'으로 적고 --k(동작 배율) 하나를 곱한다. 첫 화면 전체가 약 1초에 끝나도록 .38.
+   ─ 재생 범위: 처음 열 때(.app.is-entering)와 탭·하위 보기·화면 전환(#tab-panel / .workspace 에 붙는 .is-entering)뿐.
+     필터·정렬·페이지·데이터 편집은 클래스가 없으므로 동작 없이 바로 최종 모습 (src/lib/motion.ts).
+   ─ 클래스가 없거나 JS가 실패해도 모든 요소는 보이는 상태가 기본이다(숨김은 키프레임 from 에만 있다).
+   ─ transform/opacity 위주. clip-path·filter 는 v14가 쓰는 곳(rise·wordIn·panelIn·rowIn·wipeIn·glowIn)만.
+     너비·높이는 애니메이션하지 않고 scaleX/scaleY 를 쓴다. */
+
+:root { --k: 0.38; }
+
+/* ── 키프레임 (v14 원본 그대로, 너비/높이 → scale) ── */
+@keyframes shellIn { from { opacity: 0; transform: scale(0.985); } }
+@keyframes popPill { from { opacity: 0; transform: translateY(-14px) scale(0.92); } }
+@keyframes logoIn { from { transform: rotate(-120deg) scale(0.3); opacity: 0; } }
+@keyframes wipeIn { from { clip-path: inset(0 100% 0 0); transform: translateX(-10px); } }
+@keyframes indIn { from { opacity: 0; scale: 0.4 0.8; } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); filter: blur(6px); } }
+@keyframes wordIn { from { opacity: 0; transform: translateY(70%) rotate(2deg); filter: blur(10px); } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(22px) scale(0.975); } }
+@keyframes tileIn { from { opacity: 0; transform: translateY(16px) scale(0.94); } }
+@keyframes glowIn { from { clip-path: circle(0% at 50% 50%); } }
+@keyframes barGrow { from { transform: scaleY(0); } }
+@keyframes fillIn { from { transform: scaleX(0); } }
+@keyframes dash { from { stroke-dasharray: 0 var(--c, 277); opacity: 0; } }
+@keyframes lineDraw { from { stroke-dashoffset: 1; } }
+@keyframes rowIn { from { opacity: 0; transform: translateY(10px); clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes panelIn { from { opacity: 0; transform: translateX(18px); filter: blur(4px); } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.6); } }
+@keyframes tipIn { from { opacity: 0; translate: 0 6px; } }
+@keyframes popOpen { from { opacity: 0; transform: translateY(-6px) scale(0.95); } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(0.94); } }
+@keyframes bubbleIn { from { opacity: 0; transform: translateY(12px) scale(0.92); } }
+@keyframes accIn { from { grid-template-rows: 0fr; opacity: 0; } }
+@keyframes starPop { 40% { transform: scale(1.5) rotate(20deg); } }
+@keyframes wiggle { 25% { transform: rotate(-14deg); } 55% { transform: rotate(10deg); } 80% { transform: rotate(-5deg); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse-c, var(--accent)) 55%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live-c, var(--good)) 60%, transparent); } 80%, 100% { box-shadow: 0 0 0 8px transparent; } }
+
+/* ── 재생 범위의 기준 지연: 처음 열 때는 카드가 들어온 뒤(300), 탭 전환은 바로(0) ── */
+.app.is-entering { --base: 300ms; }
+.is-entering:not(.app) { --base: 0ms; }
+
+/* ── 1) 처음 열 때만: 셸 → 알약 → 로고·상호 → 머리글 낱말 → 카드 ── */
+.app.is-entering { animation: shellIn calc(900ms * var(--k)) var(--ease) both; }
+.app.is-entering .tb-pill { animation: popPill calc(800ms * var(--k)) var(--spring) calc(var(--pd, 50ms) * var(--k)) both; }
+.app.is-entering .tb-brand { --pd: 50ms; }
+.app.is-entering .tb-status { --pd: 120ms; }
+.app.is-entering .tb-actions { --pd: 160ms; }
+.app.is-entering .tb-tools { --pd: 200ms; }
+.app.is-entering .tb-user { --pd: 260ms; }
+.app.is-entering .brand-logo { animation: logoIn calc(1000ms * var(--k)) var(--spring) calc(150ms * var(--k)) both; }
+.app.is-entering .brand-co, .app.is-entering .brand-product { animation: wipeIn calc(800ms * var(--k)) var(--ease) calc(350ms * var(--k)) both; }
+.app.is-entering .brand-divider { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc(450ms * var(--k)) both; }
+.app.is-entering .panel-a { animation: cardIn calc(750ms * var(--k)) var(--ease) calc(var(--base) * var(--k)) both; }
+.app.is-entering .panel-c { animation: cardIn calc(750ms * var(--k)) var(--ease) calc((var(--base) + 80ms) * var(--k)) both; }
+.word { display: inline-block; font-style: normal; }
+.app.is-entering .panel-title .word, .app.is-entering .eval-head h2 .word { animation: wordIn calc(900ms * var(--k)) var(--ease) calc((var(--base) + 150ms + var(--i, 0) * 80ms) * var(--k)) both; }
+.app.is-entering .eval-head h2 .word { animation-delay: calc((var(--base) + 450ms + var(--i, 0) * 80ms) * var(--k)); }
+.app.is-entering .panel-sub { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms) * var(--k)) both; }
+.app.is-entering .kw, .app.is-entering .panel-title-row > :last-child:not(.panel-sub):not(.chat-title) { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 475ms) * var(--k)) both; }
+.app.is-entering .chat-title-icon { animation: popIn calc(600ms * var(--k)) var(--spring) calc((var(--base) + 150ms) * var(--k)) both; }
+.app.is-entering .chat-tools { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms) * var(--k)) both; }
+.app.is-entering .chat-title-text span { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms) * var(--k)) both; }
+.app.is-entering .composer { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 700ms) * var(--k)) both; }
+.app.is-entering .splitter-grip { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 500ms) * var(--k)) both; }
+
+/* 상태 알약 안쪽(상태 점·글자)과 도구 */
+.app.is-entering .tb-status > * { animation: rise calc(600ms * var(--k)) var(--ease) calc(400ms * var(--k)) both; }
+.app.is-entering .tb-tools > *, .app.is-entering .tb-user > * { animation: popIn calc(600ms * var(--k)) var(--spring) calc(420ms * var(--k)) both; }
+.app.is-entering .tb-tools > :nth-child(2) { animation-delay: calc(500ms * var(--k)); }
+
+/* 평가 카드: tileIn + glowIn, 안쪽은 rise 순서, 도넛 dash, 막대 fillIn */
+.app.is-entering .eval-card { animation: tileIn calc(800ms * var(--k)) var(--ease) calc((var(--base) + 150ms) * var(--k)) both; }
+.app.is-entering .eval-card::after { animation: glowIn calc(1100ms * var(--k)) var(--ease) calc((var(--base) + 300ms) * var(--k)) both; }
+.app.is-entering :is(.eval-eyebrow, .eval-sub, .eval-head-side, .eval-picker) { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 450ms + var(--ri, 0) * 75ms) * var(--k)) both; }
+.app.is-entering .eval-sub { --ri: 2; }
+.app.is-entering .eval-head-side { --ri: 2; }
+.app.is-entering .eval-picker { --ri: 3; }
+.app.is-entering .donut-arc { --c: 277; animation: dash calc(1400ms * var(--k)) var(--ease) calc((var(--base) + 450ms) * var(--k)) both; }
+.app.is-entering .donut-track { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms) * var(--k)) both; }
+.app.is-entering .donut-grade, .app.is-entering .donut-sub { animation: popIn calc(600ms * var(--k)) var(--spring) calc((var(--base) + 600ms) * var(--k)) both; transform-box: fill-box; transform-origin: 50% 50%; }
+.eval-bar-fill, .hbar-fill { transform-origin: 0 50%; }
+.app.is-entering .eval-bar-fill { animation: fillIn calc(1400ms * var(--k)) var(--ease) calc((var(--base) + 500ms + var(--r, 0) * 70ms) * var(--k)) both; }
+.app.is-entering :is(.eval-bar-label, .eval-bar-val) { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 480ms + var(--r, 0) * 70ms) * var(--k)) both; }
+
+/* 데이터 탭 표시줄: 알약 rise 순서 + 미끄럼 표시 indIn (처음 열 때) */
+.app.is-entering .tabs .tab { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 500ms + var(--r, 0) * 60ms) * var(--k)) both; }
+.app.is-entering .tabs::before, .app.is-entering .mode::before, .app.is-entering .theme-seg::before, .app.is-entering .panel-tabs::before { animation: indIn calc(700ms * var(--k)) var(--spring) calc(550ms * var(--k)) both; }
+.app.is-entering .tabs::before { animation-delay: calc((var(--base) + 600ms) * var(--k)); }
+.app.is-entering .panel-tabs button { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms) * var(--k)) both; }
+
+/* ── 2) 탭·하위 보기·화면 전환 재생 범위(#tab-panel, .workspace 등 .is-entering) ── */
+.tab-body.is-entering { animation: panelIn calc(500ms * var(--k)) var(--ease) both; }
+.is-entering .subtabs .subtab { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 350ms + var(--r, 0) * 60ms) * var(--k)) both; }
+.is-entering .filters { animation: rise calc(700ms * var(--k)) var(--ease) calc((var(--base) + 350ms) * var(--k)) both; }
+.is-entering :is(.data-source, .pager, .sv-notes) { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 900ms) * var(--k)) both; }
+.is-entering :is(.sv-head, .sv-toolbar, .sv-list-head) { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 300ms) * var(--k)) both; }
+.is-entering :is(.pay-card, .hl, .chart-card) { animation: tileIn calc(800ms * var(--k)) var(--ease) calc((var(--base) + 350ms + var(--r, 0) * 90ms) * var(--k)) both; }
+.is-entering .chart-grid > .chart-card, .is-entering .subview > .chart-card { --r: 0; }
+.is-entering .chart-grid > .chart-card:nth-child(n + 2) { --r: 1; }
+.is-entering :is(.news, .rel-node, .wt-row) { animation: rise calc(600ms * var(--k)) var(--ease) calc((var(--base) + 450ms + var(--r, 0) * 60ms) * var(--k)) both; }
+
+/* 표 행: rowIn (v14: base + 520 + 행번호×70, 처음 10줄까지만 시차) */
+.is-entering :is(.data-table, .mini-table) tbody tr { animation: rowIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 520ms + min(var(--r, 0), 10) * 70ms) * var(--k)) both; }
+
+/* 차트: 막대 barGrow(아래에서 위로), 가로 막대 fillIn, 꺾은선 lineDraw, 눈금 fadeIn */
+.chart .bar { transform-box: fill-box; transform-origin: 50% 100%; }
+.is-entering .chart .bar { animation: barGrow calc(1100ms * var(--k)) var(--ease) calc((var(--base) + 500ms + min(var(--i, 0), 12) * 70ms) * var(--k)) both; }
+.is-entering .chart :is(.grid, .axis-base, .tick, .cat, .ref-line, .x-marker-line, .x-marker-label, .legend) { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 350ms) * var(--k)) both; }
+.is-entering .chart :is(.bar-value, .end-dot, .end-label) { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 1100ms) * var(--k)) both; }
+.is-entering .chart .line-path { stroke-dasharray: 1; animation: lineDraw calc(1600ms * var(--k)) var(--ease) calc((var(--base) + 400ms + var(--i, 0) * 200ms) * var(--k)) both; }
+.is-entering .hbar-fill { animation: fillIn calc(1100ms * var(--k)) var(--ease) calc((var(--base) + 450ms + min(var(--r, 0), 10) * 70ms) * var(--k)) both; }
+.is-entering :is(.hbar-label, .hbar-val) { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc((var(--base) + 400ms + min(var(--r, 0), 10) * 70ms) * var(--k)) both; }
+
+/* 같은 부모 안의 순서 번호(--r): 표 행·막대·알약·카드·채팅 말풍선 */
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .chart-grid > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(1) { --r: 0; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(2) { --r: 1; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(3) { --r: 2; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(4) { --r: 3; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(5) { --r: 4; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(6) { --r: 5; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(7) { --r: 6; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(8) { --r: 7; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(9) { --r: 8; }
+:is(tbody > tr, .eval-bars > li, .tabs > .tab, .subtabs > .subtab, .pay-cards > *, .hl-row > *, .news-list > *, .hbar > *, .chat-list > .msg, .wt-node):nth-child(n + 10) { --r: 9; }
+
+/* ── 2-2) 선택 바꿈 이어서 움직이기 (v0.5.4): 평가 대상·소재·직종·기간이 바뀌어도 0에서 다시 시작하지 않는다 ──
+   도넛 호 길이·점수 막대 너비는 CSS 전환(transition)이 '지금 보이는 크기'에서 새 값까지 키우거나 줄이고(도중에 또 바뀌면 그 자리에서 다시 출발),
+   숫자는 CountUp(data-tween 안), 꺾은선은 Chart.tsx 의 morph. 길이는 숫자·꺾은선과 같은 1600ms × --k(약 600ms), 이징은 ease-out-quart. */
+:root { --ease-q: cubic-bezier(0.25, 1, 0.5, 1); }
+.donut-arc { transition: stroke-dasharray calc(1600ms * var(--k)) var(--ease-q); }
+.eval-bar-fill { transition: width calc(1600ms * var(--k)) var(--ease-q); }
+
+/* ── 3) 자기 신호로 움직이는 것 (재생 범위와 무관): 팝오버·모달·토스트·말풍선·툴팁 ── */
+.msg { animation: bubbleIn 450ms var(--spring) both; }
+.app.is-entering .chat-list > .msg { animation: bubbleIn calc(450ms * var(--k)) var(--spring) calc((var(--base) + 500ms + min(var(--r, 0), 6) * 40ms) * var(--k)) both; }
+.tooltip, .steps-tip { animation: tipIn 250ms var(--ease) both; }
+.popover, .menu, .chat-menu, .kw-results { animation: popOpen 250ms var(--ease) both; }
+.modal { animation: modalIn 420ms var(--spring) both; }
+.modal-backdrop { animation: fadeIn 250ms ease both; }
+.toast { animation: toastIn 450ms var(--spring) both; }
+.acc { display: grid; grid-template-rows: 1fr; }
+.acc > ul { min-height: 0; }
+.acc.acc-in { animation: accIn 450ms var(--ease) both; }
+.acc.acc-in > ul { overflow: hidden; }
+.fav-star.is-pop svg { animation: starPop 420ms var(--spring); }
+
+/* 눌림·손잡이·체크 */
+input[type="checkbox"]:not(.switch)::before { clip-path: inset(0 100% 0 0); transition: transform 0.25s var(--spring), clip-path 0.3s var(--ease); }
+input[type="checkbox"]:not(.switch):checked::before { clip-path: inset(0 0 0 0); }
+input[type="checkbox"].switch::before { transition: transform 0.35s var(--spring), scale 0.2s var(--ease); }
+input[type="checkbox"].switch:active::before { scale: 1.25 1; }
+.bell:hover > svg:not(.bell-badge), .theme-seg button:hover > svg, .tb-tools .icon-btn:hover > svg { animation: wiggle 360ms var(--ease); }
+
+/* ── 4) 끝없이 도는 장식 (아껴서 3곳): 알림 점 pulse · 상태 점 livePulse. '동작 줄이기'에서는 아래에서 멈춘다 ── */
+.bell-badge { --pulse-c: var(--bad-fill); animation: pulse 2200ms infinite; }
+.dot-on { animation: livePulse 1800ms infinite; }
+.badge-demo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; flex: none; --live-c: currentColor; animation: livePulse 1800ms infinite; }
+
+/* ── 5) 좁은 화면 화면 전환 막대: 활성 알약이 미끄러진다 (.panel-tabs 의 ::before) ── */
+@media (max-width: 1180px) {
+  .panel-tabs { position: relative; --i: 0; }
+  .panel-tabs::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: calc((100% - 6px) / 2); border-radius: 999px; background: var(--solid); transform: translateX(calc(var(--i) * (100% + 6px))); transition: transform 0.4s var(--ease); pointer-events: none; }
+  .panel-tabs button { position: relative; z-index: 1; transition: color 0.3s; }
+  .panel-tabs button.is-active { background: transparent; border-color: transparent; color: var(--on-solid); }
+}
+
+/* ── 6) 동작 줄이기: 운영체제 설정 또는 data-motion="reduced" → 전부 즉시 (v14 규칙 + 반복 정지) ── */
+[data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
+}
+[data-motion="reduced"] :is(.bell-badge, .dot-on, .badge-demo::before) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .bell-badge, .dot-on, .badge-demo::before { animation: none !important; }
+  .typing i { animation: none !important; opacity: 0.6; }
+}
+[data-motion="reduced"] .typing i { animation: none !important; opacity: 0.6; }

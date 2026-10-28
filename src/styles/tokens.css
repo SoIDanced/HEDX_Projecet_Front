@@ -1,0 +1,171 @@
+/* 디자인 토큰 (v0.5.1) — Dashboard v14 토큰 체계 + 접근성 보정
+   밝은 테마가 기본, 어두운 테마는 <html data-theme="dark">, 강조색은 <html data-accent="orange|blue|green|violet|rose">.
+   v14와 다르게 정한 값: 보조 글자색(--muted)은 4.5:1 이상으로 진하게/밝게.
+   v0.5.1 브랜드 팔레트(한화 컬러웨이, RGB): 한화 오렌지 100% #F37321(--accent) · 70% #F89B6C(--accent-2) · 50% #FBB584(--accent-3) · 검정 #1B1B1B(사용자 지정, 안내서의 K100 대신).
+   #F37321 위 글자는 #1B1B1B(5.98:1) — 흰 글자는 2.88:1이라 쓰지 않는다. 밝은 바탕 위 주황 '글자'는 --accent-ink(오렌지 60%+검정)로 4.5:1 이상. */
+:root {
+  --page: #e9e9e9;
+  --shell: #f4f4f4;
+  --card: #ffffff;
+  --soft: #f5f5f5;
+  --soft-2: #ececec;
+  --soft-3: #e1e1e1;
+  --line: #ececec;
+  --line-2: #e3e3e3;
+  --ctl-line: #b0b0b0; /* 입력창·체크박스 테두리 (v14의 #e3e3e3은 흰 바탕에서 1.3:1이라 진하게) */
+  --hatch: #dedede;
+
+  --ink: #1b1b1b;
+  --ink-2: #3d3d3d;
+  --muted: #6b6b6b; /* v14 #8c8c8c(3.4:1) 대신 — 흰·#f4f4f4 바탕 4.8:1 이상 */
+  --faint: #b9b9b9; /* 글자에는 쓰지 않는다 — 장식 전용 */
+
+  --solid: #1b1b1b;
+  --on-solid: #ffffff;
+
+  --green: #23a15b; /* 막대·점 같은 글자 아닌 용도 */
+  --red: #e5484d;
+  --amber: #d9b100; /* 주황(#F37321)과 헷갈리지 않게 노랑 쪽으로 */
+  --blue: #3f74f6;
+
+  --good: #17703d;
+  --good-soft: #e5f6eb;
+  --warn: #6f5700;
+  --warn-soft: #fbf4cb;
+  --warn-line: #e3d27a;
+  --bad: #b8322a;
+  --bad-soft: #fde9e9;
+  --bad-line: #f0bdb6;
+  --bad-fill: #b8322a;
+  --info: #2763bd;
+  --info-soft: #e8effe;
+  --info-line: #c4d6f3;
+  --gold: #9a7d00;
+  --gold-soft: #fbf4cb;
+
+  --char: #1b1b1b; /* 평가 카드(어두운 히어로) */
+  --char-2: #2a2a2a;
+  --char-3: #3a3a3a;
+  --char-ink: #f4f4f4;
+  --char-muted: #b4b4b4;
+
+  --shadow-pop: 0 24px 60px -18px rgba(27, 27, 27, 0.22), 0 4px 14px -6px rgba(27, 27, 27, 0.08);
+  --scrim: rgba(27, 27, 27, 0.4);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --r-xl: 36px;
+  --r-lg: 22px;
+  --r-md: 16px;
+  --r-sm: 12px;
+
+  --accent: #f37321; /* 한화 오렌지 100% */
+  --accent-2: #f89b6c; /* 70% */
+  --accent-3: #fbb584; /* 50% */
+  --accent-deep: #d95f12;
+  --accent-fill: var(--accent); /* 채움(주 버튼 등) — 위 글자는 --on-accent */
+  --accent-ink: color-mix(in srgb, var(--accent) 60%, #1b1b1b); /* 밝은 바탕 위 주황 '글자' (5.2:1 이상) */
+  --accent-hover: var(--accent-2);
+  --on-accent: #1b1b1b;
+
+  --series-1: #1b1b1b;
+  --series-2: var(--accent);
+  --series-3: var(--accent-2);
+  --series-4: var(--accent-3);
+  --series-single: var(--accent);
+  --status-critical: #d03b3b;
+  --chart-grid: #ececec;
+  --chart-axis: #9a9a9a;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --page: #101010;
+  --shell: #1b1b1b;
+  --card: #242424;
+  --soft: #2c2c2c;
+  --soft-2: #353535;
+  --soft-3: #3d3d3d;
+  --line: #2e2e2e;
+  --line-2: #383838;
+  --ctl-line: #707070;
+  --hatch: #444444;
+
+  --ink: #f4f4f4;
+  --ink-2: #d2d2d2;
+  --muted: #b0b0b0; /* v14 #8d8d96(5.0:1 on card이지만 soft 위 4.1) 보다 밝게 */
+  --faint: #666666;
+
+  --solid: #f4f4f4;
+  --on-solid: #1b1b1b;
+
+  --green: #3cc47a;
+  --red: #f2666b;
+  --amber: #e8d34a;
+  --blue: #6b95ff;
+
+  --good: #3cc47a;
+  --good-soft: rgba(60, 196, 122, 0.14);
+  --warn: #e8d34a;
+  --warn-soft: rgba(232, 211, 74, 0.13);
+  --warn-line: rgba(232, 211, 74, 0.4);
+  --bad: #f2807f;
+  --bad-soft: rgba(242, 102, 107, 0.14);
+  --bad-line: rgba(242, 102, 107, 0.45);
+  --bad-fill: #b8322a;
+  --info: #9db8ff;
+  --info-soft: rgba(107, 149, 255, 0.15);
+  --info-line: rgba(107, 149, 255, 0.4);
+  --gold: #e8d34a;
+  --gold-soft: rgba(232, 211, 74, 0.13);
+
+  --char: #121212;
+  --char-2: #202020;
+  --char-3: #303030;
+
+  --shadow-pop: 0 28px 70px -20px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --series-1: #f4f4f4;
+    --status-critical: #f2666b;
+  --chart-grid: #333333;
+  --chart-axis: #666666;
+  color-scheme: dark;
+}
+/* 강조색 5종. 첫째 '한화 오렌지'가 브랜드 팔레트(기본). 나머지 4종은 선택 사항(브랜드 밖 색 — 쓰지 않으려면 theme.ts의 ACCENTS와 아래 4줄을 지우면 됨).
+   --accent-fill: 채움, --on-accent: 그 위 글자(흰색 4.5:1↑), --accent-text-dk: 평가 카드(어두운 바탕) 위 글자색 4.5:1↑ */
+:root { --accent-text-dk: var(--accent); }
+[data-accent="blue"], [data-accent="green"], [data-accent="violet"], [data-accent="rose"] {
+  --on-accent: #ffffff;
+  --accent-2: color-mix(in srgb, var(--accent) 70%, #ffffff); /* 70% */
+  --accent-3: color-mix(in srgb, var(--accent) 50%, #ffffff); /* 50% */
+  --accent-fill: var(--accent-f);
+  --accent-ink: color-mix(in srgb, var(--accent-fill) 80%, #000);
+  --accent-hover: color-mix(in srgb, var(--accent-fill) 82%, #000);
+  --accent-text-dk: color-mix(in srgb, var(--accent) 55%, #ffffff);
+}
+[data-accent="blue"] { --accent: #3d6ef5; --accent-deep: #2a55d4; --accent-f: #3b6bee; }
+[data-accent="green"] { --accent: #14a06a; --accent-deep: #0c8253; --accent-f: #118558; }
+[data-accent="violet"] { --accent: #7c4fe0; --accent-deep: #6236cc; --accent-f: #7c4fe0; }
+[data-accent="rose"] { --accent: #e5407a; --accent-deep: #c92a62; --accent-f: #d03a6f; }
+[data-theme="dark"] { --accent-ink: var(--accent-2); }
+
+/* 파생색 (테마·강조색에 따라 자동) */
+:root, [data-theme="dark"] {
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--card));
+  --accent-wash: color-mix(in srgb, var(--accent) 6%, var(--card));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, var(--card));
+  --hover-veil: color-mix(in srgb, var(--ink) 8%, transparent);
+  --ring: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* 기존 이름 → v14 토큰 (components가 그대로 동작하도록) */
+:root, [data-theme="dark"] {
+  --bg: var(--page);
+  --surface: var(--card);
+  --surface-2: var(--soft);
+  --surface-3: var(--soft-2);
+  --r: var(--r-lg);
+  --r-sm: 12px;
+  --r-pop: 18px;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.015);
+}

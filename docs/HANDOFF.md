@@ -7,7 +7,7 @@
 
 ## 1. 프로젝트 배경
 - **누가:** 대학생 DX팀(한화엔진 DX 과제). 사용자는 팀원이며 한국어로 소통한다. GitHub는 GitHub Desktop으로도 다룬다.
-- **무엇:** "구매·협력사 AI 분석 DX 플랫폼" 시연판. 한화엔진 구매팀 실무자(협력사 관리·구매조달·원가-계약·자재-공급)를 위한 웹앱.
+- **무엇:** "RAG 기반 협력사 평가 AI 에이전트" 시연판. 한화엔진 구매팀 실무자(협력사 관리·구매조달·원가-계약·자재-공급)를 위한 웹앱.
 - **출발점:** 실무자 면담에서 나온 요구 — 흩어진 협력사·발주·계약·재고 데이터를 한 화면에서 보고, 품목별 후보 업체를 등급·납기 실적·최근 단가와 함께 비교하고, 근거가 "기록된 데이터 그대로" 보이길 원함. 정성 평가를 AI가 지어내면 안 된다는 원칙이 여기서 나왔다.
 - **면담 기록은 저장소에 없다.** 면담에 담당자의 보안 우회 관련 발언이 있으니 어떤 자료에도 넣지 않는다.
 - **저장소:** `SoIDanced/Hanwha_DX_Claude` (현재 Public — 로고 공개 범위는 사용자가 판단하도록 안내함). 이전 저장소 `knewyouknownewidea-lab/Hanwha_DX_Claude`(v0.1~v0.2)는 이 세션에서 쓰기 권한이 없었다.
@@ -35,7 +35,7 @@
 - 처음 로그인하면 3단계 사용 안내(건너뛰기·이전·다음, 사용자 메뉴 "사용 안내 다시 보기").
 
 ### 3-2. 상단 바 (`Topbar.tsx`, `Brand.tsx`)
-- 왼쪽: [로고 34px] **한화엔진**(26px 굵게, 지시서는 24px였으나 HANWHA ENGINE 12px보다 좁아 글자가 벌어져 26px로 함) / **HANWHA ENGINE**(12px, 글자 단위 양끝 맞춤으로 두 줄 너비 동일) │ 구매·협력사 AI 분석 플랫폼(18px).
+- 왼쪽: [로고 34px] **한화엔진**(26px 굵게, 지시서는 24px였으나 HANWHA ENGINE 12px보다 좁아 글자가 벌어져 26px로 함) / **HANWHA ENGINE**(12px, 글자 단위 양끝 맞춤으로 두 줄 너비 동일) │ RAG 기반 협력사 평가 AI 에이전트(18px).
 - 오른쪽: 데이터 상태(SAMPLE/업로드 포함 배지·건수·기준일·"이 브라우저에 저장됨 시각"), 질문 해석 방식(규칙 기반/LLM 해석), 결제 알림 종(임박+지급 확인 필요 중 확인 안 한 건수, 누르면 대금 결제 일정), 데이터 불러오기, 샘플 데이터로 되돌리기(확인 창), 사용자 메뉴(관심 협력사·부품 목록, 사용 안내 다시 보기, 저장된 업로드 데이터 삭제, 로그아웃).
 - 1920·1366에서 한 줄. 1024px 이하 두 줄(1줄 브랜드·알림·사용자 / 2줄 데이터 상태·해석 방식·불러오기·되돌리기). 업로드 상태에서는 건수 대신 저장 상태 표시.
 - 헤더의 흐름 문구("데이터 관리 → AI 분석 요청 → …")는 v0.3.0에서 삭제.
@@ -141,7 +141,7 @@
 ## 12. Claude Code 첫 작업 지시 (사용자가 붙여 넣을 프롬프트)
 
 ```
-이 저장소는 "구매·협력사 AI 분석 DX 플랫폼"(한화엔진 DX 과제 시연판) v0.4.0이야.
+이 저장소는 "RAG 기반 협력사 평가 AI 에이전트"(한화엔진 DX 과제 시연판) v0.4.0이야.
 claude.ai에서 v0.1.0~v0.3.2까지(v0.4.0은 Claude Code) 만들어 왔고, 여기서 이어서 개발할 거야.
 
 1. CLAUDE.md, docs/HANDOFF.md, README.md, CHANGELOG.md를 모두 읽고 규칙·화면·결정 사항을 파악해.
@@ -154,3 +154,33 @@ claude.ai에서 v0.1.0~v0.3.2까지(v0.4.0은 Claude Code) 만들어 왔고, 여
 규칙: SAMPLE 데이터 외에 수치·업체명을 지어내지 말 것, 새 npm 패키지 추가 금지(필요하면 먼저 물어볼 것),
 API 키·비밀번호·면담 기록은 커밋 금지, 기존 기능은 내가 지우라고 한 것만 지울 것.
 ```
+
+## v0.5.5 메모 (채점 요약 막대 도킹, 선택 정보 머리 줄 고정)
+- 왼쪽 `.panel-body-a` 맨 앞에 `.eval-dock`(높이 0 sticky 래퍼) + `.eval-dock-bar`(role=region '채점 요약'). `SupplierEvaluationCard.tsx` 의 `useDocked`(IntersectionObserver 2개: 나타남 56px, 사라짐 56+24px)가 `is-on` 을 켠다. 전체 카드는 건드리지 않는다. 막대는 항상 그려 두어 평가 대상이 바뀌면 숨어 있어도 값이 이어서 움직인다. CSS 는 `styles/v14.css` 끝(v0.5.5 블록): sticky `top: calc(-1 * var(--pb-pt))`(패널 안쪽 여백 12px/8px 만큼 올려 맨 위에 맞춤), 아래 여백 -18px(= `.panel-body-a` gap 18px; gap 을 바꾸면 같이 바꿀 것), 막대 높이 56px 는 JS `DOCK_H` 와 같은 값.
+- 기존 e2e 선택자 충돌을 피하려고 막대는 `.donut-arc`/`.eval-bar-fill` 이 아닌 `.dock-arc`/`.dock-fill` 클래스를 쓴다(전역 `querySelector('.donut-arc')` 검사가 막대를 먼저 집지 않게).
+- `SelectionDetail.tsx` `Detail`: 접힘 `section.row-summary`, 펼침 `section.row-detail`, 머리 줄 `.row-detail-head` 는 같은 요소. `#selection-detail` id 는 펼침에서만.
+- E2E 449개 전부 통과(v0.5.5 시점). 새 검사는 e2e.py 맨 끝쪽 'v0.5.5' 블록(Windows 클래식 스크롤바 브라우저를 따로 띄워 버튼 위치도 확인).
+
+## v0.5.4 메모 (선택 바꿈 = 이어서 움직이기, 제품 이름 변경)
+- 제품 이름은 **"RAG 기반 협력사 평가 AI 에이전트"**. 한 곳에서 바꾼다: `src/brand/hanwha.ts`·`neutral.ts` 의 `product`·`docTitle`, `scripts/build.mjs` 의 빌드 `<title>`. 이 밖에 `src/lib/xlsx.ts`(엑셀 작성자·응용 프로그램). 일부러 남긴 것: 패키지 이름·저장 키(`procure-ai:*`, IndexedDB `procure-ai`), 옛 CHANGELOG 항목, 챗봇 첫 인사의 "구매·협력사 데이터 분석 도우미"(제품 이름이 아니라 역할 설명)·LLM 프롬프트(`src/ai/llm.ts`, `server/index.mjs`)의 설명 문구. 상단 바: 1700px 이하에서 이름이 두 줄(13~16px), 기준일(`.ds-asof`)도 1700px 이하에서 접힘, ≤640px 에서는 눈에 안 보이지만 h1 글자로 남음(접근 가능한 이름), `title` 속성으로 전체 이름. 로그인 화면은 구분선만 숨김.
+- 선택 바꿈 이어서 움직이기(v0.5.3의 0에서 다시 재생을 번복): 평가 카드(`.eval-body[data-tween]`)·인건비(`.wage-main[data-tween]`)의 `CountUp` 은 `data-tween` 안에서 값이 바뀌면 `shown`(지금 보이는 값) → 새 값으로 약 600ms 센다. 도넛 호·점수 막대는 `motion.css`의 CSS 전환(`stroke-dasharray`·`width`, `--ease-q` = ease-out-quart) — 브라우저가 도중 변경을 현재 값에서 다시 출발시킨다. 꺾은선은 `Chart.tsx` 의 `useMorph`(`morph` 속성을 준 Chart 만, 점 y값·눈금 범위 보간, 점 개수가 다르면 많은 쪽으로 다시 뽑기, `data-morphing="1"` 표시). 처음 열기·탭/하위 보기 전환은 예전처럼 0에서(.is-entering). `replay-zone`·`useReplayOn`(선택 바꿈용) 은 제거, `useReplayOn` 은 탭 전환·좁은 화면용으로 남음.
+- E2E 407개 전부 통과(v0.5.4 시점).
+
+## v0.5.3 메모 (로고·브랜드 글자·여백·선택 바꿈 재생 — 선택 바꿈 재생 부분은 v0.5.4에서 이어서 움직이기로 바뀜)
+- 로고 높이 32→40px(≤1320px은 28→35px), 브랜드 글자 22→26px(≤1320px 20→23px). `Brand.tsx`의 Spread(글자 사이 벌리기)를 없애 '한화엔진'이 한 덩어리 글자. 서체는 `styles.css`의 `--font-brand`(Apple SD Gothic Neo → Malgun Gothic → Noto Sans CJK KR 시스템 고딕, 굵기 800; 새 글꼴 파일·외부 요청 없음). 글꼴 파일을 새로 넣는 것은 하지 않았다(CHANGELOG 참고).
+- 쪽 좌우 여백 `--frame-x`: clamp(8px, 3.4vw, 52px) (1920=52px, 1366≈46px). ≤1180px 10px·≤640px 6px 는 그대로. 스플리터 `SPLITTER_PX`·65:35 계산은 셸 안쪽 너비로 하므로 영향 없음.
+- 선택 바꿈 재생: `useReplayOn(ref, key)` 를 평가 카드(`.eval-body`, key=supplierId)·원자재(`.replay-zone`, key=소재/기간)·인건비(`.wage-main.replay-zone`, key=직종 경로/기간)에 사용. CSS 는 motion.css 의 "2-2" 절(`.eval-body.is-entering …`, `.replay-zone.is-entering .chart-card {animation:none}`). 인건비 상단 숫자 3개는 `CountUp`. 테마·호버·필터·크기 변경은 key 가 같아 재생 안 함.
+
+## v0.5.2 메모 (v14 모션 세트)
+- 모션은 `src/styles/motion.css`(키프레임 전부 + 규칙, 배율 `--k:.38` 하나로 전체 속도 조절)와 `src/lib/motion.ts`(재생 제어기)로 끝. 시간은 "v14 디자인 시간(ms)"으로 적고 `calc(… * var(--k))`를 곱한다.
+- 재생 범위: `.app.is-entering`(처음 열 때, JSX className에 처음부터 있고 `armEnter`가 1.4초 뒤 뗌) · `#tab-panel`(탭·하위 보기 변경, `useReplayOn`) · `.workspace`(좁은 화면 화면 전환). 필터·정렬·페이지는 클래스가 없어 동작 없음. 새 진입 동작은 반드시 `.is-entering` 아래 선택자로 쓸 것(안 그러면 필터 때도 재생됨).
+- 순서 번호 `--r`는 CSS nth-child 목록(motion.css 중간)이 정함, 낱말 `--i`는 `Words`(ui.tsx), 차트 막대·선 `--i`는 Chart.tsx 인라인. CountUp(ui.tsx)은 `.is-entering` 안에서 마운트·재생 이벤트(`motion-replay`) 때만 센다; 값은 항상 `data-final`·글자로 DOM에 있음.
+- 이 버전은 v0.5.0의 "진입 ≤300ms" 결정을 사용자 요청으로 번복한 것(CHANGELOG 참고). E2E의 로그인/새로고침 대기는 `.is-entering` 종료까지 기다린다(`tests/e2e.py` 맨 위 `_wfs`, `settled`).
+
+## v0.5.1 메모 (한화 컬러웨이)
+- 팔레트: 오렌지 `#F37321`/`#F89B6C`/`#FBB584`, 검정 `#1B1B1B`. 주황 채움 위 글자는 `--on-accent`(#1B1B1B). 주황 글자는 `--accent-ink`. 강조색 파랑 등은 브랜드 밖 선택지.
+
+## v0.5.0 메모 (디자인)
+- 스타일은 `src/styles.css`(기본 규칙) → `src/styles/v14.css`(v14 적용층, 같은 이름 규칙을 덮어씀) 순으로 번들되고 토큰은 `src/styles/tokens.css`. 테마·강조색은 `<html data-theme data-accent>`, 저장 키 `procure-ai:theme`·`procure-ai:accent`, 첫 그림 전 인라인 스크립트는 `scripts/build.mjs`의 PREPAINT.
+- 글자가 들어가는 채움은 `--accent-fill`(오렌지는 --accent와 같고 위 글자는 --on-accent), 카드 위 강조 글자는 `--accent-ink`, 어두운 히어로 위 글자는 `--accent-text-dk`. 새 색을 쓸 때 `tests/e2e.py`의 대비 점검(4.5:1)을 통과해야 한다.
+- E2E 382개 전부 통과(v0.5.3 시점). 스플리터 너비 상수는 App.tsx `SPLITTER_PX`와 v14.css `--split-gap`(20px)이 같아야 한다.
