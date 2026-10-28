@@ -45,7 +45,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   const ask = useCallback(
     async (question: string, opts?: { answeringId?: string }) => {
-      const { state, dispatch, derived } = ref.current;
+      const { state, dispatch, derived, data, meta } = ref.current;
       const q = question.trim();
       if (!q || state.busy) return;
       if (opts?.answeringId) dispatch({ type: "patchMessage", id: opts.answeringId, patch: { answered: q } });
@@ -83,9 +83,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           answer(
           q,
           {
-            data: state.data,
+            data,
             derived,
-            meta: state.meta,
+            meta,
             selection: state.selection,
             lastResult: state.lastResultId ? state.results[state.lastResultId] : null,
             pending: state.pending,
@@ -135,9 +135,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const rerun = useCallback((result: AnalysisResult) => {
-    const { state, dispatch, derived } = ref.current;
+    const { state, dispatch, derived, data, meta } = ref.current;
     try {
-      const next = runAnalysis(result.params, state.data, derived, state.meta, result.question);
+      const next = runAnalysis(result.params, data, derived, meta, result.question);
       dispatch({ type: "addResult", result: next, asLast: state.lastResultId === result.id });
       dispatch({ type: "show", resultId: next.id });
       dispatch({ type: "addMessage", message: { id: uid(), role: "assistant", at: new Date().toISOString(), engine: "rule", text: [`현재 데이터로 다시 분석했습니다: ${next.title}`, ...next.summary.slice(0, 2)], resultId: next.id } });

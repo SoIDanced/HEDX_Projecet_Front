@@ -36,6 +36,7 @@ export interface Item {
   criticality?: string;
   leadTimeDays?: number | null;
   materials?: string[]; // 주요 소재(원자재 이름) — 원자재 시세와 연결
+  source?: "manual"; // v0.7.0 수기 입력으로 추가된 품목(MANUAL-001…)
 }
 
 export interface PurchaseOrder {
@@ -49,6 +50,14 @@ export interface PurchaseOrder {
   dueDate: string;
   receivedDate?: string | null;
   canceled?: boolean;
+  // v0.7.0 수기 입력(납기보고서)에서만 채워지는 선택 필드 — 업로드·샘플에는 없음
+  source?: "manual";
+  manualId?: string;
+  unit?: string;
+  amount?: number | null;
+  receivedQty?: number | null;
+  delayReason?: string | null;
+  note?: string | null;
 }
 
 export interface Contract {
@@ -63,6 +72,46 @@ export interface Contract {
   paymentTerms?: string;
   startDate?: string | null;
   endDate?: string | null;
+  // v0.7.0 수기 입력(견적서·계약서)에서만 채워지는 선택 필드. docType '견적' = 계약 단가 표에 같이 보이는 견적 단가(계약 아님)
+  source?: "manual";
+  manualId?: string;
+  docType?: "견적" | "계약";
+  docDate?: string | null; // 견적일
+  desiredDueDate?: string | null; // 희망 납기
+  qty?: number | null;
+  unit?: string;
+  amount?: number | null;
+  note?: string | null;
+}
+
+/** 수기 입력 문서 종류 → 저장되는 데이터 종류: 견적서·계약서 = 원가-계약 행, 납기보고서 = 구매조달(발주) 행 */
+export type ManualDocType = "견적서" | "납기보고서" | "계약서";
+
+/** 사용자가 직접 입력한 한 건. 이 목록이 원본이고, 화면 데이터에는 합쳐서(mergeManual) 보여 준다 — 지우면 바로 원래대로 돌아간다 */
+export interface ManualEntry {
+  id: string; // M-xxxxxx
+  docType: ManualDocType;
+  createdAt: string; // ISO
+  supplierId: string;
+  itemCode: string; // 카탈로그 품목코드 또는 자동 부여 MANUAL-001…
+  itemName: string;
+  newItem: boolean; // 카탈로그에 없는 품목(직접입력)
+  spec?: string;
+  unit: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+  currency: string;
+  docNo: string; // 발주번호 / 계약번호 / 견적번호(자동 부여)
+  docDate?: string; // 견적일 / 발주일 / 계약 시작일
+  validUntil?: string; // 견적 유효기한 / 계약 종료일
+  dueDate?: string; // 희망 납기 / 납기 예정일
+  receivedDate?: string; // 실제 입고일(없으면 미입고)
+  receivedQty?: number;
+  delayReason?: string;
+  deliveryTerms?: string;
+  paymentTerms?: string;
+  note?: string;
 }
 
 export interface InventoryRecord {

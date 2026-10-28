@@ -156,6 +156,13 @@
   --accent-line: color-mix(in srgb, var(--accent) 38%, var(--card));
   --hover-veil: color-mix(in srgb, var(--ink) 8%, transparent);
   --ring: color-mix(in srgb, var(--accent) 22%, transparent);
+  /* v0.5.6 검색·필터 입력 통일 토큰 (데이터 관리 패널의 키워드 검색·표 검색·숫자·날짜·선택 상자·상세 필터 버튼이 모두 같은 값) */
+  --field-bg: var(--card);
+  --field-line: color-mix(in srgb, var(--ctl-line) 55%, var(--line-2));
+  --field-r: 999px;
+  --field-h: 40px;
+  --field-icon: var(--muted);
+  --field-ph: var(--muted);
 }
 
 /* 기존 이름 → v14 토큰 (components가 그대로 동작하도록) */

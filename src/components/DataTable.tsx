@@ -71,6 +71,7 @@ export function DataTable<T>({
   initialSort,
   pinned,
   id,
+  flashKey,
 }: {
   rows: T[];
   cols: Col<T>[];
@@ -82,6 +83,7 @@ export function DataTable<T>({
   initialSort?: SortState;
   pinned?: (r: T) => boolean; // 관심 항목을 맨 위에 고정
   id?: string;
+  flashKey?: string | null; // 방금 저장한 수기 입력 행을 잠깐 강조
 }) {
   const [sort, setSort] = useState<SortState>(initialSort ?? null);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
@@ -157,7 +159,7 @@ export function DataTable<T>({
               return (
                 <tr
                   key={k}
-                  className={`${sel ? "is-selected" : ""} ${pinned?.(r) ? "is-pinned" : ""}`}
+                  className={`${sel ? "is-selected" : ""} ${pinned?.(r) ? "is-pinned" : ""} ${flashKey && k === flashKey ? "is-flash" : ""}`}
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest("button, a, input")) return;
                     onSelect?.(r);

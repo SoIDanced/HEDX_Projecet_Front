@@ -5,6 +5,8 @@ import type { AnalysisParams, AnalysisResult } from "../lib/analysisTypes";
 import { AnalysisError, KIND_LABEL, PRIORITY, runAnalysis, weightText } from "../lib/analysis";
 import type { Derived } from "../lib/metrics";
 import { fmtNum } from "../lib/format";
+import { documentAnswerText } from "../lib/answerText";
+import { searchDocuments } from "../lib/documentSearch";
 import { parseQuestion, type Catalog, type ParsedIntent } from "./intent";
 import { buildPrompt, sanitizeLLM, type LLMProvider } from "./llm";
 
@@ -41,6 +43,9 @@ export const SUGGESTIONS = [
   "납기 준수율이 낮은 협력사를 찾아줘.",
   "최근 단가가 상승한 품목을 보여줘.",
   "A등급 협력사의 품질 실적을 정리해 줘.",
+  "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘",
+  "업체 C 납기 지연 보고서 찾아줘",
+  "실린더 커버 가스켓 견적서 보여줘",
 ];
 
 export const STEPS = ["질문 의도 파악", "대상·데이터 확인", "계산 및 분석", "답변 정리"];
@@ -78,6 +83,7 @@ async function interpret(question: string, ctx: AgentContext, llm: LLMProvider |
     // LLM이 놓친 명시적 표현(기간·기준값)은 규칙 해석으로 보완
     parsed.periodMonths ??= rule.periodMonths;
     parsed.threshold ??= rule.threshold;
+    if (rule.kind === "document_search") return { parsed: rule, engine: "rule" }; // 문서 찾기는 코드 규칙으로만 (LLM 해석을 거치지 않음)
     if (parsed.kind === "unknown" && rule.kind !== "unknown") return { parsed: rule, engine: "rule", note: "LLM이 의도를 정하지 못해 규칙 기반 해석을 사용했습니다." };
     return { parsed, engine: "llm" };
   } catch (e) {
@@ -193,6 +199,12 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
     case "stock_risk":
       params = { kind: "stock_risk" };
       break;
+    case "document_search": {
+      await step(2);
+      const found = searchDocuments(sourceQuestion, ctx.meta.asOf);
+      await step(3);
+      return { type: "message", text: documentAnswerText(found), engine, engineNote: note };
+    }
     case "help":
       return {
         type: "message",

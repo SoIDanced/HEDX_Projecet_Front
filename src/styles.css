@@ -1,6 +1,6 @@
 /* RAG 기반 협력사 평가 AI 에이전트 v0.4
-   레이아웃: 상단 바 + 요약 지표 + 데이터 관리(65) · AI 대화(35) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
-   기준 해상도 1920×1080. 글자 단계 12 / 13 / 14 / 16 / 20 (+ 큰 숫자 24·30).
+   레이아웃: 상단 바 + 요약 지표 + 데이터 관리(65) · AI 에이전트(35) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
+   기준 해상도 1920×1080. 글자 단계 13 / 14 / 15 / 17 / 21 (v0.5.6, 예전 12/13/14/16/20) (+ 큰 숫자 24·30).
    밝은 업무 화면(아이보리 바탕·흰 패널)에 평가 카드만 차콜, 강조색은 오렌지 하나. */
 @import "./styles/tokens.css";
 :root {
@@ -8,11 +8,12 @@
   --font-brand: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", system-ui, sans-serif;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --fs-12: 12px;
-  --fs-13: 13px;
-  --fs-14: 14px;
-  --fs-16: 16px;
-  --fs-20: 20px;
+  /* v0.5.6: 글자 단계를 한 칸당 +1px 키움. 이름(--fs-12…20)은 예전 단계 번호이고 값이 13/14/15/17/21px */
+  --fs-12: 13px;
+  --fs-13: 14px;
+  --fs-14: 15px;
+  --fs-16: 17px;
+  --fs-20: 21px;
   --gutter-l: max(16px, env(safe-area-inset-left, 0px));
   --gutter-r: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -64,12 +65,9 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--char); color: var(--accent); display: grid; place-items: center; flex: none; }
 .brand-product { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; color: var(--ink); }
 .brand-hanwha { gap: 12px; }
-.brand-logo { height: 34px; width: auto; flex: none; display: block; }
-.brand-co { display: inline-grid; grid-template-columns: max-content; row-gap: 2px; line-height: 1; }
-.brand-ko, .brand-en { display: block; white-space: nowrap; letter-spacing: 0; word-spacing: 0; text-align: left; }
-.brand-ko, .brand-en { font-family: var(--font-brand); }
-.brand-ko { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.05; }
-.brand-en { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-2); line-height: 1.2; }
+/* v0.6.0: 공식 로고(SVG)는 한글 상호가 검정이라 어두운 테마에서 보이려면 흰 판이 필요 — 두 테마 모두 #fff 판(검정 글자 대비 21:1) */
+.brand-plate { display: inline-flex; align-items: center; background: #fff; border-radius: 14px; padding: 3px 12px; flex: none; }
+.brand-logo { height: 44px; width: auto; flex: none; display: block; }
 .brand-divider { width: 1px; height: 32px; background: var(--line-2); flex: none; }
 .topbar-right { display: flex; align-items: center; gap: 14px; margin-left: auto; min-width: 0; }
 .data-status { display: flex; align-items: center; gap: 8px; font-size: var(--fs-13); color: var(--ink-2); flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
@@ -149,7 +147,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); ou
 .donut-track { fill: none; stroke: var(--char-3); stroke-width: 10; }
 .donut-arc { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
 .donut-grade { fill: var(--char-ink); font-size: 30px; font-weight: 700; font-family: var(--font); }
-.donut-sub { fill: var(--char-muted); font-size: 12px; font-family: var(--font); }
+.donut-sub { fill: var(--char-muted); font-size: 13px; font-family: var(--font); }
 .eval-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
 .eval-bars li { display: grid; grid-template-columns: 84px minmax(0, 1fr) 40px; align-items: center; gap: 10px; font-size: var(--fs-13); }
 .eval-bar-label { color: var(--char-ink); }
@@ -347,14 +345,14 @@ th.sticky-col { z-index: 3; background: var(--surface-2); }
 .chart svg { display: block; overflow: visible; }
 .chart .grid { stroke: var(--chart-grid); stroke-width: 1; }
 .chart .axis-base { stroke: var(--chart-axis); stroke-width: 1; }
-.chart .tick, .chart .cat { font-size: 12px; fill: var(--muted); font-family: var(--font); font-variant-numeric: tabular-nums; }
+.chart .tick, .chart .cat { font-size: 13px; fill: var(--muted); font-family: var(--font); font-variant-numeric: tabular-nums; }
 .chart .cat { fill: var(--ink-2); }
-.chart .bar-value { font-size: 12px; fill: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--font); }
+.chart .bar-value { font-size: 13px; fill: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--font); }
 .chart .ref-line { stroke: var(--ink-2); stroke-width: 1.25; stroke-dasharray: 4 3; }
 .chart .x-marker-line { stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 4 3; }
-.chart .x-marker-label { font-size: 12px; font-weight: 700; fill: var(--bad); }
+.chart .x-marker-label { font-size: 13px; font-weight: 700; fill: var(--bad); }
 .chart .crosshair { stroke: var(--chart-axis); stroke-width: 1; }
-.chart .end-label { font-size: 12px; fill: var(--ink-2); font-family: var(--font); }
+.chart .end-label { font-size: 13px; fill: var(--ink-2); font-family: var(--font); }
 .axis-label { font-size: var(--fs-12); color: var(--muted); margin-top: 2px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--fs-12); color: var(--ink-2); margin-bottom: 6px; }
 .legend-item { display: inline-flex; align-items: center; gap: 5px; }
@@ -382,19 +380,18 @@ th.sticky-col { z-index: 3; background: var(--surface-2); }
 .chart-table table { margin-top: 6px; }
 .chart-table th, .chart-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: var(--fs-12); }
 
-/* ── AI 대화 패널 (오른쪽 고정) ── */
+/* ── AI 에이전트 패널 (오른쪽 고정) ── */
 @keyframes pop-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes msg-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 .chat-head { gap: 8px; background: var(--card); }
 .chat-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.chat-title-icon { width: 34px; height: 34px; border-radius: 11px; background: var(--accent-fill); color: var(--on-accent); display: grid; place-items: center; flex: none; }
+.chat-title-icon { width: 36px; height: 36px; display: grid; place-items: center; flex: none; }
 .chat-title-text { min-width: 0; }
 .chat-title-text span { display: block; font-size: var(--fs-12); color: var(--muted); }
-.chat-tools { display: flex; align-items: center; gap: 4px; flex: none; justify-content: flex-end; }
-.chat-head .panel-title-row { flex-wrap: nowrap; }
-.chat-head .chat-title { flex: 1 1 0; }
+.chat-tools { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; justify-content: flex-end; flex-wrap: wrap; }
+.chat-head .panel-title-row { flex-wrap: wrap; row-gap: 8px; } /* 좁으면 버튼 줄이 제목 아래로 내려간다 */
+.chat-head .chat-title { flex: 1 1 150px; }
 .chat-title-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-menu { position: absolute; top: calc(100% + 4px); right: 12px; z-index: 40; width: min(280px, calc(100% - 24px)); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; animation: pop-in 0.15s ease-out; }
 .popover.history-pop { position: absolute; top: calc(100% + 4px); left: 8px; right: 8px; width: auto; max-height: min(60vh, 560px); z-index: 40; }
 .chat-detail { flex: 0 1 auto; min-height: 0; max-height: min(35vh, 320px); overflow: auto; overscroll-behavior: contain; padding: 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .chat-detail .selection-wrap { margin-bottom: 0; }
@@ -420,7 +417,7 @@ th.sticky-col { z-index: 3; background: var(--surface-2); }
 button:active:not(:disabled) { transform: scale(0.97); }
 .btn, .icon-btn, .send-btn, .suggest-chip, .opt-chip, .chip-btn { transition: transform 0.12s ease-out, background-color 0.12s ease-out, border-color 0.12s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .msg, .chat-menu, .popover, .menu, .chat-detail .row-detail { animation: none !important; }
+  .msg, .popover, .menu, .chat-detail .row-detail { animation: none !important; }
   .typing i { animation: none !important; opacity: 0.6; }
   button:active:not(:disabled) { transform: none; }
 }
@@ -457,7 +454,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
 .msg { display: flex; gap: 10px; max-width: 100%; }
 .msg-user { justify-content: flex-end; }
 .msg-user p { background: var(--solid); color: var(--on-solid); padding: 10px 14px; border-radius: 16px 16px 4px 16px; max-width: 85%; white-space: pre-wrap; font-size: var(--fs-14); }
-.msg-avatar { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); display: grid; place-items: center; }
+.msg-avatar { flex: none; width: 32px; height: 32px; display: grid; place-items: center; }
 .msg-body { min-width: 0; flex: 1; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-14); }
 .msg-body p { line-height: 1.6; }
 .engine { align-self: flex-start; font-size: var(--fs-12); font-weight: 600; padding: 1px 8px; border-radius: 6px; }
@@ -499,6 +496,11 @@ button:active:not(:disabled) { transform: scale(0.97); }
 .send-btn { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent-fill); color: var(--on-accent); display: grid; place-items: center; font-size: 18px; }
 .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
 .send-btn:disabled { background: var(--line-2); }
+.doc-row { display: flex; align-items: center; gap: 10px; margin-bottom: -2px; }
+.doc-hint { font-size: var(--fs-13); color: var(--muted); }
+.doc-register-btn { flex: none; }
+@media (pointer: coarse) { .doc-register-btn { min-height: 44px; } }
+.toast span:last-child { white-space: pre-line; }
 .composer-hint { font-size: var(--fs-12); color: var(--muted); }
 .progress-row { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px 0; background: var(--surface); }
 .progress-row .progress { flex: 1; min-width: 0; padding: 8px 12px; }

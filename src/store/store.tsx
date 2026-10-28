@@ -1,14 +1,15 @@
 // 화면 상태 — 선택 대상, 대화, 분석 결과·이력, 표시 템플릿, 보기 설정, 필터, 관심 목록, 데이터 버전
 // 사용자별로 이 브라우저에 저장한다: 대화·분석 이력·보기 설정·관심 목록(localStorage), 업로드 데이터(IndexedDB)
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
-import type { DataMeta, DataSet, DatasetKey, TabKey } from "../data/types";
+import type { DataMeta, DataSet, DatasetKey, ManualEntry, TabKey } from "../data/types";
+import { manualSig, mergeManual, sanitizeManual } from "../lib/manual";
 import { SCHEMAS, pkOf } from "../data/schema";
 import { loadSample } from "../data/sampleData";
 import type { AnalysisResult } from "../lib/analysisTypes";
 import { derive, type Derived } from "../lib/metrics";
 import type { FilterValues } from "../lib/filters";
 import type { ClarifyOption, Engine, PendingClarify } from "../ai/agent";
-import { readStore, userKey, writeStore } from "../platform/storage";
+import { readStore, removeStore, userKey, writeStore } from "../platform/storage";
 import { idbDel, idbGet, idbSet } from "../platform/idb";
 import type { User } from "../platform/users";
 
@@ -32,7 +33,7 @@ export type ChatMessage =
       retryQ?: string;
     };
 
-/** 좁은 화면에서 보이는 영역: A = 데이터 관리, C = AI 대화 */
+/** 좁은 화면에서 보이는 영역: A = 데이터 관리, C = AI 에이전트 */
 export type Panel = "A" | "C";
 
 export interface ResultMeta {
@@ -69,8 +70,20 @@ export interface State {
   payChecked: string[];
   importFor: DatasetKey | null;
   onboarding: boolean; // 첫 사용 안내 열림
-  detailOpen: boolean; // AI 대화 패널 위쪽의 선택 정보(협력사·부품 상세) 펼침
-  toast: { id: number; text: string; tone: "ok" | "warn" } | null;
+  detailOpen: boolean; // AI 에이전트 패널 위쪽의 선택 정보(협력사·부품 상세) 펼침
+  toast: { id: number; text: string; tone: "ok" | "warn"; action?: ToastAction } | null;
+  manual: ManualEntry[]; // v0.7.0 수기 입력 원본 목록 (화면 데이터 = data + manual → 스토어의 data)
+  manualOpen: boolean;
+  flash: string | null; // 방금 저장한 행(표에서 잠깐 강조)
+}
+
+/** 토스트의 '보기' 링크: 그 행이 있는 탭으로 가서 선택한다 */
+export interface ToastAction {
+  label: string;
+  tab: TabKey;
+  rowKey: string;
+  supplierId?: string | null;
+  itemCode?: string | null;
 }
 
 export type Action =
@@ -91,6 +104,7 @@ export type Action =
   | { type: "renameResult"; id: string; name: string }
   | { type: "pinResult"; id: string; pinned: boolean }
   | { type: "deleteResult"; id: string }
+  | { type: "clearResults" }
   | { type: "pending"; pending: PendingClarify | null }
   | { type: "busy"; busy: boolean; progress?: number }
   | { type: "aiMode"; mode: "rule" | "llm" }
@@ -109,7 +123,12 @@ export type Action =
   | { type: "resetSample" }
   | { type: "toast"; text: string; tone?: "ok" | "warn" }
   | { type: "clearToast" }
-  | { type: "clearChat" };
+  | { type: "clearChat" }
+  | { type: "manualOpen"; open: boolean }
+  | { type: "addManual"; entry: ManualEntry; toastText: string; select: ToastAction; here: boolean }
+  | { type: "deleteManual"; id: string }
+  | { type: "viewRow"; action: ToastAction }
+  | { type: "clearFlash" };
 
 const now = () => new Date().toISOString();
 
@@ -118,6 +137,9 @@ export const SUGGESTED = [
   "납기 준수율이 낮은 협력사를 찾아줘.",
   "최근 단가가 상승한 품목을 보여줘.",
   "A등급 협력사의 품질 실적을 정리해 줘.",
+  "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘",
+  "업체 C 납기 지연 보고서 찾아줘",
+  "실린더 커버 가스켓 견적서 보여줘",
 ];
 
 export const WELCOME: ChatMessage = {
@@ -136,6 +158,7 @@ export const MAX_RESULTS = 50;
 const MAX_MESSAGES = 80;
 const SESSION = "session.v3";
 const PREFS = "prefs.v1";
+export const MANUAL = "manual.v1";
 export const UPLOADS = "uploads";
 export const ONBOARDED = "onboarded.v1";
 
@@ -228,12 +251,15 @@ function initial(user: User): State {
     onboarding: !readStore<boolean>(userKey(user.id, ONBOARDED)),
     detailOpen: false,
     toast: null,
+    manual: sanitizeManual(readStore<unknown>(userKey(user.id, MANUAL))),
+    manualOpen: false,
+    flash: null,
   };
 }
 
 let toastSeq = 0;
 const newDataId = () => `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-const toast = (text: string, tone: "ok" | "warn" = "ok") => ({ id: ++toastSeq, text, tone });
+const toast = (text: string, tone: "ok" | "warn" = "ok", action?: ToastAction) => ({ id: ++toastSeq, text, tone, action });
 
 function reducer(s: State, a: Action): State {
   switch (a.type) {
@@ -310,6 +336,8 @@ function reducer(s: State, a: Action): State {
         lastResultId: s.lastResultId === a.id ? null : s.lastResultId,
       };
     }
+    case "clearResults": // 대화 이력 전체 삭제(고정 포함). 대화 글은 남고, 그 답변의 근거·내보내기만 못 쓴다
+      return { ...s, results: {}, resultMeta: {}, view: { resultId: null }, lastResultId: null };
     case "pending":
       return { ...s, pending: a.pending };
     case "busy":
@@ -383,9 +411,42 @@ function reducer(s: State, a: Action): State {
         meta: { ...meta, version: s.meta.version + 1 },
         savedAt: null,
         saveError: null,
+        manual: [], // 샘플로 되돌리면 수기 입력도 함께 지운다
+        flash: null,
         selection: { supplierId: data.suppliers[0]?.supplierId ?? null, itemCode: null, rowKey: null, rowTab: null },
       };
     }
+    case "manualOpen":
+      return { ...s, manualOpen: a.open };
+    case "addManual": {
+      const manual = [...s.manual, a.entry];
+      const sel = a.select;
+      // 지금 보는 탭에 들어가는 문서면 그 행을 바로 고르고(표가 그 쪽으로 이동), 아니면 토스트의 '보기'로 안내한다
+      const here = a.here
+        ? { detailOpen: true, flash: sel.rowKey, selection: { rowKey: sel.rowKey, rowTab: sel.tab, supplierId: sel.supplierId ?? s.selection.supplierId, itemCode: sel.itemCode ?? s.selection.itemCode } }
+        : { flash: null };
+      return { ...s, manual, ...here, toast: toast(a.toastText, "ok", a.here ? undefined : sel) };
+    }
+    case "deleteManual":
+      return { ...s, manual: s.manual.filter((m) => m.id !== a.id), flash: null, toast: toast("수기 입력 1건을 지웠습니다. 대시보드가 원래 값으로 돌아왔습니다.") };
+    case "viewRow": {
+      const x = a.action;
+      return {
+        ...s,
+        tab: x.tab,
+        subView: { ...s.subView, [x.tab]: "list" },
+        filters: { ...s.filters, [x.tab]: {} },
+        queries: { ...s.queries, [x.tab]: "" },
+        panel: "A",
+        focusTick: s.focusTick + 1,
+        detailOpen: true,
+        flash: x.rowKey,
+        selection: { rowKey: x.rowKey, rowTab: x.tab, supplierId: x.supplierId ?? s.selection.supplierId, itemCode: x.itemCode ?? s.selection.itemCode },
+        toast: null,
+      };
+    }
+    case "clearFlash":
+      return { ...s, flash: null };
     case "toast":
       return { ...s, toast: toast(a.text, a.tone) };
     case "clearToast":
@@ -400,14 +461,19 @@ interface Store {
   state: State;
   dispatch: Dispatch<Action>;
   derived: Derived;
+  /** 화면에 쓰는 데이터(기본 데이터 + 수기 입력)와 그 표지. 계산·질문 답변은 모두 이쪽을 쓴다 */
+  data: DataSet;
+  meta: DataMeta;
 }
 
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ user, children }: { user: User; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, user, initial);
-  const derived = useMemo(() => derive(state.data, state.meta.asOf), [state.data, state.meta.asOf]);
-  const value = useMemo(() => ({ state, dispatch, derived }), [state, derived]);
+  const data = useMemo(() => mergeManual(state.data, state.manual), [state.data, state.manual]);
+  const meta = useMemo<DataMeta>(() => (state.manual.length ? { ...state.meta, label: `${state.meta.label} + 수기 입력 ${state.manual.length}건`, dataId: state.meta.dataId + manualSig(state.manual) } : state.meta), [state.meta, state.manual]);
+  const derived = useMemo(() => derive(data, state.meta.asOf), [data, state.meta.asOf]);
+  const value = useMemo(() => ({ state, dispatch, derived, data, meta }), [state, derived, data, meta]);
   const uid = user.id;
 
   // 시작할 때: 이 브라우저에 저장한 업로드 데이터가 있으면 불러온다
@@ -475,6 +541,17 @@ export function StoreProvider({ user, children }: { user: User; children: ReactN
       window.removeEventListener("beforeunload", flush);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 수기 입력 저장 (실패해도 화면은 이번 세션 동안 그대로 동작 — 규칙 8)
+  const manualWarned = useRef(false);
+  useEffect(() => {
+    if (!state.dataReady) return;
+    if (!state.manual.length) return removeStore(userKey(uid, MANUAL));
+    if (!writeStore(userKey(uid, MANUAL), state.manual) && !manualWarned.current) {
+      manualWarned.current = true;
+      dispatch({ type: "toast", text: "수기 입력을 이 브라우저에 저장하지 못했습니다(저장 공간 부족 또는 사생활 보호 모드). 지금 화면에서는 보이지만 새로고침하면 사라집니다.", tone: "warn" });
+    }
+  }, [uid, state.dataReady, state.manual]);
 
   useEffect(() => {
     writeStore(userKey(uid, PREFS), { favorites: state.favorites, pinFav: state.pinFav, payChecked: state.payChecked } satisfies SavedPrefs);

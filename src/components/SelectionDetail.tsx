@@ -1,4 +1,4 @@
-// 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 AI 대화 패널 위쪽에 접이식으로 표시
+// 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 AI 에이전트 패널 위쪽에 접이식으로 표시
 // 기본은 한 줄 요약, 펼치면 2열 상세(높이 제한·내부 스크롤). 질문을 보내거나 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
 import { useMemo, type ReactNode } from "react";
 import { LuChevronDown, LuChevronUp, LuMessageSquareText, LuX } from "react-icons/lu";
@@ -178,6 +178,7 @@ export function SelectionDetail() {
               ["상태", <StatusPill value={p.status} />],
               ["결제 예정", pay ? (pay.payDate ? `${pay.payDate} · ${pay.status} (${pay.terms})` : `${pay.status} · ${pay.note ?? pay.terms}`) : "과거 결제분 (표시 기간 밖)"],
               ["부품 분류", pathText(derived.bomIndex, p.itemCode) ?? "–"],
+              ...(p.source === "manual" ? ([["출처", "수기 입력 (납기보고서) — SAMPLE 아님, 사용자가 직접 입력한 값"], ...(p.receivedQty ? [["입고 수량", fmtInt(p.receivedQty)]] : []), ...(p.delayReason ? [["지연 사유", p.delayReason]] : []), ...(p.note ? [["비고", p.note]] : [])] as [string, string][]) : []),
             ]}
             actions={
               <button type="button" className="btn btn-quiet" onClick={() => askItem(p.itemCode)} disabled={state.busy}>
@@ -201,6 +202,7 @@ export function SelectionDetail() {
               ["계약 기간", `${c.startDate ?? "–"} ~ ${c.endDate ?? "–"}${c.expiresInDays !== null ? ` · 종료까지 ${c.expiresInDays}일` : ""}`],
               ["인도 · 결제 조건", `${c.deliveryTerms ?? "–"} · ${c.paymentTerms ?? "–"}`],
               ["주요 소재", derived.itemsByCode.get(c.itemCode)?.materials?.join(", ") || "–"],
+              ...(c.source === "manual" ? ([["출처", `수기 입력 (${c.docType === "견적" ? "견적서 — 확정된 계약이 아닌 견적 단가, 원가 점수·결제 일정에는 쓰지 않음" : "계약서"}) — SAMPLE 아님, 사용자가 직접 입력한 값`], ...(c.qty ? [["수량 · 금액", `${fmtInt(c.qty)} ${c.unit ?? ""} · ${fmtMoney(c.amount ?? null, c.currency)}`]] : []), ...(c.desiredDueDate ? [["희망 납기", c.desiredDueDate]] : []), ...(c.note ? [["비고", c.note]] : [])] as [string, string][]) : []),
             ]}
             actions={
               <>

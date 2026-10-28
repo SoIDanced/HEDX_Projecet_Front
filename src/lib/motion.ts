@@ -4,8 +4,8 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
 export const ENTER_CLASS = "is-entering";
-/** 진입 동작 중 가장 늦게 끝나는 것이 약 1.1초 — 여유를 두고 클래스를 뗀다 */
-export const ENTER_MS = 1400;
+/** 진입 동작 중 가장 늦게 끝나는 것이 약 1.3초(--k .5) — 여유를 두고 클래스를 뗀다 */
+export const ENTER_MS = 1700;
 
 const timers = new WeakMap<Element, number>();
 
@@ -20,6 +20,12 @@ export const reducedMotion = () => {
 /** CSS 의 --k (동작 배율). CountUp 의 길이도 여기에 맞춘다 */
 export const motionScale = () => {
   const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--k"));
+  return Number.isFinite(v) && v > 0 ? v : 0.5;
+};
+
+/** 선택 바꿈 이어서 움직이기(도넛·막대·숫자·꺾은선)의 배율 --k-tween. 처음 열 때의 --k 와 따로라서 v0.5.6에서 --k 를 올려도 약 600ms 그대로 */
+export const tweenScale = () => {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--k-tween"));
   return Number.isFinite(v) && v > 0 ? v : 0.38;
 };
 

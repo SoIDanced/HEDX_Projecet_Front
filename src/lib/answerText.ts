@@ -1,5 +1,6 @@
 // 답변 본문: 분석 결과(AnalysisResult)를 글로만 풀어 쓴다 — 표·차트·카드 없이, 숫자와 문장은 모두 코드가 데이터로 만든다
 import type { AnalysisResult, ColumnKind, ResultColumn } from "./analysisTypes";
+import type { DocSearchResult } from "./documentSearch";
 import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "./format";
 
 export interface AnswerSection {
@@ -50,4 +51,24 @@ export function answerSections(result: AnalysisResult): AnswerSection[] {
     { id: "basis", title: "비교에 사용된 데이터와 평가 근거", items: [...result.basis, ...result.notes.map((n) => `참고: ${n}`)] },
   ];
   return all.filter((s) => s.items.length);
+}
+
+export const DOC_SAMPLE_NOTE = "※ SAMPLE 문서입니다(가상 데이터, 실제 자료 아님)";
+
+/** 문서 검색 답변: 글로만 — 찾은 문서의 원본 ID와 내용을 그대로 옮기고, 못 찾으면 지어내지 않고 그렇게 말한다 */
+export function documentAnswerText(r: DocSearchResult): string[] {
+  const sim = (n: number) => n.toFixed(2);
+  if (!r.found || !r.best) {
+    return [
+      "관련 문서를 찾지 못했습니다. 질문과 의미가 가까운 문서가 없어서 임의로 답하지 않습니다.",
+      "날짜, 문서 종류(민원·견적서·계약서·납기 보고서·검사 성적서), 업체명, 품목명을 넣어 다시 질문해 보세요. 예: 2026년 9월 18일자 실린더 라이너 스크래치 민원 찾아줘",
+      `(의미 검색 결과: 최고 유사도 ${sim(r.best?.score ?? 0)}, 기준 ${sim(r.threshold)} 미만)`,
+      DOC_SAMPLE_NOTE,
+    ];
+  }
+  const { doc, score } = r.best;
+  const out = [`해당 ${doc.type} 문서 원본 ID는 (${doc.id})입니다. 다음은 문서 내용입니다: ${doc.body}`, `(의미 검색 결과: 유사도 ${sim(score)})`];
+  if (r.similar.length) out.push(`ID가 비슷한 문서 ${r.similar.length}건도 있습니다: ${r.similar.map((h) => h.doc.id).join(", ")}`);
+  out.push(DOC_SAMPLE_NOTE);
+  return out;
 }

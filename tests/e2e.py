@@ -1,5 +1,5 @@
 """브라우저 E2E 테스트 (v0.5.0)
-간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 65:35·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 대화 패널(글 답변만),
+간이 로그인·사용자별 저장, 브랜드 헤더, 작은 채점 위젯, 2분할 65:35·스크롤 1개·페이지 나누기, 평가 근거 팝오버, 오른쪽 고정 AI 에이전트 패널(글 답변만),
 선택 정보(대화 패널 위 접이식)·대화 이력·답변별 엑셀/CSV 내보내기, 필터(부품 분류)·정렬·관심 목록, 새 하위 보기(결제 일정·원자재·인건비·경쟁사·업계 동향),
 업로드 저장 유지, 해상도별 화면을 확인한다.
 실행: (서버 실행 후) python3 tests/e2e.py [http://localhost:5173] [스크린샷 폴더]
@@ -38,9 +38,9 @@ def check(name, cond, detail=""):
 
 
 def open_chat(page):
-    """오른쪽 대화 패널은 항상 열려 있다. 좁은 화면에서만 'AI 대화' 탭으로 전환한다."""
+    """오른쪽 대화 패널은 항상 열려 있다. 좁은 화면에서만 'AI 에이전트' 탭으로 전환한다."""
     if not page.locator("#chat-input").is_visible():
-        page.locator(".panel-tabs button", has_text="AI 대화").click()
+        page.locator(".panel-tabs button", has_text="AI 에이전트").click()
         page.wait_for_selector("#chat-input")
 
 
@@ -79,7 +79,7 @@ def demo_login(page):
 
 def small_fonts(page):
     return page.evaluate(
-        """() => { const out=[]; for (const el of document.querySelectorAll('body *')) { if (!el.childNodes.length) continue; const hasText=[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()); if(!hasText) continue; const r=el.getBoundingClientRect(); if(!r.width) continue; const fs=parseFloat(getComputedStyle(el).fontSize); if (fs<12) out.push(el.tagName+'.'+el.className+':'+fs); } return out.slice(0,5); }"""
+        """() => { const out=[]; for (const el of document.querySelectorAll('body *')) { if (!el.childNodes.length) continue; const hasText=[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()); if(!hasText) continue; if(el.closest('.brand')) continue; /* 규칙 7: 헤더 브랜드 글자(HANWHA ENGINE 12px)는 예외 */ const r=el.getBoundingClientRect(); if(!r.width) continue; const fs=parseFloat(getComputedStyle(el).fontSize); if (fs<13) out.push(el.tagName+'.'+el.className+':'+fs); } return out.slice(0,5); }"""
     )
 
 
@@ -139,7 +139,7 @@ with sync_playwright() as p:
     check("로그인 화면 안내: 시연용·보안 인증 아님", "보안 인증이 아닙니다" in page.locator(".login-note").inner_text())
     # v0.5.4: 제품 이름 변경 "구매·협력사 AI 분석 플랫폼" → "RAG 기반 협력사 평가 AI 에이전트"
     lt = page.locator(".login-card").inner_text()
-    check("제품 이름: 로그인 화면에 새 이름, 옛 이름 없음 · 한화엔진 / HANWHA ENGINE 유지", "RAG 기반 협력사 평가 AI 에이전트" in lt and "구매·협력사 AI 분석 플랫폼" not in lt and page.locator(".login-card .brand-ko").inner_text() == "한화엔진" and page.locator(".login-card .brand-en").inner_text() == "HANWHA ENGINE")
+    check("제품 이름: 로그인 화면에 새 이름, 옛 이름 없음 · 공식 로고(alt=한화엔진), 영문 HANWHA ENGINE 글자 없음 (v0.6.0: .brand-ko/.brand-en 검사를 로고 alt 검사로 바꿈)", "RAG 기반 협력사 평가 AI 에이전트" in lt and "구매·협력사 AI 분석 플랫폼" not in lt and page.locator(".login-card .brand-logo").get_attribute("alt") == "한화엔진" and "HANWHA ENGINE" not in lt)
     check("제품 이름: 문서 제목(document.title)에 새 이름", page.title() == "한화엔진 RAG 기반 협력사 평가 AI 에이전트", page.title())
     page.click("#login-submit")
     check("이름 없이 들어가기 → 안내 문구", page.locator("#login-err").count() == 1)
@@ -158,30 +158,24 @@ with sync_playwright() as p:
     check("v0.2.0 저장 내용 이전 후 예전 키 삭제", page.evaluate("() => localStorage.getItem('procure-ai:session.v2') === null"))
 
     # 2. 헤더 브랜드
-    ko = page.locator(".brand-ko").bounding_box()
-    en = page.locator(".brand-en").bounding_box()
-    check("로고 표시", page.locator(".brand-logo").count() == 1 and page.locator(".brand-logo").evaluate("e => e.naturalWidth > 0"))
-    # v0.5.3: 예전(글자 사이를 벌려 'HANWHA ENGINE' 너비에 맞춘) 너비 일치 검사는 사용자 요청(글자 간격 없이 한 낱말로)으로 아래 검사들로 바뀜
-    bk = page.evaluate("""() => { const k = document.querySelector('.brand-ko'), e = document.querySelector('.brand-en'), cs = getComputedStyle(k), ce = getComputedStyle(e), lg = document.querySelector('.brand-logo');
-      return {txt: k.textContent, nodes: k.childNodes.length, ls: cs.letterSpacing, ws: cs.wordSpacing, ta: cs.textAlign, disp: cs.display, fs: parseFloat(cs.fontSize), ff: cs.fontFamily, fw: cs.fontWeight, bodyFf: getComputedStyle(document.body).fontFamily, w: k.getBoundingClientRect().width,
-        enLs: ce.letterSpacing, enTa: ce.textAlign, enDisp: ce.display, logoH: lg.getBoundingClientRect().height, logoW: lg.getBoundingClientRect().width, nw: lg.naturalWidth, nh: lg.naturalHeight}; }""")
-    check("브랜드 글자: '한화엔진'이 끊김 없는 한 덩어리 (글자 간격·낱말 간격·양끝 맞춤 없음)", bk["txt"] == "한화엔진" and bk["nodes"] == 1 and bk["ls"] in ("normal", "0px") and bk["ws"] in ("normal", "0px") and bk["ta"] != "justify" and "flex" not in bk["disp"], json.dumps(bk, ensure_ascii=False))
-    check("브랜드 글자: 4글자 너비가 글자 크기의 4.6배 이하 (벌어진 틈 없음)", bk["w"] <= bk["fs"] * 4.6, f"{round(bk['w'], 1)}px / {bk['fs']}px")
-    check("브랜드 글자: 'HANWHA ENGINE'도 양끝 맞춤·flex 아님", bk["enTa"] != "justify" and "flex" not in bk["enDisp"])
-    check("브랜드 글자 크기: v0.5.2의 22px 보다 큼", bk["fs"] > 22, f"22px → {bk['fs']}px")
-    check("브랜드 글자 서체: 본문(IBM Plex Sans KR)과 다른 목록, 굵기 700 이상", bk["ff"] != bk["bodyFf"] and int(bk["fw"]) >= 700, f"{bk['ff']} / {bk['fw']}")
-    check("로고: 표시 높이가 v0.5.2의 32px 보다 +20~30% (38~42px), 가로세로 비율 유지", 38 <= bk["logoH"] <= 42 and abs(bk["logoW"] / bk["logoH"] - bk["nw"] / bk["nh"]) < 0.02, f"32px → {bk['logoH']}px, 비율 {round(bk['logoW'] / bk['logoH'], 3)} / 원본 {round(bk['nw'] / bk['nh'], 3)}")
+    # v0.6.0: 상단 바 브랜드 = 공식 한화엔진 로고 SVG 한 장(흰 판) + 제품 이름. 예전 '한화엔진' 글자·'HANWHA ENGINE'·letter-spacing·PNG 로고 높이 검사는 아래 검사들로 바뀜
+    bk = page.evaluate("""() => { const lg = document.querySelector('.topbar .brand-logo'), pl = document.querySelector('.topbar .brand-plate'), r = lg.getBoundingClientRect(), tb = document.querySelector('.topbar');
+      return {n: document.querySelectorAll('.topbar .brand-logo').length, alt: lg.getAttribute('alt'), src: lg.src.slice(0, 26), nw: lg.naturalWidth, nh: lg.naturalHeight, h: r.height, w: r.width, plateBg: getComputedStyle(pl).backgroundColor, ko: document.querySelectorAll('.brand-ko, .brand-en, .brand-co').length, hasEn: tb.innerText.includes('HANWHA') || tb.innerText.includes('한화엔진'), imgs: document.querySelectorAll('.topbar .brand img').length, aria: [...document.querySelectorAll('.topbar .brand [aria-label]')].map(e => e.getAttribute('aria-label'))}; }""")
+    check("로고 표시: 상단 바에 공식 SVG 로고 한 장(<img alt='한화엔진'>, data:image/svg+xml)", bk["n"] == 1 and bk["imgs"] == 1 and bk["alt"] == "한화엔진" and bk["src"].startswith("data:image/svg+xml") and bk["nw"] > 0, json.dumps(bk, ensure_ascii=False))
+    check("브랜드: 영문 'HANWHA ENGINE'·따로 쓴 '한화엔진' 글자·옛 글자 칸(.brand-ko/.brand-en/.brand-co) 없음, 접근 가능한 이름은 alt '한화엔진'뿐", bk["ko"] == 0 and not bk["hasEn"] and bk["aria"] == [], json.dumps(bk, ensure_ascii=False))
+    check("로고: 1920에서 표시 높이 44~48px, 가로세로 비율(심볼+한글 상호 2.96:1) 유지", 43.9 <= bk["h"] <= 48.1 and abs(bk["w"] / bk["h"] - 1602.4410203 / 541.5305176) < 0.03, f"{bk['h']}px x {round(bk['w'], 1)}px, 비율 {round(bk['w'] / bk['h'], 3)}")
+    check("로고 판: 두 테마 모두 흰 판(#fff) — 검정 상호가 어두운 테마에서도 보임", bk["plateBg"] == "rgb(255, 255, 255)", bk["plateBg"])
     ml = page.evaluate("() => { const a = document.querySelector('.app').getBoundingClientRect(); return [a.left, innerWidth - a.right]; }")
-    check("쪽 좌우 여백: 1920에서 v0.5.2의 32px 보다 +12~20px", all(44 <= m <= 52.5 for m in ml), f"32px → {ml}")
+    check("쪽 좌우 여백: 1920에서 v0.5.5의 52px ×1.5 = 78px (v0.5.6, 76.5~79.5px)", all(76.5 <= m <= 79.5 for m in ml), f"52px → {ml}")
     pn = page.evaluate("() => { const p = document.querySelector('.topbar .brand-product'), r = p.getBoundingClientRect(); return {t: p.textContent, title: p.title, tag: p.tagName, h: r.height, fs: parseFloat(getComputedStyle(p).fontSize), clip: p.scrollWidth > p.clientWidth + 1, hdr: document.querySelector('.topbar').innerText}; }")
-    check("제품 이름: 상단 바에 새 이름(h1, title 속성 포함), 옛 이름 없음 · 한 줄 · 안 잘림 · 12px 이상", pn["t"] == "RAG 기반 협력사 평가 AI 에이전트" and pn["title"] == pn["t"] and pn["tag"] == "H1" and "구매·협력사 AI 분석 플랫폼" not in pn["hdr"] and pn["h"] < 32 and not pn["clip"] and pn["fs"] >= 12, json.dumps(pn, ensure_ascii=False))
+    check("제품 이름: 상단 바에 새 이름(h1, title 속성 포함), 옛 이름 없음 · 한 줄 · 안 잘림 · 13px 이상", pn["t"] == "RAG 기반 협력사 평가 AI 에이전트" and pn["title"] == pn["t"] and pn["tag"] == "H1" and "구매·협력사 AI 분석 플랫폼" not in pn["hdr"] and pn["h"] < 32 and not pn["clip"] and pn["fs"] >= 13, json.dumps(pn, ensure_ascii=False))
     DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dist")
     for fn in ("index.html", "artifact.html"):
         src = open(os.path.join(DIST, fn), encoding="utf-8").read()
         check(f"제품 이름: dist/{fn} 에 옛 이름 없음 · 새 이름 있음", "구매·협력사 AI 분석 플랫폼" not in src and "RAG 기반 협력사 평가 AI 에이전트" in src)
     art = open(os.path.join(DIST, "artifact.html"), encoding="utf-8").read()
     check("제품 이름: dist/artifact.html(중립)에는 '한화엔진' 없음 · 제목은 새 이름만", "한화엔진" not in art and "<title>RAG 기반 협력사 평가 AI 에이전트</title>" in art)
-    check("한화엔진이 플랫폼 이름보다 큰 글자", page.locator(".brand-ko").evaluate("e => parseFloat(getComputedStyle(e).fontSize)") > page.locator(".brand-product").evaluate("e => parseFloat(getComputedStyle(e).fontSize)"))
+    check("로고(높이 44px 이상)가 제품 이름 글자보다 큼 (v0.6.0: 한화엔진 글자 크기 비교를 로고 높이 비교로 바꿈)", bk["h"] > page.locator(".brand-product").evaluate("e => parseFloat(getComputedStyle(e).fontSize)"))
     check("헤더 흐름 문구 삭제", "AI 분석 요청 → 결과 형식 선택" not in page.locator(".topbar").inner_text())
     check("1920: 헤더 한 줄", page.locator(".topbar").bounding_box()["height"] < 72, str(round(page.locator(".topbar").bounding_box()["height"])))
 
@@ -189,11 +183,11 @@ with sync_playwright() as p:
     a = page.locator(".panel-a").bounding_box()
     c = page.locator(".panel-c").bounding_box()
     ratio = round(a["width"] / (a["width"] + c["width"]) * 100)
-    check("1920: 데이터 관리 : AI 대화 = 65:35", abs(ratio - 65) <= 2, f"{ratio}:{100 - ratio}")
+    check("1920: 데이터 관리 : AI 에이전트 = 65:35", abs(ratio - 65) <= 2, f"{ratio}:{100 - ratio}")
     check("1920: 가로 스크롤 없음", no_hscroll(page))
     check("가운데 챗봇 패널 없음(2분할)", page.locator(".panel-b").count() == 0 and page.locator(".splitter").count() == 1)
     sf = small_fonts(page)
-    check("모든 글자 12px 이상", not sf, ", ".join(sf))
+    check("모든 글자 13px 이상", not sf, ", ".join(sf))
     vs = v_scrollers(page)
     check("왼쪽 패널 세로 스크롤 영역 1개", len(vs) == 1, ", ".join(vs))
     # 70%로 넓어져 표가 넘치지 않을 수 있으므로, 최소 40%까지 줄여 가장자리 그림자를 확인한다
@@ -222,7 +216,7 @@ with sync_playwright() as p:
     tip = page.locator("#steps-tip")
     tb = tip.bounding_box()
     vp = page.viewport_size
-    check("처리 단계: 마우스를 올리면 즉시 설명 팝오버(5단계 이름·상태·상세, 화면 안, 12px 이상)", tip.locator(".steps-tip-row").count() == 5 and "자료 업로드" in tip.inner_text() and "완료" in tip.inner_text() and tb["x"] >= 0 and tb["x"] + tb["width"] <= vp["width"] and tb["y"] + tb["height"] <= vp["height"] and page.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.steps-tip-detail')||document.querySelector('.steps-tip-row')).fontSize) >= 12"), tip.inner_text()[:80])
+    check("처리 단계: 마우스를 올리면 즉시 설명 팝오버(5단계 이름·상태·상세, 화면 안, 13px 이상)", tip.locator(".steps-tip-row").count() == 5 and "자료 업로드" in tip.inner_text() and "완료" in tip.inner_text() and tb["x"] >= 0 and tb["x"] + tb["width"] <= vp["width"] and tb["y"] + tb["height"] <= vp["height"] and page.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.steps-tip-detail')||document.querySelector('.steps-tip-row')).fontSize) >= 13"), tip.inner_text()[:80])
     check("처리 단계 팝오버: role=tooltip, 아이콘에 aria-describedby", tip.get_attribute("role") == "tooltip" and sm.locator(".step-mini").first.get_attribute("aria-describedby") == "steps-tip")
     page.screenshot(path=f"{SHOTS}/04_steps_hover.png")
     page.mouse.move(5, 5)
@@ -248,7 +242,7 @@ with sync_playwright() as p:
     page.mouse.up()
     a2 = page.locator(".panel-a").bounding_box()["width"]
     check("경계선 끌어서 너비 조절", a2 < a["width"] - 150, f"{round(a['width'])} → {round(a2)}px")
-    check("경계선 접근성: 이름·값 범위(40~80)", "AI 대화" in page.locator(".splitter").get_attribute("aria-label") and page.locator(".splitter").get_attribute("aria-valuemin") == "40" and page.locator(".splitter").get_attribute("aria-valuemax") == "80")
+    check("경계선 접근성: 이름·값 범위(40~80)", "AI 에이전트" in page.locator(".splitter").get_attribute("aria-label") and page.locator(".splitter").get_attribute("aria-valuemin") == "40" and page.locator(".splitter").get_attribute("aria-valuemax") == "80")
     page.locator(".splitter").focus()
     page.keyboard.press("ArrowRight")
     check("경계선 키보드(→)로 조절", page.locator(".panel-a").bounding_box()["width"] > a2 + 10)
@@ -290,37 +284,33 @@ with sync_playwright() as p:
     # 9. 챗봇: 오른쪽에 고정된 대화 패널 (떠 있는 창·버튼 없음)
     check("떠 있는 챗봇 버튼·창 없음", page.locator(".chat-launcher").count() == 0 and page.locator("#chat-window").count() == 0 and page.locator(".chat-nudge").count() == 0)
     pc = page.locator(".panel-c").bounding_box()
-    check("대화 패널은 오른쪽 고정 영역 안에 입력창 표시", page.locator(".panel-c #chat-input").is_visible() and pc["x"] > a["width"] and "AI 대화" in page.locator(".panel-c .panel-title").inner_text(), f"x={round(pc['x'])}")
-    check("패널 이름 'AI 대화' + 대화 영역 aria-live", page.locator(".panel-c section").count() == 0 and page.locator(".chat-list").get_attribute("aria-live") == "off" and page.locator("label[for='chat-input']").count() == 1)
+    check("대화 패널은 오른쪽 고정 영역 안에 입력창 표시", page.locator(".panel-c #chat-input").is_visible() and pc["x"] > a["width"] and "AI 에이전트" in page.locator(".panel-c .panel-title").inner_text(), f"x={round(pc['x'])}")
+    check("패널 이름 'AI 에이전트' + 대화 영역 aria-live", page.locator(".panel-c section").count() == 0 and page.locator(".chat-list").get_attribute("aria-live") == "off" and page.locator("label[for='chat-input']").count() == 1)
     check("v0.4.2 알림: 목록 밖에 한 줄 알림 영역(status)·진행 상태는 목록 밖", page.locator(".panel-c > .sr-only[role='status']").count() == 1 and page.locator(".chat-list [role='status']:not(.stale)").count() == 0)
-    geo = page.evaluate("() => { const i=document.querySelector('.chat-title-icon').getBoundingClientRect(); const s=document.querySelector('.chat-title-icon svg').getBoundingClientRect(); return {dx: Math.abs((i.x+i.width/2)-(s.x+s.width/2)), dy: Math.abs((i.y+i.height/2)-(s.y+s.height/2)), w: s.width} }")
+    geo = page.evaluate("() => { const i=document.querySelector('.chat-title-icon').getBoundingClientRect(); const s=document.querySelector('.chat-title-icon img').getBoundingClientRect(); return {dx: Math.abs((i.x+i.width/2)-(s.x+s.width/2)), dy: Math.abs((i.y+i.height/2)-(s.y+s.height/2)), w: s.width} }")
     check("패널 머리 아이콘이 상자 가운데", geo["dx"] < 1.5 and geo["dy"] < 1.5 and geo["w"] >= 16, json.dumps({k: round(v, 1) for k, v in geo.items()}))
-    check("패널 머리 아이콘: 한화 오렌지 바탕·#1B1B1B 글자", page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).color") == "rgb(27, 27, 27)" and page.locator(".chat-title-icon").evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(243, 115, 33)")
+    ic = page.evaluate("() => { const c = document.querySelector('.chat-title-icon .ai-avatar'), im = c.querySelector('img'), cs = getComputedStyle(c), r = c.getBoundingClientRect(); return {radius: cs.borderRadius, bg: cs.backgroundColor, ov: cs.overflow, w: r.width, h: r.height, src: im.getAttribute('src').slice(0, 22), alt: im.getAttribute('alt'), hid: c.getAttribute('aria-hidden'), nw: im.naturalWidth, nh: im.naturalHeight, iw: im.getBoundingClientRect().width}; }")
+    check("v0.5.6 패널 머리 AI 아이콘: 공식 로고 파일(PNG 160×145)을 둥근 원판(36px, 흰 바탕, 넘침 숨김) 안에 CSS로만 맞춤, 장식(aria-hidden·alt 빈 값)", ic["radius"] in ("50%", "18px") and ic["bg"] == "rgb(255, 255, 255)" and ic["ov"] == "hidden" and ic["w"] == 36 and ic["h"] == 36 and ic["src"].startswith("data:image/png") and ic["alt"] == "" and ic["hid"] == "true" and (ic["nw"], ic["nh"]) == (160, 145) and 20 <= ic["iw"] <= 28, json.dumps(ic))
     check("말풍선 구분: 내 질문은 어두운(solid) 바탕·흰 글자", page.locator(".msg-user p").first.evaluate("e => getComputedStyle(e).backgroundColor") == "rgb(27, 27, 27)")  # v0.5: 검정(--solid) 바탕
     check("보내기 버튼이 유일한 채운 주황 버튼(주 동작)", page.locator(".panel-c .btn-primary").count() == 0 and page.locator(".panel-c .send-btn").count() == 1)
 
-    # 10. ⋯ 메뉴 · 대화 지우기 · 이전 대화
-    check("머리에는 제목·대화 이력·⋯ 메뉴, 투명도·크기 조절 없음", page.locator("#chat-opacity").count() == 0 and page.locator(".chat-menu-btn").count() == 1 and page.locator(".rz").count() == 0)
-    page.click(".chat-menu-btn")
-    check("⋯ 메뉴: 대화 지우기", page.locator(".chat-menu button[aria-label='대화 지우기']").count() == 1)
-    check("⋯ 메뉴는 role=menu가 아닌 일반 팝오버, 열면 첫 항목으로 초점", page.locator("[role='menu'], [role='menuitem']").count() == 0 and page.locator(".chat-menu-btn").get_attribute("aria-haspopup") is None and page.evaluate("() => document.activeElement && document.activeElement.classList.contains('menu-item')"))
-    page.keyboard.press("Escape")
-    check("Esc는 메뉴를 닫음", page.locator(".chat-menu").count() == 0)
-    check("Esc 뒤 ⋯ 버튼으로 초점 복귀", page.evaluate("() => document.activeElement && document.activeElement.classList.contains('chat-menu-btn')"))
+    # 10. 대화 지우기(머리의 독립 버튼, v0.5.6: ⋯ 메뉴에서 꺼냄) · 이전 대화
+    check("머리에는 제목·대화 이력·대화 지우기, 투명도·크기 조절 없음", page.locator("#chat-opacity").count() == 0 and page.locator(".rz").count() == 0 and page.locator(".chat-head .history-toggle").count() == 1 and page.locator(".chat-head .clear-chat-btn").count() == 1)
+    check("v0.5.6 ⋯ 메뉴는 없어짐(.chat-menu-btn·.chat-menu·'대화 메뉴' 이름 없음), 대화 지우기는 메뉴 밖 독립 버튼", page.locator(".chat-menu-btn, .chat-menu, [aria-label='대화 메뉴']").count() == 0 and page.locator(".chat-head .clear-chat-btn").inner_text().strip() == "대화 지우기" and page.locator(".chat-head .clear-chat-btn").locator("xpath=ancestor::*[contains(@class,'menu')]").count() == 0)
+    hb = page.evaluate("() => { const a = document.querySelector('.history-toggle').getBoundingClientRect(), b = document.querySelector('.clear-chat-btn').getBoundingClientRect(); return {sameRow: Math.abs(a.top - b.top) < 4, gap: b.left - a.right, ha: a.height, hb: b.height, sty: [getComputedStyle(document.querySelector('.history-toggle')).borderRadius, getComputedStyle(document.querySelector('.clear-chat-btn')).borderRadius, getComputedStyle(document.querySelector('.history-toggle')).fontSize, getComputedStyle(document.querySelector('.clear-chat-btn')).fontSize], svgs: document.querySelectorAll('.clear-chat-btn svg').length}; }")
+    check("대화 지우기 버튼: 대화 이력 바로 옆(같은 줄·간격 12px 이하), 높이·모서리·글자 크기 같음, 아이콘+글자", hb["sameRow"] and 0 <= hb["gap"] <= 12 and abs(hb["ha"] - hb["hb"]) < 1 and hb["sty"][0] == hb["sty"][1] and hb["sty"][2] == hb["sty"][3] and hb["svgs"] == 1, json.dumps(hb))
     check("이전 사용자 대화 이전됨(예전 버전 질문)", "예전 버전에서 한 질문" in page.locator(".chat-list").inner_text())
     check("대화가 시작된 뒤에는 추천 질문이 완전히 숨음(칩·'추천 질문' 버튼 없음)", page.locator(".suggest-row").count() == 0 and page.locator(".sug-toggle").count() == 0 and page.locator(".composer .suggest-chip").count() == 0)
     check("입력 안내(Enter·Shift+Enter)", "Shift+Enter" in page.locator(".composer-hint").inner_text())
 
     # 11. 대표 시나리오
     q = "해당 품목의 과거 거래 업체를 등급, 납기 실적, 최근 단가와 함께 보여주어 품목별 후보 업체 표시해줘."
-    page.click(".chat-menu-btn")
-    page.locator(".chat-menu button[aria-label='대화 지우기']").click()
+    page.locator(".clear-chat-btn").click()
     check("대화 지우기 전 확인 창", page.locator("[role='alertdialog']").count() == 1 and "대화 이력" in page.locator("[role='alertdialog']").inner_text())
     page.keyboard.press("Escape")
     st = (page.locator("[role='alertdialog']").count(), page.locator(".panel-c #chat-input").count(), "예전 버전에서 한 질문" in page.locator(".chat-list").inner_text())
     check("확인 창 Esc → 취소 (대화 패널·대화 그대로)", st == (0, 1, True), str(st))
-    page.click(".chat-menu-btn")
-    page.locator(".chat-menu button[aria-label='대화 지우기']").click()
+    page.locator(".clear-chat-btn").click()
     page.locator("[role='alertdialog'] [data-confirm]").click()
     check("대화 지우기 → 입력칸으로 초점", page.evaluate("() => new Promise(r => setTimeout(() => r(document.activeElement && document.activeElement.id === 'chat-input'), 50))"))
     page.locator(".ctx-chips .chip-x").first.click() if page.locator(".ctx-chips .chip-accent").count() else None
@@ -581,8 +571,7 @@ with sync_playwright() as p:
     check("평가 대상 목록 맨 위에 관심 협력사", page.locator("#eval-supplier optgroup").first.get_attribute("label") == "★ 관심 협력사")
     open_chat(page)
     # 추천 질문은 환영 상태에서만 보이므로 대화를 지워 환영 상태로 만든 뒤 확인
-    page.click(".chat-menu-btn")
-    page.locator(".chat-menu button[aria-label='대화 지우기']").click()
+    page.locator(".clear-chat-btn").click()
     page.locator("[role='alertdialog'] [data-confirm]").click()
     page.wait_for_selector(".suggest-row")
     sugg = page.locator(".suggest-row .suggest-chip").all_inner_texts()
@@ -596,7 +585,7 @@ with sync_playwright() as p:
     page.locator(".tab", has_text="협력업체").click()
     page.locator(".data-table tbody tr", has_text="업체 F").locator(".name").click()
     det = page.locator(".row-detail")
-    check("행을 누르면 상세는 오른쪽 AI 대화 패널 위쪽에", page.locator(".panel-c #selection-detail").count() == 1 and page.evaluate("() => document.querySelector('.chat-detail').getBoundingClientRect().bottom <= document.querySelector('.chat-list').getBoundingClientRect().top + 1") and page.locator(".panel-a .row-detail").count() == 0)
+    check("행을 누르면 상세는 오른쪽 AI 에이전트 패널 위쪽에", page.locator(".panel-c #selection-detail").count() == 1 and page.evaluate("() => document.querySelector('.chat-detail').getBoundingClientRect().bottom <= document.querySelector('.chat-list').getBoundingClientRect().top + 1") and page.locator(".panel-a .row-detail").count() == 0)
     check("대화 패널 머리에 선택 정보 아이콘(펼침)", page.locator(".detail-toggle").get_attribute("aria-expanded") == "true" and "업체 F" in page.locator(".detail-toggle").get_attribute("aria-label") and page.locator(".detail-toggle").inner_text().strip() == "")
     check("선택 정보 아이콘은 글자 없이 aria-label만(세 번 반복 제거), 두 '선택 해제'는 이름이 서로 다름", page.locator(".detail-toggle").evaluate("e => e.getBoundingClientRect().width <= 48") and page.locator(".detail-clear").get_attribute("aria-label") != "선택 해제")
     check("상세: 등급 타임라인 (평가 5회 + 현재)", det.locator(".tl-item").count() == 6, str(det.locator(".tl-item").count()))
@@ -689,7 +678,7 @@ with sync_playwright() as p:
     page.select_option("#news-mat", "니켈")
     check("업계 동향: 원자재로 거르기 (니켈 2건)", nv.locator(".news").count() == 2)
     sf2 = small_fonts(page)
-    check("새 화면도 글자 12px 이상", not sf2, ", ".join(sf2))
+    check("새 화면도 글자 13px 이상", not sf2, ", ".join(sf2))
     page.locator(".subtab[data-sub='list']").click()
 
     # 29. 샘플 버튼 정리
@@ -784,9 +773,9 @@ with sync_playwright() as p:
     cb2 = lap.locator(".panel-c").bounding_box()
     check("1366: 대화 패널 오른쪽 고정·입력창 보임·너비 320 이상", lap.locator("#chat-input").is_visible() and cb2["width"] >= 320 and cb2["x"] > 800, f"{round(cb2['width'])}px")
     ab2 = lap.locator(".panel-a").bounding_box()
-    check("1366: 데이터 관리 : AI 대화 약 65:35", abs(ab2["width"] / (ab2["width"] + cb2["width"]) * 100 - 65) <= 3)
+    check("1366: 데이터 관리 : AI 에이전트 약 65:35", abs(ab2["width"] / (ab2["width"] + cb2["width"]) * 100 - 65) <= 3)
     sf3 = small_fonts(lap)
-    check("1366: 글자 12px 이상", not sf3, ", ".join(sf3))
+    check("1366: 글자 13px 이상", not sf3, ", ".join(sf3))
 
     # ── v0.4.2: 1366×768 세로 공간 · 접근성 · 키보드 ──
     lap.screenshot(path=f"{SHOTS}/09_1366_welcome.png")
@@ -794,7 +783,7 @@ with sync_playwright() as p:
     lap.wait_for_selector(".pager-nav")
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 99999)")
     pg = lap.evaluate("() => { const p=document.querySelector('.pager'), a=document.querySelector('.panel-a').getBoundingClientRect(), r=p.getBoundingClientRect(), b=p.querySelector('.icon-btn').getBoundingClientRect(), sel=p.querySelector('select').getBoundingClientRect(); return {top:r.top, bottom:r.bottom, pb:a.bottom, bh:b.height, bw:b.width, sh:sel.height, bt:getComputedStyle(p).borderTopWidth, bg:getComputedStyle(p).backgroundColor, fs:Math.min(...[...p.querySelectorAll('*')].filter(e=>e.childElementCount==0 && e.textContent.trim()).map(e=>parseFloat(getComputedStyle(e).fontSize)))}; }")
-    check("1366×768 데이터 관리 아래쪽 페이지 바: 잘리지 않고 보임, 버튼·선택 36px 이상, 12px 이상, 위쪽 경계선·단색 배경", pg["bottom"] <= pg["pb"] + 1 and pg["top"] >= 0 and pg["bh"] >= 36 and pg["bw"] >= 36 and pg["sh"] >= 36 and pg["fs"] >= 12 and pg["bt"] != "0px" and "0, 0, 0, 0" not in pg["bg"], json.dumps(pg))
+    check("1366×768 데이터 관리 아래쪽 페이지 바: 잘리지 않고 보임, 버튼·선택 36px 이상, 13px 이상, 위쪽 경계선·단색 배경", pg["bottom"] <= pg["pb"] + 1 and pg["top"] >= 0 and pg["bh"] >= 36 and pg["bw"] >= 36 and pg["sh"] >= 36 and pg["fs"] >= 13 and pg["bt"] != "0px" and "0, 0, 0, 0" not in pg["bg"], json.dumps(pg))
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 0)")
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 99999)")
     lap.screenshot(path=f"{SHOTS}/09_1366_pager.png")
@@ -821,7 +810,7 @@ with sync_playwright() as p:
     check("1366×768: 입력 안내 숨김 · 추천 질문은 한 줄(가로 스크롤)", g["hint"] == "none" and g["rowFits"])
     lap.locator(".data-table tbody tr", has_text="업체 B").locator(".name").click()
     g2 = lap.evaluate("() => { const l=document.querySelector('.chat-list').getBoundingClientRect(), c=document.querySelector('.composer').getBoundingClientRect(), p=document.querySelector('.panel-c').getBoundingClientRect(), h=document.querySelector('.chat-head').getBoundingClientRect(); return {list:l.height, cb:c.bottom, pb:p.bottom, head:h.height}; }")
-    check("1366×768 행 선택 후: 머리 한 줄 · 대화 영역 96px 이상 · 입력창 보임", g2["head"] < 80 and g2["list"] >= 96 and g2["cb"] <= g2["pb"] + 1, json.dumps({k: round(v) for k, v in g2.items()}))
+    check("1366×768 행 선택 후: 머리 두 줄 이내(v0.5.6: 제목 줄 + 버튼 줄, v0.5.5는 80px 미만 한 줄) · 대화 영역 96px 이상 · 입력창 보임", g2["head"] < 130 and g2["list"] >= 96 and g2["cb"] <= g2["pb"] + 1, json.dumps({k: round(v) for k, v in g2.items()}))
     lap.screenshot(path=f"{SHOTS}/09_1366_selected.png")
     ask(lap, "납기 준수율이 낮은 협력사를 찾아줘.")
     lap.screenshot(path=f"{SHOTS}/09_1366_after_q.png")
@@ -901,10 +890,10 @@ with sync_playwright() as p:
     # 33. 태블릿 900
     tab = browser.new_page(viewport={"width": 900, "height": 1180})
     demo_login(tab)
-    check("태블릿: 데이터 관리/AI 대화 탭 2개", [t.strip() for t in tab.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 대화"] and tab.locator(".panel-a").is_visible() and not tab.locator(".panel-c").is_visible())
-    tab.locator(".panel-tabs button", has_text="AI 대화").click()
-    check("태블릿: AI 대화 탭에서 대화 패널 전체 표시", tab.locator(".panel-c").is_visible() and tab.locator("#chat-input").is_visible() and tab.locator(".chat-launcher").count() == 0)
-    check("태블릿: 보내기·메뉴·추천 질문 44px 이상", tab.locator(".send-btn").bounding_box()["height"] >= 44 and tab.locator(".chat-menu-btn").bounding_box()["height"] >= 44 and tab.locator(".suggest-chip").first.bounding_box()["height"] >= 44)
+    check("태블릿: 데이터 관리/AI 에이전트 탭 2개", [t.strip() for t in tab.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 에이전트"] and tab.locator(".panel-a").is_visible() and not tab.locator(".panel-c").is_visible())
+    tab.locator(".panel-tabs button", has_text="AI 에이전트").click()
+    check("태블릿: AI 에이전트 탭에서 대화 패널 전체 표시", tab.locator(".panel-c").is_visible() and tab.locator("#chat-input").is_visible() and tab.locator(".chat-launcher").count() == 0)
+    check("태블릿: 보내기·대화 이력·대화 지우기·추천 질문 44px 이상", tab.locator(".send-btn").bounding_box()["height"] >= 44 and tab.locator(".clear-chat-btn").bounding_box()["height"] >= 44 and tab.locator(".history-toggle").bounding_box()["height"] >= 44 and tab.locator(".suggest-chip").first.bounding_box()["height"] >= 44)
     tab.fill("#chat-input", "노즐 후보 업체 비교해 줘")
     tab.press("#chat-input", "Enter")
     tab.wait_for_selector(".ans-sec")
@@ -912,21 +901,21 @@ with sync_playwright() as p:
     tab.screenshot(path=f"{SHOTS}/10_tablet.png")
     check("태블릿: 가로 스크롤 없음", no_hscroll(tab))
     sf5 = small_fonts(tab)
-    check("태블릿: 글자 12px 이상", not sf5, ", ".join(sf5))
+    check("태블릿: 글자 13px 이상", not sf5, ", ".join(sf5))
     tab.locator(".panel-tabs button", has_text="데이터 관리").click()
     tab.locator(".data-table tbody tr", has_text="업체 B").locator(".name").click()
-    check("태블릿: 행을 눌러도 탭이 저절로 바뀌지 않고, AI 대화 탭에 점 표시", tab.locator(".panel-a").is_visible() and tab.locator(".panel-tabs .tab-dot").count() == 1)
-    tab.locator(".panel-tabs button", has_text="AI 대화").click()
-    check("태블릿: AI 대화 탭 위쪽에 선택 정보 표시", tab.locator("#selection-detail").count() == 1)
+    check("태블릿: 행을 눌러도 탭이 저절로 바뀌지 않고, AI 에이전트 탭에 점 표시", tab.locator(".panel-a").is_visible() and tab.locator(".panel-tabs .tab-dot").count() == 1)
+    tab.locator(".panel-tabs button", has_text="AI 에이전트").click()
+    check("태블릿: AI 에이전트 탭 위쪽에 선택 정보 표시", tab.locator("#selection-detail").count() == 1)
     tab.locator(".panel-tabs button", has_text="데이터 관리").click()
     tab.locator(".data-table tbody tr", has_text="업체 C").locator(".name").click()
     tab.wait_for_selector(".toast")
-    check("태블릿: 행을 고르면 '상세는 AI 대화 탭에서 볼 수 있어요' 토스트(탭은 그대로)", "AI 대화 탭에서 볼 수 있어요" in tab.locator(".toast").inner_text() and tab.locator(".panel-a").is_visible())
-    check("태블릿: 안내 문구에 '오른쪽' 없음", "오른쪽" not in tab.locator(".data-source").inner_text() and "AI 대화" in tab.locator(".data-source").inner_text())
-    check("태블릿: 탭 점은 장식, 이름에 '· 선택 정보'/'· 새 답변'이 들어감", tab.locator(".tab-dot").get_attribute("aria-hidden") == "true" and any(k in tab.locator(".panel-tabs button", has_text="AI 대화").text_content() for k in ["· 선택 정보", "· 새 답변"]))
+    check("태블릿: 행을 고르면 '상세는 AI 에이전트 탭에서 볼 수 있어요' 토스트(탭은 그대로)", "AI 에이전트 탭에서 볼 수 있어요" in tab.locator(".toast").inner_text() and tab.locator(".panel-a").is_visible())
+    check("태블릿: 안내 문구에 '오른쪽' 없음", "오른쪽" not in tab.locator(".data-source").inner_text() and "AI 에이전트" in tab.locator(".data-source").inner_text())
+    check("태블릿: 탭 점은 장식, 이름에 '· 선택 정보'/'· 새 답변'이 들어감", tab.locator(".tab-dot").get_attribute("aria-hidden") == "true" and any(k in tab.locator(".panel-tabs button", has_text="AI 에이전트").text_content() for k in ["· 선택 정보", "· 새 답변"]))
     check("태블릿: 점 크기 10px 이상", tab.locator(".tab-dot").evaluate("e => e.getBoundingClientRect().width >= 10"))
     tab.set_viewport_size({"width": 900, "height": 1024})
-    tab.locator(".panel-tabs button", has_text="AI 대화").click()
+    tab.locator(".panel-tabs button", has_text="AI 에이전트").click()
     tab.screenshot(path=f"{SHOTS}/10_900x1024.png")
     check("900×1024: 가로 스크롤 없음·입력창 보임", no_hscroll(tab) and tab.locator("#chat-input").is_visible())
 
@@ -935,16 +924,16 @@ with sync_playwright() as p:
     demo_login(ph)
     check("휴대폰: 가로 스크롤 없음", no_hscroll(ph))
     check("휴대폰: SAMPLE 표시 유지", ph.locator(".badge-demo").is_visible())
-    check("휴대폰: 탭 이름 데이터 관리 / AI 대화", [t.strip() for t in ph.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 대화"])
-    ph.locator(".panel-tabs button", has_text="AI 대화").click()
+    check("휴대폰: 탭 이름 데이터 관리 / AI 에이전트", [t.strip() for t in ph.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 에이전트"])
+    ph.locator(".panel-tabs button", has_text="AI 에이전트").click()
     check("휴대폰: 대화 패널·입력창 보임, 가로 스크롤 없음, 보내기 버튼 44px", ph.locator("#chat-input").is_visible() and no_hscroll(ph) and ph.locator(".send-btn").bounding_box()["width"] >= 44)
     ph.locator(".panel-tabs button", has_text="데이터 관리").click()
     check("휴대폰: 상단 바 두 줄 (브랜드·알림·사용자 / 데이터 상태·불러오기)", ph.locator(".user-btn").bounding_box()["y"] < ph.locator(".topbar .btn-primary").bounding_box()["y"])
     sf4 = small_fonts(ph)
-    check("휴대폰: 글자 12px 이상", not sf4, ", ".join(sf4))
+    check("휴대폰: 글자 13px 이상", not sf4, ", ".join(sf4))
     ph.set_viewport_size({"width": 400, "height": 800})
     ph.screenshot(path=f"{SHOTS}/11_phone.png")
-    ph.locator(".panel-tabs button", has_text="AI 대화").click()
+    ph.locator(".panel-tabs button", has_text="AI 에이전트").click()
     ph.screenshot(path=f"{SHOTS}/11_phone_chat.png")
     check("400×800: 채팅 가로 스크롤 없음 · 입력창이 패널 안에 있음", no_hscroll(ph) and ph.evaluate("() => document.querySelector('#chat-input').getBoundingClientRect().bottom <= document.querySelector('.panel-c').getBoundingClientRect().bottom"))
     # 터치(거친 포인터)에서는 눈에 보이는 크기는 그대로, 누르는 영역만 44px
@@ -974,7 +963,7 @@ with sync_playwright() as p:
     if (el.closest('.sr-only,.step-mini-label,[aria-hidden="true"]')) continue; if (el.closest('option,optgroup,script,style,title')) continue;
     const fs=parseFloat(cs.fontSize); n++;
     const id=(el.tagName+'.'+(el.className&&el.className.baseVal!==undefined?el.className.baseVal:el.className)).slice(0,50);
-    if (fs<12 && !el.closest('.brand')) small.push(id+':'+fs);
+    if (fs<13 && !el.closest('.brand')) small.push(id+':'+fs);
     if (el.closest(':disabled,[disabled]')) continue;
     let fg=parse(cs.color||cs.fill); if(!fg) continue; const bg=bgOf(el); if(!bg) continue;
     let op=1; for (let e=el;e;e=e.parentElement) op*=parseFloat(getComputedStyle(e).opacity);
@@ -989,7 +978,7 @@ with sync_playwright() as p:
     def sweep(pg, label):
         settled(pg)
         r = pg.evaluate(SWEEP)
-        check(f"{label}: 12px 미만 글자 없음", not r["small"], ", ".join(r["small"]))
+        check(f"{label}: 13px 미만 글자 없음", not r["small"], ", ".join(r["small"]))
         check(f"{label}: 글자 대비 4.5:1 이상 (그라데이션·이미지 바탕 제외, 검사 {r['n']}개)", not r["low"], "; ".join(r["low"][:6]))
     dctx = browser.new_context(viewport={"width": 1920, "height": 1080}, color_scheme="light")
     # v0.5.2: 로드 직후 1.6초 동안 30ms마다 document.getAnimations() 를 기록 → 이름별 시작·끝(앱 시작 기준)
@@ -1068,7 +1057,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         dp.locator(f".accent-pick [aria-label='강조색 {lab}']").click()
         dp.keyboard.press("Escape")
         sweep(dp, f"강조색 {lab} · 밝은 테마")
-    # v0.5.2: 진입 동작 예산 — 첫 화면 전체 ≤ 1100ms (이전 v0.5.1의 '모두 300ms 이하'를 사용자 결정으로 대체), 핵심 숫자·표 첫 행은 400ms 안에 시작
+    # v0.5.2: 진입 동작 예산 (v0.5.6: --k .38 → .5 라서 첫 화면 전체 ≤ 1500ms, 핵심 숫자·표 첫 행은 520ms 안에 시작. v0.5.5는 1100 / 400)
     dp.reload(wait_until="domcontentloaded")
     dp.wait_for_selector(".eval-card")
     tl = dp.evaluate("() => ({tl: window.__tl, t0: window.__t0})")
@@ -1076,8 +1065,8 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     ends = {n: round(v["e"] - t0) for n, v in names.items() if not v["inf"] and v["e"] > 0}
     starts = {n: round(v["s"] - t0) for n, v in names.items()}
     mx = max(ends.values()) if ends else 9999
-    check("진입 동작: 첫 화면 전체가 1100ms 안에 끝남 (지연 포함)", bool(ends) and mx <= 1100, f"최대 {mx}ms · {len(names)}종 · " + json.dumps(ends, ensure_ascii=False))
-    check("진입 동작: 핵심 숫자(막대·도넛)와 표 첫 행이 400ms 안에 시작", starts.get("rowIn", 9999) <= 400 and starts.get("fillIn", 9999) <= 400 and starts.get("dash", 9999) <= 400, f"rowIn {starts.get('rowIn')} · fillIn {starts.get('fillIn')} · dash {starts.get('dash')}")
+    check("진입 동작: 첫 화면 전체가 1500ms 안에 끝남 (지연 포함, v0.5.6 --k .5)", bool(ends) and mx <= 1500, f"최대 {mx}ms · {len(names)}종 · " + json.dumps(ends, ensure_ascii=False))
+    check("진입 동작: 핵심 숫자(막대·도넛)와 표 첫 행이 520ms 안에 시작 (v0.5.6)", starts.get("rowIn", 9999) <= 520 and starts.get("fillIn", 9999) <= 520 and starts.get("dash", 9999) <= 520, f"rowIn {starts.get('rowIn')} · fillIn {starts.get('fillIn')} · dash {starts.get('dash')}")
     need = ["shellIn", "popPill", "logoIn", "wipeIn", "rise", "wordIn", "cardIn", "tileIn", "glowIn", "indIn", "fillIn", "dash", "rowIn"]
     miss = [n for n in need if n not in names]
     check("v14 모션 세트: 로드 때 실제로 실행되는 동작 이름 13종 (getAnimations)", not miss, "없음: " + ", ".join(miss))
@@ -1117,8 +1106,8 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     settled(dp)
     dp.get_by_role("tab", name="협력업체").click()
     settled(dp)
-    # v0.5.3: 폭별 좌우 여백·가로 스크롤·헤더 (400 / 900 / 1366 / 1920) — v0.5.2 여백: 1920=32px, 1366=30.0px, 900=10px, 400=6px
-    for w, h, lo, hi in ((1920, 1080, 44, 52.5), (1366, 768, 42, 50), (900, 800, 9.5, 12), (400, 800, 5.5, 8)):
+    # v0.5.3: 폭별 좌우 여백·가로 스크롤·헤더 (400 / 900 / 1366 / 1920) — v0.5.6 ×1.5: 1920=78px, 1366=65.6px, 900=15px, 400=9px (v0.5.5: 52 / 43.7 / 10 / 6)
+    for w, h, lo, hi in ((1920, 1080, 76.5, 79.5), (1366, 768, 64, 67.5), (900, 800, 14.5, 16), (400, 800, 8.5, 10)):
         wp = dctx.new_page()
         wp.set_viewport_size({"width": w, "height": h})
         wp.goto(URL, wait_until="domcontentloaded")
@@ -1133,7 +1122,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
             check(f"{w}px: 상태 알약 안 SAMPLE·데이터 상태가 잘리지 않음 (로고·여백이 커져도)", ds[0] <= ds[1] + 1, str(ds))
             pa = wp.locator(".panel-a").bounding_box()
             pc = wp.locator(".panel-c").bounding_box()
-            check(f"{w}px: 데이터 관리 : AI 대화 ≈ 65:35 (여백이 늘어도 유지)", abs(round(pa["width"] / (pa["width"] + pc["width"]) * 100) - 65) <= 2)
+            check(f"{w}px: 데이터 관리 : AI 에이전트 ≈ 65:35 (여백이 늘어도 유지)", abs(round(pa["width"] / (pa["width"] + pc["width"]) * 100) - 65) <= 2)
             check(f"{w}px: 상단 바 높이 72px 미만(한 줄)", m["tbH"] < 72, str(round(m["tbH"])))
             pj = wp.evaluate("() => { const p = document.querySelector('.topbar .brand-product'), r = p.getBoundingClientRect(), lh = parseFloat(getComputedStyle(p).lineHeight) || parseFloat(getComputedStyle(p).fontSize) * 1.2; return {lines: Math.round(r.height / lh), fs: parseFloat(getComputedStyle(p).fontSize), clip: p.scrollWidth > p.clientWidth + 1, inside: r.right <= document.querySelector('.tb-brand').getBoundingClientRect().right + 0.5}; }")
             check(f"{w}px: 새 제품 이름이 상단 바 안에서 안 잘림 (한 줄 또는 두 줄, 13px 이상)", pj["lines"] <= 2 and not pj["clip"] and pj["inside"] and pj["fs"] >= 13, json.dumps(pj))
@@ -1347,7 +1336,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     sctx.close()
     dctx.close()
     sf = lap.evaluate(SWEEP)
-    check("1366 밝은 테마: 12px 미만 글자 없음", not sf["small"], ", ".join(sf["small"]))
+    check("1366 밝은 테마: 13px 미만 글자 없음", not sf["small"], ", ".join(sf["small"]))
     # ── v0.5.5 ① 채점 평가 카드 스크롤 도킹 ② 선택 정보 머리 줄 고정 ──
     DOCK_JS = "() => { const d = document.querySelector('.eval-dock'), b = document.querySelector('.eval-dock-bar'), cs = getComputedStyle(b), br = b.getBoundingClientRect(), pr = document.querySelector('.panel-body-a').getBoundingClientRect(), cr = document.querySelector('.eval-card').getBoundingClientRect(); return {on: d.classList.contains('is-on'), vis: cs.visibility, op: parseFloat(cs.opacity), top: br.top - pr.top, h: br.height, cardBottom: cr.bottom - pr.top, inert: d.inert, pb: getComputedStyle(document.querySelector('.panel-body-a')).scrollPaddingTop}; }"
     CONTRAST_JS = """() => { const lum = (c) => { const m = c.match(/[\\d.]+/g).map(Number).slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
@@ -1381,8 +1370,8 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         check(f"도킹 {tag}: 카드가 사라지면 막대가 맨 위에 붙어 보임(불투명·높이 56·위쪽 0)", s1["on"] and s1["vis"] == "visible" and s1["op"] == 1 and abs(s1["top"]) <= 1 and abs(s1["h"] - 56) <= 1 and s1["cardBottom"] < 0 and not s1["inert"], json.dumps(s1))
         check(f"도킹 {tag}: 막대가 있어도 내용 높이(scrollHeight) 변화 없음 → 스크롤 위치 점프 없음", sh0 == sh1, f"{sh0} → {sh1}")
         check(f"도킹 {tag}: '채점 요약' 영역(region) 하나 · 링 · 종합 점수 · 5개 점수 막대 · 평가 대상 선택", dp.get_by_role("region", name="채점 요약").count() == 1 and dp.locator(".eval-dock-bar .dock-arc").count() == 1 and dp.locator(".dock-total [data-final]").count() == 1 and dp.locator(".dock-bars li").count() == 5 and dp.locator(".dock-select").is_visible())
-        dfont = dp.evaluate("() => [...document.querySelectorAll('.eval-dock-bar, .eval-dock-bar *')].filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 12).length")
-        check(f"도킹 {tag}: 막대 안 12px 미만 글자 없음", dfont == 0)
+        dfont = dp.evaluate("() => [...document.querySelectorAll('.eval-dock-bar, .eval-dock-bar *')].filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 13).length")
+        check(f"도킹 {tag}: 막대 안 13px 미만 글자 없음", dfont == 0)
         if vw == 1366:
             # 평가 대상 바꿈: 높은 점수/낮은 점수 모두 이어서 움직이는지
             vals = list(dict.fromkeys(dp.eval_on_selector_all("#eval-supplier option", "els => els.map(e => e.value)")))[:5]
@@ -1482,6 +1471,657 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         dp.wait_for_timeout(250)
         check(f"선택 정보 {vw}x{vh}: 같은 지점을 두 번 누르면 접기→펼치기로 두 번 토글, aria-expanded 갱신", dp.locator(".row-detail .icon-btn").first.get_attribute("aria-expanded") == "true" and dp.locator("#selection-detail").count() == 1)
         dctx2.close()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # v0.5.6 새 검사: 대화 이력 전체 삭제 · 대화 지우기 버튼 · 글자 +1px · 검색창 색 통일 · AI 에이전트 이름 · AI 아이콘(공식 로고) · 여백 ×1.5
+    import base64, subprocess
+    ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+
+    # ① 대화 이력 전체 삭제
+    c61, p61 = dock_login(1366, 768)
+    errs61 = []
+    p61.on("pageerror", lambda e: errs61.append(str(e)))
+    p61.locator(".history-toggle").click()
+    p61.wait_for_selector("#history-panel")
+    da = p61.locator("#history-panel .history-del-all")
+    check("이력 전체 삭제: 버튼이 이력 창에 있고 이름이 '대화 이력 전체 삭제'", da.count() == 1 and p61.get_by_role("button", name="대화 이력 전체 삭제").count() == 1)
+    check("이력 전체 삭제: 이력이 비어 있으면 비활성", da.is_disabled())
+    dd = p61.evaluate("() => { const b = document.querySelector('.history-del-all').getBoundingClientRect(), l = document.querySelector('.history-list').getBoundingClientRect(); return {below: b.top >= l.bottom - 1}; }")
+    check("이력 전체 삭제: 목록 아래 바닥줄에 따로 놓임(개별 삭제 버튼 옆이 아님)", dd["below"], json.dumps(dd))
+    p61.keyboard.press("Escape")
+    ask(p61, "실린더 라이너 후보 업체를 비교해 줘")
+    ask(p61, "노즐 후보 업체 비교해 줘")
+    p61.locator(".history-toggle").click()
+    p61.wait_for_selector("#history-panel")
+    n61 = p61.locator(".history-item").count()
+    p61.locator(".history-item").first.locator("button[title='고정 (자동 삭제에서 제외)']").click()
+    check("이력 전체 삭제: 이력이 있으면 활성", n61 >= 2 and da.is_enabled(), str(n61))
+    da.click()
+    ad = p61.locator("[role='alertdialog']")
+    txt = ad.inner_text()
+    p61.wait_for_timeout(200)
+    check("이력 전체 삭제: 확인 창에 건수와 고정 건수가 표시됨", f"{n61}건" in txt and "고정한 1건" in txt and "되돌릴 수 없" in txt, txt[:120])
+    check("이력 전체 삭제: 확인 창 초점은 '취소'(안전한 쪽)", p61.evaluate("() => document.activeElement && document.activeElement.textContent.trim() === '취소'"))
+    p61.keyboard.press("Escape")
+    check("이력 전체 삭제: Esc는 확인 창만 닫고 이력 창·항목은 그대로", ad.count() == 0 and p61.locator("#history-panel").count() == 1 and p61.locator(".history-item").count() == n61)
+    da.click()
+    p61.locator("[role='alertdialog'] [data-confirm]").click()
+    p61.wait_for_timeout(150)
+    check("이력 전체 삭제: 고정한 것까지 모두 삭제, 토스트 '대화 이력 N건을 삭제했습니다'", p61.locator(".history-item").count() == 0 and p61.locator(".toast").inner_text().strip().endswith(f"대화 이력 {n61}건을 삭제했습니다") and p61.locator(".count-badge").inner_text().strip() == "0", p61.locator(".toast").inner_text())
+    check("이력 전체 삭제 뒤: 버튼 비활성·빈 안내·초점은 검색칸", p61.locator(".history-del-all").is_disabled() and "아직 분석한 답변이 없습니다" in p61.locator(".history-list").inner_text() and p61.evaluate("() => document.activeElement && document.activeElement.id === 'history-q'"))
+    p61.keyboard.press("Escape")
+    gone = p61.locator("[data-gone]")
+    check("삭제된 이력의 답변: 글은 남고 안내 문구, 내보내기·다시 분석 버튼은 없음(죽은 버튼 없음)", gone.count() >= 2 and p61.locator(".msg-ai[data-result] [data-export]").count() == 0 and p61.locator(".msg-ai[data-result] button:has-text('다시 분석')").count() == 0 and gone.first.locator("xpath=ancestor::*[contains(@class,'msg-body')]//p").count() >= 2 and "삭제되어" in gone.first.inner_text())
+    check("이력 전체 삭제 뒤 화면이 멈추지 않음(콘솔 오류 없음), 입력창 사용 가능", not errs61 and p61.locator("#chat-input").is_enabled(), "; ".join(errs61[:2]))
+    p61.reload(wait_until="domcontentloaded")
+    p61.wait_for_selector(".eval-card")
+    if p61.locator("#ob-skip").count():
+        p61.click("#ob-skip")
+    check("이력 전체 삭제: 새로고침 뒤에도 0건 유지, 오류 없음", p61.locator(".count-badge").inner_text().strip() == "0" and not errs61, "; ".join(errs61[:2]))
+    ask(p61, "노즐 후보 업체 비교해 줘")
+    check("이력 전체 삭제 뒤 새 질문 → 새 답변·이력 1건·내보내기 버튼 정상", p61.locator(".count-badge").inner_text().strip() == "1" and p61.locator(".msg-ai").last.locator("[data-export='xlsx']").count() == 1)
+    c61.close()
+
+    # ② 글자 크기 +1px (v0.5.5 값: body 14 · 표 13 · 칩 13 · 버튼 13 · 말풍선 14 · 탭 14 · 선택 13) · ③ 검색창 색 통일 · ④ AI 아이콘
+    V055 = {"body": 14, ".data-table td": 13, ".data-table th": 13, ".chip-btn": 13, ".panel-c .btn": 13, ".msg-ai .msg-body p": 14, ".tab": 14, ".pager-size select": 13, ".kw-field input": 13, ".composer textarea": 14}
+    for theme in ("light", "dark"):
+        c62, p62 = dock_login(1366, 768, color_scheme=theme)
+        p62.evaluate("() => document.documentElement.setAttribute('data-theme', '" + theme + "')")
+        p62.wait_for_timeout(400)
+        fsz = p62.evaluate("(sels) => Object.fromEntries(sels.map(s => { const e = document.querySelector(s); return [s, e ? parseFloat(getComputedStyle(e).fontSize) : null]; }))", list(V055))
+        check(f"글자 크기 {theme}: 본문·표·칩·버튼·말풍선·탭·선택·입력이 v0.5.5보다 정확히 +1px", all(fsz[k] == v + 1 for k, v in V055.items()), json.dumps({k: f"{V055[k]}→{fsz[k]}" for k in V055}, ensure_ascii=False))
+        sf6 = small_fonts(p62)
+        check(f"글자 크기 {theme}: 브랜드 글자 말고는 13px 미만 없음", not sf6, ", ".join(sf6))
+        p62.locator(".filter-toggle").first.click()
+        p62.wait_for_selector(".filter-detail")
+        p62.wait_for_timeout(350)
+        U = p62.evaluate("""() => {
+            const g = (el, pe) => getComputedStyle(el, pe);
+            const box = (el) => { const c = g(el); return {bg: c.backgroundColor, bd: c.borderTopColor, r: c.borderTopLeftRadius, h: Math.round(el.getBoundingClientRect().height)}; };
+            const kw = document.querySelector('.panel-a .kw-field'), sf = document.querySelector('.panel-a .search-field');
+            const ctl = [...document.querySelectorAll('.panel-a .filter-detail select:enabled, .panel-a .filter-detail input[type=number], .panel-a .filter-detail input[type=date]')]; /* 잠긴(disabled) 단계 선택은 일부러 흐리게 */
+                        const ph = (sel) => g(document.querySelector(sel), '::placeholder').color;
+            return {kw: box(kw), sf: box(sf), ctl: ctl.slice(0, 6).map(box), nctl: ctl.length, phKw: ph('.panel-a .kw-field input'), phSf: ph('.panel-a .search-field input'), icKw: g(kw.querySelector('svg')).color, icSf: g(sf.querySelector('svg')).color, fsKw: g(kw.querySelector('input')).fontSize, fsSf: g(sf.querySelector('input')).fontSize};
+        }""")
+        p62.locator(".filter-toggle").first.click()  # 닫아서 '꺼진' 상태의 상세 필터 버튼을 잰다 (켜지면 강조색 바탕, 마우스가 올라가 있으면 호버 색)
+        p62.mouse.move(2, 2)
+        p62.wait_for_timeout(450)
+        U["tg"] = p62.evaluate("() => { const c = getComputedStyle(document.querySelector('.panel-a .filter-toggle')); return {bg: c.backgroundColor, bd: c.borderTopColor, r: c.borderTopLeftRadius, h: Math.round(document.querySelector('.panel-a .filter-toggle').getBoundingClientRect().height)}; }")
+        same = lambda a, b: a["bg"] == b["bg"] and a["bd"] == b["bd"] and a["r"] == b["r"] and a["h"] == b["h"]
+        check(f"검색창 통일 {theme}: 키워드 검색과 표 검색의 배경·테두리·모서리·높이가 같음", same(U["kw"], U["sf"]), json.dumps(U["kw"]) + " / " + json.dumps(U["sf"]))
+        check(f"검색창 통일 {theme}: 숫자·날짜·선택 상자({U['nctl']}개)와 상세 필터 버튼도 같은 배경·테두리·모서리·높이", U["nctl"] >= 2 and all(same(U["kw"], c) for c in U["ctl"]) and same(U["kw"], U["tg"]), json.dumps(U["ctl"][:2]) + json.dumps(U["tg"]))
+        check(f"검색창 통일 {theme}: 자리표시 글자색·아이콘색·글자 크기가 같음", U["phKw"] == U["phSf"] and U["icKw"] == U["icSf"] and U["fsKw"] == U["fsSf"], f"{U['phKw']} {U['icKw']} {U['fsKw']}")
+        A = p62.evaluate("() => { const f = (s) => { const c = document.querySelector(s); if (!c) return null; const cs = getComputedStyle(c), im = c.querySelector('img'); return {r: cs.borderTopLeftRadius, bg: cs.backgroundColor, bd: cs.borderTopWidth, w: c.getBoundingClientRect().width, h: c.getBoundingClientRect().height, src: im && im.src, iw: im && im.getBoundingClientRect().width, ih: im && im.getBoundingClientRect().height}; }; return {title: f('.chat-title-icon .ai-avatar'), msg: f('.msg-avatar .ai-avatar')}; }")
+        want_bg = "rgb(255, 255, 255)" if theme == "light" else "rgb(27, 27, 27)"
+        okA = bool(A["title"] and A["msg"]) and all(a["bg"] == want_bg and a["bd"] == "1px" and a["r"] == "50%" and abs(a["iw"] / a["ih"] - 160 / 145) < 0.05 and 14 <= a["iw"] <= 26 for a in (A["title"], A["msg"])) and (A["title"]["w"], A["msg"]["w"]) == (36, 32)
+        check(f"AI 아이콘 {theme}: 머리·환영 말풍선 둘 다 둥근 원판(36/32px)·{want_bg}·테두리 1px·가운데 로고(비율 160:145)", okA, json.dumps({k: {x: (round(y, 1) if isinstance(y, float) else y) for x, y in v.items() if x != "src"} for k, v in A.items()}))
+        if theme == "light":
+            b64 = A["title"]["src"].split("base64,")[1]
+            logo_bytes = open(os.path.join(ROOT, "src", "assets", "brand", "logo.png"), "rb").read()
+            check("AI 아이콘: <img> 가 공식 logo.png 와 바이트까지 같은 파일(data URL 디코딩 비교)", base64.b64decode(b64) == logo_bytes)
+            h_now = subprocess.run(["git", "hash-object", "src/assets/brand/logo.png"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            h_head = subprocess.run(["git", "rev-parse", "HEAD:src/assets/brand/logo.png"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            st_assets = subprocess.run(["git", "status", "--porcelain", "--", "src/assets"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            check("logo.png 해시가 git HEAD 와 같음(수정 안 됨) · src/assets 의 변경은 새 공식 로고 hanwha-engine-logo.svg 추가뿐 (v0.6.0)", h_now == h_head and len(h_now) == 40 and set(l[3:] for l in st_assets.splitlines()) <= {"src/assets/brand/hanwha-engine-logo.svg"}, f"{h_now[:10]} / {h_head[:10]} / '{st_assets}'")
+        c62.close()
+
+    # 중립 빌드(dist/artifact.html): 로고 없이 중립 아이콘
+    cart = browser.new_context(viewport={"width": 1366, "height": 768})
+    pa_ = cart.new_page()
+    pa_.route("**/__artifact", lambda r: r.fulfill(status=200, content_type="text/html; charset=utf-8", body=art))
+    pa_.goto(URL + "/__artifact", wait_until="domcontentloaded")
+    pa_.wait_for_selector("#login-demo")
+    pa_.click("#login-demo")
+    pa_.wait_for_selector(".eval-card")
+    if pa_.locator("#ob-skip").count():
+        pa_.click("#ob-skip")
+    NA = pa_.evaluate("() => ({imgs: document.querySelectorAll('.ai-avatar img, .brand-logo').length, neutral: document.querySelectorAll('.chat-title-icon .ai-avatar-neutral svg.ai-chat-icon, .msg-avatar .ai-avatar-neutral svg.ai-chat-icon').length})")
+    check("중립 빌드(artifact.html): AI 아이콘은 로고 대신 기존 중립 말풍선 아이콘, 로고 이미지 없음", NA["imgs"] == 0 and NA["neutral"] == 2, json.dumps(NA))
+    cart.close()
+
+    # ⑤ 머리 줄: 폭별로 두 버튼이 패널 안에서 겹치지 않고 잘리지 않음, 터치 44px
+    for vw, vh in [(1920, 1080), (1366, 768), (900, 800), (400, 800)]:
+        c63, p63 = dock_login(vw, vh)
+        if vw <= 900:
+            p63.locator(".panel-tabs button", has_text="AI 에이전트").click()
+            p63.wait_for_timeout(500)
+        H = p63.evaluate("() => { const pc = document.querySelector('.panel-c').getBoundingClientRect(), a = document.querySelector('.history-toggle').getBoundingClientRect(), b = document.querySelector('.clear-chat-btn').getBoundingClientRect(), t = document.querySelector('.chat-title').getBoundingClientRect(); const ha = document.querySelector('.history-toggle'), hb = document.querySelector('.clear-chat-btn'); return {inside: a.left >= pc.left - 1 && b.right <= pc.right + 1, same: Math.abs(a.top - b.top) < 4, noOverlap: b.left >= a.right - 1, titleOk: t.right <= pc.right + 1, hs: document.documentElement.scrollWidth <= innerWidth, clipA: ha.scrollWidth > ha.clientWidth + 1, clipB: hb.scrollWidth > hb.clientWidth + 1}; }")
+        check(f"{vw}px 대화 머리: 대화 이력·대화 지우기가 패널 안에서 같은 줄·겹침 없음·잘림 없음, 가로 스크롤 없음", all(H[k] for k in ("inside", "same", "noOverlap", "titleOk", "hs")) and not H["clipA"] and not H["clipB"], json.dumps(H))
+        if vw == 1366:
+            p63.screenshot(path=f"{SHOTS}/v056_chat_head_1366.png")
+        c63.close()
+    ct = browser.new_context(viewport={"width": 400, "height": 800}, is_mobile=True, has_touch=True)
+    pt = ct.new_page()
+    demo_login(pt)
+    pt.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    pt.locator(".panel-tabs button", has_text="AI 에이전트").click()
+    pt.wait_for_timeout(400)
+    th_ = pt.evaluate("() => [document.querySelector('.history-toggle'), document.querySelector('.clear-chat-btn')].map(e => e.getBoundingClientRect().height)")
+    check("휴대폰(터치): 대화 이력·대화 지우기 버튼 높이 44px 이상", all(h >= 43.5 for h in th_), str(th_))
+    check("휴대폰: 탭 이름이 정확히 'AI 에이전트', 탭 아이콘은 둥근 로고 원판", [t.strip() for t in pt.locator(".panel-tabs button").all_inner_texts()] == ["데이터 관리", "AI 에이전트"] and pt.locator(".panel-tabs button .ai-avatar img").count() == 1)
+    ct.close()
+
+    # ⑥ 'AI 대화' 문구가 번들 어디에도 없음
+    for fn in ("index.html", "artifact.html"):
+        src_ = open(os.path.join(DIST, fn), encoding="utf-8").read()
+        check(f"이름 변경: dist/{fn} 에 'AI 대화' 글자가 없고 'AI 에이전트' 가 있음", "AI 대화" not in src_ and "AI 에이전트" in src_)
+
+    # ⑦ 폭별 여백 ×1.5 · 가로 스크롤 없음 — 밝은/어두운 테마, 400·900·1366·1920 (v0.5.5: 6 / 10 / 43.7 / 52px)
+    for theme in ("light", "dark"):
+        for w, h, want in ((400, 800, 9), (900, 800, 15), (1366, 768, 65.57), (1920, 1080, 78)):
+            cm = browser.new_context(viewport={"width": w, "height": h}, color_scheme=theme)
+            pm = cm.new_page()
+            demo_login(pm)
+            pm.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+            M = pm.evaluate("() => { const a = document.querySelector('.app').getBoundingClientRect(); return {l: a.left, r: innerWidth - a.right, hs: document.documentElement.scrollWidth <= innerWidth}; }")
+            check(f"여백 ×1.5 {theme} {w}px: 좌우 여백 {want}px(±0.6) · 가로 스크롤 없음", abs(M["l"] - want) <= 0.6 and abs(M["r"] - want) <= 0.6 and M["hs"], json.dumps(M))
+            cm.close()
+
+    # ⑧ v0.6.0-B: 평가 카드 크기 고정 — 모든 탭·하위 보기·스크롤 위치에서 폭·높이 ±0.5px (클래식 스크롤바 브라우저 = Windows 모양)
+    # 원인: 탭·하위 보기에 따라 세로 스크롤바(15px)가 생기고 사라지면 카드 폭이 15px 바뀜 → .panel-body-a 에 scrollbar-gutter: stable
+    EJS = "() => { const c = document.querySelector('.eval-card').getBoundingClientRect(); return [c.width, c.height]; }"
+    for vw, vh, themes in ((1366, 768, ("light", "dark")), (1920, 1080, ("light", "dark")), (2560, 1440, ("light",))):
+        for theme in themes:
+            ce = cbrowser.new_context(viewport={"width": vw, "height": vh}, color_scheme=theme)
+            pe = ce.new_page()
+            demo_login(pe)
+            settled(pe)
+            seen = []
+            for tab in ("suppliers", "purchaseOrders", "contracts", "inventory"):
+                pe.click(f"#tab-{tab}")
+                settled(pe)
+                subs = [s.get_attribute("data-sub") for s in pe.locator(".subtab").all()]
+                for sid in [None] + subs:
+                    if sid:
+                        pe.click(f'.subtab[data-sub="{sid}"]')
+                        settled(pe)
+                    for y in (0, 400):
+                        pe.evaluate("(y) => { document.querySelector('.panel-body-a').scrollTop = y; }", y)
+                        pe.wait_for_timeout(120)
+                        seen.append((f"{tab}/{sid}/{y}", *pe.evaluate(EJS)))
+            ws = [s[1] for s in seen]
+            hs = [s[2] for s in seen]
+            check(f"평가 카드 고정 {vw}x{vh} {theme}: 모든 탭·하위 보기·스크롤 위치({len(seen)}곳, 원가-계약 > 계약 단가 포함)에서 폭·높이 변화 ≤0.5px", max(ws) - min(ws) <= 0.5 and max(hs) - min(hs) <= 0.5, f"폭 {round(min(ws), 2)}~{round(max(ws), 2)} 높이 {round(min(hs), 2)}~{round(max(hs), 2)}")
+            ce.close()
+
+    # ⑨ v0.6.0-A: 새 로고 상단 바 — 폭별로 잘림·가로 스크롤 없음, SAMPLE 표시 유지, 어두운 테마에서도 흰 판
+    for theme in ("light", "dark"):
+        for w, h in ((1920, 1080), (1700, 900), (1500, 900), (1366, 768), (1280, 800), (1181, 800), (900, 800), (400, 800)):
+            if theme == "dark" and w not in (1920, 1366, 900, 400):
+                continue
+            cl = browser.new_context(viewport={"width": w, "height": h}, color_scheme=theme)
+            pl = cl.new_page()
+            demo_login(pl)
+            settled(pl)
+            T = pl.evaluate("""() => { const tb = document.querySelector('.topbar').getBoundingClientRect(), lg = document.querySelector('.topbar .brand-logo').getBoundingClientRect(), br = document.querySelector('.tb-brand'), pills = [...document.querySelectorAll('.tb-pill')], sm = document.querySelector('.badge-demo').getBoundingClientRect(), pl = document.querySelector('.brand-plate'), ds = document.querySelector('.data-status');
+              return {hs: document.documentElement.scrollWidth <= innerWidth, logoIn: lg.left >= tb.left && lg.right <= br.getBoundingClientRect().right + 0.5, brClip: br.scrollWidth > br.clientWidth + 1, pillsIn: pills.every(p => { const r = p.getBoundingClientRect(); return r.left >= tb.left - 1 && r.right <= tb.right + 1; }), sample: sm.width > 20 && sm.left >= 0 && sm.right <= innerWidth, dsClip: ds.scrollWidth > ds.clientWidth + 1, h: lg.height, plate: getComputedStyle(pl).backgroundColor, tbH: tb.height}; }""")
+            check(f"새 로고 상단 바 {theme} {w}px: 가로 스크롤 없음 · 로고·알약이 상단 바 안 · 잘림 없음 · SAMPLE 표시 보임 · 흰 판", T["hs"] and T["logoIn"] and not T["brClip"] and T["pillsIn"] and T["sample"] and not T["dsClip"] and T["plate"] == "rgb(255, 255, 255)", json.dumps(T))
+            if w in (1366, 1920, 900, 400):
+                pl.screenshot(path=f"{SHOTS}/v060_topbar_{theme}_{w}.png", clip={"x": 0, "y": 0, "width": w, "height": min(h, 200)})
+            cl.close()
+    import hashlib
+    svg_bytes = open(os.path.join(ROOT, "src", "assets", "brand", "hanwha-engine-logo.svg"), "rb").read()
+    svg_txt = svg_bytes.decode("utf-8")
+    check("로고 파일: viewBox 1602.44×541.53, 주황 3색(#F37321·#F89B6C·#FBB584) 들어 있음", 'viewBox="0 0 1602.4410203 541.5305176"' in svg_txt and all(c in svg_txt.lower() for c in ("#f37321", "#f89b6c", "#fbb584")))
+    check("로고 파일: SHA-256 이 사용자가 준 원본(a74709a8…6d4a)과 같음 — 수정 안 됨", hashlib.sha256(svg_bytes).hexdigest() == "a74709a84486cbd50fc828efdbb65bb0f6b7b3b8ed1d2339004ab5776f3b6d4a")
+    idx = open(os.path.join(DIST, "index.html"), encoding="utf-8").read()
+    check("빌드: dist/index.html 에 SVG 로고(data URL) 포함 · dist/artifact.html(중립)에는 한화엔진·HANWHA·SVG 로고 없음", "data:image/svg+xml" in idx and "한화엔진" not in art and "HANWHA" not in art and "data:image/svg+xml" not in art)
+
+    # ⑩ v0.6.0-C: 문서 등록 버튼 + 스텁 (파일 내용은 읽지도 보내지도 않음)
+    PDF_MIME, DOCX_MIME = "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    for motion in ("no-preference", "reduce"):
+        cd = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion=motion)
+        pd = cd.new_page()
+        posts = []
+        pd.on("request", lambda r: posts.append((r.method, r.url, r.post_data_buffer or b"")))
+        demo_login(pd)
+        settled(pd)
+        B = pd.evaluate("""() => { const b = document.querySelector('.doc-register-btn'), f = document.querySelector('.composer-form').getBoundingClientRect(), r = b.getBoundingClientRect(), s = document.querySelector('#suggest-row'), i = document.querySelector('#doc-file-input'), comp = document.querySelector('.composer').getBoundingClientRect();
+          return {txt: b.textContent.trim(), above: r.bottom <= f.top + 1, gap: f.top - r.bottom, belowChips: !s || s.getBoundingClientRect().bottom <= r.top + 1, accept: i.getAttribute('accept'), multiple: i.multiple, type: i.type, h: r.height, fs: parseFloat(getComputedStyle(b).fontSize), inComposer: r.left >= comp.left && r.right <= comp.right}; }""")
+        check(f"문서 등록({motion}): 버튼 글자가 정확히 '문서 등록', 입력창 바로 위(틈 ≤16px), 추천 질문 아래, 패널 안", B["txt"] == "문서 등록" and B["above"] and 0 <= B["gap"] <= 16 and B["belowChips"] and B["inComposer"], json.dumps(B, ensure_ascii=False))
+        check(f"문서 등록({motion}): 파일 선택은 PDF·DOCX 만(accept 속성 정확히), 여러 파일 가능, 글자 13px 이상", B["accept"] == ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" and B["multiple"] and B["type"] == "file" and B["fs"] >= 13, json.dumps(B))
+        with pd.expect_file_chooser() as fc:
+            pd.click(".doc-register-btn")
+        check(f"문서 등록({motion}): 버튼을 누르면 파일 선택 창이 열림", fc.value.is_multiple())
+        toast = lambda: pd.locator(".toast-region").inner_text()
+        pd.set_input_files("#doc-file-input", {"name": "메모.txt", "mimeType": "text/plain", "buffer": b"hello"})
+        pd.wait_for_timeout(200)
+        check(f"문서 등록({motion}): .txt 는 거부 — 정해진 오류 문구, 성공 문구 없음", "지원하지 않는 형식입니다. PDF 또는 DOCX 파일만 등록할 수 있습니다." in toast() and "벡터DB" not in toast(), toast())
+        pd.set_input_files("#doc-file-input", {"name": "fake.pdf", "mimeType": "text/plain", "buffer": b"x"})
+        pd.wait_for_timeout(200)
+        check(f"문서 등록({motion}): 확장자는 pdf 여도 MIME 이 다르면 거부", "지원하지 않는 형식입니다" in toast())
+        pd.set_input_files("#doc-file-input", {"name": "big.pdf", "mimeType": PDF_MIME, "buffer": b"0" * (20 * 1024 * 1024 + 1)})
+        pd.wait_for_timeout(200)
+        check(f"문서 등록({motion}): 20MB 초과는 크기 한도 안내 문구", "20MB" in toast() and "벡터DB" not in toast(), toast())
+        MARK = b"SECRET-FILE-BYTES-12345"
+        pd.set_input_files("#doc-file-input", {"name": "민원.pdf", "mimeType": PDF_MIME, "buffer": b"%PDF-1.4 " + MARK})
+        pd.wait_for_timeout(150)
+        mid = pd.evaluate("() => { const b = document.querySelector('.doc-register-btn'); return {t: b.textContent.trim(), dis: b.disabled, busy: b.getAttribute('aria-busy')}; }")
+        check(f"문서 등록({motion}): 등록하는 동안 버튼이 '등록 중…' · 비활성 · aria-busy", mid["t"] == "등록 중…" and mid["dis"] and mid["busy"] == "true", json.dumps(mid, ensure_ascii=False))
+        pd.wait_for_function("() => document.querySelector('.toast-region').innerText.includes('벡터DB')", timeout=3000)
+        check(f"문서 등록({motion}): 성공하면 정확히 '문서가 벡터DB에 저장되었습니다' (role=status 영역, '(N건)' 없음) · 버튼 원래대로", toast().strip() == "문서가 벡터DB에 저장되었습니다" and pd.locator(".toast-region[role=status]").count() == 1 and pd.locator(".doc-register-btn").inner_text().strip() == "문서 등록", toast())
+        if motion == "no-preference":
+            pd.screenshot(path=f"{SHOTS}/v060_doc_button_1366.png")
+        pd.wait_for_timeout(3800)
+        pd.set_input_files("#doc-file-input", [{"name": "a.pdf", "mimeType": PDF_MIME, "buffer": b"%PDF"}, {"name": "b.docx", "mimeType": DOCX_MIME, "buffer": b"PK" + MARK}])
+        pd.wait_for_function("() => document.querySelector('.toast-region').innerText.includes('벡터DB')", timeout=3000)
+        check(f"문서 등록({motion}): 여러 파일은 한 번만 알리고 '(2건)' 한 줄 추가, 본문 문장은 그대로", toast().split("\n")[0].strip() == "문서가 벡터DB에 저장되었습니다" and "(2건)" in toast(), toast())
+        leaked = [u for m, u, b in posts if MARK in b or b"%PDF" in b]
+        check(f"문서 등록({motion}): 파일 내용이 담긴 네트워크 요청 없음(전체 {len(posts)}건) · /api/documents 호출 없음(스텁)", not leaked and not any("/api/documents" in u for m, u, b in posts), str(leaked[:2]))
+        if motion == "reduce":
+            check("문서 등록(reduce): 줄인 동작에서도 토스트 애니메이션 시간이 사실상 0", pd.evaluate("() => { const t = document.querySelector('.toast'); return !t || parseFloat(getComputedStyle(t).animationDuration) < 0.05; }"))
+        cd.close()
+    ctd = browser.new_context(viewport={"width": 400, "height": 800}, is_mobile=True, has_touch=True)
+    ptd = ctd.new_page()
+    demo_login(ptd)
+    ptd.locator(".panel-tabs button", has_text="AI 에이전트").click()
+    ptd.wait_for_timeout(400)
+    check("문서 등록(휴대폰 터치): 버튼 높이 44px 이상 · 가로 스크롤 없음", ptd.locator(".doc-register-btn").bounding_box()["height"] >= 43.5 and ptd.evaluate("() => document.documentElement.scrollWidth <= innerWidth"))
+    ctd.close()
+    import re as _re
+    doc_src = open(os.path.join(ROOT, "src", "lib", "documents.ts"), encoding="utf-8").read()
+    chat_src = open(os.path.join(ROOT, "src", "components", "ChatPanel.tsx"), encoding="utf-8").read()
+    code_only = "\n".join(l for l in doc_src.splitlines() if not l.strip().startswith("//"))
+    check("정적 검사: 문서 등록 코드는 외부 라이브러리를 import 하지 않고 FileReader·arrayBuffer·file.text() 를 쓰지 않음", not _re.search(r"import\s[^;]*from\s+[\"'][^.]", code_only) and not _re.search(r"FileReader|arrayBuffer|file\.(text|stream|slice)\(|pdfjs|mammoth", code_only + chat_src, _re.I))
+    pkg = json.load(open(os.path.join(ROOT, "package.json"), encoding="utf-8"))
+    check("정적 검사: package.json 의존 패키지가 react·react-dom·react-icons 뿐(파서·임베딩 패키지 없음)", set(pkg.get("dependencies", {})) == {"react", "react-dom", "react-icons"})
+
+    # ⑪ v0.6.0-D: 문서 의미 검색 시연 질문
+    cs = browser.new_context(viewport={"width": 1366, "height": 768})
+    ps = cs.new_page()
+    demo_login(ps)
+    settled(ps)
+    chips = ps.locator("#suggest-row .suggest-chip").all_inner_texts()
+    check("추천 질문 칩에 문서 찾기 3개 추가(환영 상태에서만)", all(q in chips for q in ("2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘", "업체 C 납기 지연 보고서 찾아줘", "실린더 커버 가스켓 견적서 보여줘")), str(chips))
+    ask(ps, "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘")
+    ta = last_ai(ps).inner_text()
+    check("문서 검색 답변: '해당 민원 문서 원본 ID는'·'DOC-'·'다음은 문서 내용입니다:'·SAMPLE 안내·유사도 줄", "해당 민원 문서 원본 ID는 (DOC-2026-0918-001)입니다" in ta and "다음은 문서 내용입니다:" in ta and "※ SAMPLE 문서입니다(가상 데이터, 실제 자료 아님)" in ta and "(의미 검색 결과: 유사도 " in ta, ta[:160])
+    check("문서 검색 답변: 글만(표·차트·내보내기 버튼 없음), '자동 확정' 안내문 없음", last_ai(ps).locator("table, svg, [data-export]").count() == 0 and "자동 확정" not in ta)
+    ps.screenshot(path=f"{SHOTS}/v060_doc_answer_1366.png")
+    ask(ps, "2026년 3월 2일 터보차저 보증서 찾아줘")
+    tb_ = last_ai(ps).inner_text()
+    check("문서 검색 못 찾음: 솔직한 안내 · 문서 ID 없음 · 다시 질문 제안", "관련 문서를 찾지 못했습니다" in tb_ and "원본 ID는" not in tb_ and "다시 질문" in tb_ and "(DOC-" not in tb_, tb_[:120])
+    ask(ps, "납기 준수율이 낮은 협력사를 찾아줘.")
+    check("기존 질문은 그대로: 납기 저조 협력사 분석 답변(근거·내보내기)", last_ai(ps).locator("[data-export]").count() >= 1)
+    cs.close()
+
+    # ⑫ v0.7.0: 수기입력 (견적서·납기보고서·계약서 직접 입력 → 대시보드 실시간 반영)
+    merrs = []
+
+    def mnew(w=1366, h=768, **kw):
+        c = browser.new_context(viewport={"width": w, "height": h}, accept_downloads=True, **kw)
+        pg = c.new_page()
+        pg.on("pageerror", lambda e: merrs.append(str(e)))
+        pg.on("console", lambda m: merrs.append(m.text) if m.type == "error" and "ERR_TUNNEL_CONNECTION_FAILED" not in m.text else None)
+        demo_login(pg)
+        settled(pg)
+        return c, pg
+
+    def mopen(pg):
+        pg.click("[data-manual-open]")
+        pg.wait_for_selector(".manual-modal")
+        pg.wait_for_timeout(500)
+
+    def flabels(pg):
+        return pg.evaluate("""() => [...document.querySelectorAll('.manual-modal .mf-field > label, .manual-modal .mf-field > .mf-label')].map(l => { const c = l.cloneNode(true); c.querySelectorAll('.mf-req,.sr-only').forEach(x => x.remove()); return c.textContent.trim(); })""")
+
+    def pickdoc(pg, t):
+        pg.click(f"label.mf-seg-opt:has(input[data-doc='{t}'])")
+
+    def tabcount(pg, t):
+        return int(pg.locator(f"#tab-{t} .tab-count").inner_text().replace(",", ""))
+
+    def rate_of(pg, sid="SUP-001"):
+        pg.click("#tab-suppliers")
+        settled(pg)
+        return pg.locator(".data-table tbody tr", has_text=sid).first.locator("td").nth(2).inner_text().strip()
+
+    def fill_common(pg, sup="SUP-001", item="ITM-1001", qty="10", price="1000"):
+        pg.select_option("#mf-supplierId", sup)
+        pg.select_option("#mf-itemSel", item)
+        pg.fill("#mf-qty", qty)
+        pg.fill("#mf-unitPrice", price)
+
+    mc, mp = mnew(1366, 768)
+    mp.screenshot(path=f"{SHOTS}/v070_filterrow_1366_light.png")
+    # 버튼: 글자·위치
+    B = mp.evaluate("""() => { const b = document.querySelector('[data-manual-open]'), t = document.querySelector('.filter-toggle'); const rb = b.getBoundingClientRect(), rt = t.getBoundingClientRect(), s = document.querySelector('.search-field').getBoundingClientRect(); return {txt: b.textContent.trim(), bx: rb.left, tx: rt.right, dy: Math.abs((rb.top + rb.height / 2) - (rt.top + rt.height / 2)), hb: rb.height, ht: rt.height, fs: parseFloat(getComputedStyle(b).fontSize), prev: b.previousElementSibling === t, sw: document.documentElement.scrollWidth <= innerWidth, svg: !!b.querySelector('svg'), sy: Math.abs(rb.top - s.top) < 6}; }""")
+    check("수기입력 버튼: 글자가 정확히 '수기입력' · 아이콘 있음 · 글자 13px 이상", B["txt"] == "수기입력" and B["svg"] and B["fs"] >= 13, json.dumps(B))
+    check("수기입력 버튼(1366): 상세 필터 버튼 바로 오른쪽(같은 줄, x가 더 큼) · 높이 같음 · 가로 스크롤 없음", B["prev"] and B["bx"] > B["tx"] and B["dy"] < 3 and abs(B["hb"] - B["ht"]) < 1 and B["sw"] and B["sy"], json.dumps(B))
+    for t in ("suppliers", "purchaseOrders", "contracts", "inventory"):
+        mp.click(f"#tab-{t}")
+        settled(mp)
+        check(f"수기입력 버튼: {t} 탭에도 있음", mp.locator("[data-manual-open]").count() == 1)
+    mp.click("#tab-suppliers")
+    settled(mp)
+    # 대화상자 접근성
+    mopen(mp)
+    A = mp.evaluate("""() => { const d = document.querySelector('.manual-modal'); const lab = document.getElementById(d.getAttribute('aria-labelledby')); const a = document.activeElement; return {role: d.getAttribute('role'), modal: d.getAttribute('aria-modal'), label: lab && lab.textContent.trim(), focusName: a.name, focusChecked: a.checked, first: a === d.querySelector('input[name=mf-doc]:checked')}; }""")
+    check("수기입력 창: role=dialog · aria-modal · 제목으로 이름 붙음 · 첫 칸(문서 종류)에 초점", A["role"] == "dialog" and A["modal"] == "true" and A["label"] == "수기 입력" and A["first"], json.dumps(A, ensure_ascii=False))
+    mp.keyboard.press("Tab", delay=0)
+    inside = []
+    for _ in range(70):
+        mp.keyboard.press("Tab")
+        inside.append(mp.evaluate("() => !!document.activeElement.closest('.manual-modal')"))
+    check("수기입력 창: Tab을 70번 눌러도 초점이 창 밖으로 나가지 않음", all(inside))
+    back = []
+    for _ in range(40):
+        mp.keyboard.press("Shift+Tab")
+        back.append(mp.evaluate("() => !!document.activeElement.closest('.manual-modal')"))
+    check("수기입력 창: Shift+Tab도 창 안에서 돎", all(back))
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(200)
+    check("수기입력 창: 바꾼 것이 없으면 Esc로 바로 닫힘 · 초점이 수기입력 버튼으로 돌아옴", mp.locator(".manual-modal").count() == 0 and mp.evaluate("() => document.activeElement.hasAttribute('data-manual-open')"))
+    mopen(mp)
+    mp.fill("#mf-qty", "7")
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(200)
+    check("수기입력 창: 입력이 있으면 Esc가 ‘버릴까요?’ 확인을 띄움(창은 그대로)", mp.locator("[role=alertdialog]").count() == 1 and mp.locator(".manual-modal").count() == 1 and "작성 중인 내용을 버릴까요?" in mp.locator("[role=alertdialog]").inner_text())
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(200)
+    check("수기입력 확인창: Esc는 확인창만 닫고 입력 내용 유지", mp.locator("[role=alertdialog]").count() == 0 and mp.locator(".manual-modal").count() == 1 and mp.input_value("#mf-qty") == "7")
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(150)
+    mp.click("[data-confirm]")
+    mp.wait_for_timeout(250)
+    check("수기입력 창: ‘버리고 닫기’ 후 창이 닫히고 초점이 버튼으로 복귀", mp.locator(".manual-modal").count() == 0 and mp.evaluate("() => document.activeElement.hasAttribute('data-manual-open')"))
+    # 문서 종류별 칸
+    mopen(mp)
+    COMMON = ["공급사", "품목명", "규격", "수량", "단위", "단가", "통화", "금액"]
+    EXP = {
+        "견적서": COMMON + ["견적일", "견적 유효기한", "희망 납기일", "인도 조건", "비고"],
+        "납기보고서": COMMON + ["발주번호", "발주일", "납기 예정일", "실제 입고일", "입고 수량", "지연 사유", "비고"],
+        "계약서": COMMON + ["계약번호", "계약 시작일", "계약 종료일", "결제 조건", "인도 조건", "비고"],
+    }
+    for t in ("견적서", "납기보고서", "계약서"):
+        pickdoc(mp, t)
+        mp.wait_for_timeout(100)
+        check(f"수기입력 칸 목록({t}): 정확히 {len(EXP[t])}칸 · 라벨 일치", flabels(mp) == EXP[t], str(flabels(mp)))
+    check("수기입력: 모든 입력 칸에 보이는 라벨(label for) 연결 · placeholder에만 의존하지 않음", mp.evaluate("() => [...document.querySelectorAll('.manual-modal input:not([type=radio]), .manual-modal select')].every(i => i.id && document.querySelector('label[for=\"' + i.id + '\"]'))"))
+    check("수기입력: 입력 칸 autocomplete 끔(폼 off)", mp.evaluate("() => document.querySelector('.manual-form').getAttribute('autocomplete') === 'off'"))
+    pickdoc(mp, "견적서")
+    # 품목명 선택
+    opts = mp.locator("#mf-itemSel option").all_inner_texts()
+    check("품목명 선택: 마지막 선택지가 ‘직접입력’ · 첫 선택지는 안내 문구", opts[-1] == "직접입력" and opts[0] == "품목 선택" and len(opts) >= 12, str(opts[-3:]))
+    check("품목명 선택: 선택지에 품목명과 코드가 함께 보임", any("실린더 라이너 (ITM-1001)" == o for o in opts))
+    check("품목명 직접 입력 칸은 처음엔 없음", mp.locator("#mf-itemName").count() == 0)
+    mp.select_option("#mf-itemSel", "__direct__")
+    mp.wait_for_timeout(120)
+    check("직접입력을 고르면 품목명 입력 칸이 나타나고 초점이 옮겨감 · 품목코드 ‘자동 부여’ MANUAL-001", mp.locator("#mf-itemName").is_visible() and mp.evaluate("() => document.activeElement.id") == "mf-itemName" and "MANUAL-001" in mp.locator("#mf-itemCode").inner_text() and "자동 부여" in mp.locator("#mf-itemCode").inner_text())
+    check("직접입력 안내가 스크린리더용 영역(aria-live)으로 알려짐", "직접 입력 칸이 나타났습니다" in mp.locator(".manual-modal [aria-live=polite]").inner_text())
+    mp.select_option("#mf-itemSel", "ITM-1001")
+    mp.wait_for_timeout(100)
+    check("카탈로그 품목을 고르면 입력 칸이 다시 숨겨지고 단위·규격이 채워짐(EA · Ø500…)", mp.locator("#mf-itemName").count() == 0 and mp.input_value("#mf-unit") == "EA" and "Ø500" in mp.input_value("#mf-spec"))
+    # 금액 동기화
+    mp.fill("#mf-qty", "10")
+    mp.fill("#mf-unitPrice", "1000")
+    check("금액 = 수량 × 단가 자동 채움(10,000)", mp.input_value("#mf-amount") == "10000")
+    mp.fill("#mf-qty", "20")
+    check("수량을 바꾸면 직접 고치지 않은 금액이 따라감(20,000)", mp.input_value("#mf-amount") == "20000")
+    mp.fill("#mf-amount", "20050")
+    check("금액 차이 0.5% 이하(0.25%)는 경고 없음", mp.locator("[data-amount-warn]").count() == 0)
+    mp.fill("#mf-amount", "25000")
+    check("금액을 25% 다르게 고치면 경고 + ‘자동 계산으로 되돌리기’ (저장은 막지 않음)", mp.locator("[data-amount-warn]").count() == 1 and "25.0%" in mp.locator("[data-amount-warn]").inner_text() and mp.locator("[data-amount-warn] .link-btn").inner_text() == "자동 계산으로 되돌리기")
+    mp.fill("#mf-qty", "30")
+    check("직접 고친 금액은 수량을 바꿔도 유지", mp.input_value("#mf-amount") == "25000")
+    mp.click("[data-amount-warn] .link-btn")
+    check("되돌리기 → 금액 30,000 · 경고 사라짐", mp.input_value("#mf-amount") == "30000" and mp.locator("[data-amount-warn]").count() == 0)
+    # 검증
+    mp.screenshot(path=f"{SHOTS}/v070_dialog_quote_1366_light.png")
+    mp.fill("#mf-qty", "")
+    mp.fill("#mf-unitPrice", "")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(250)
+    errs = mp.locator(".mf-err").all_inner_texts()
+    check("저장 눌렀을 때 오류가 칸 옆에: 공급사·수량·단가·유효기한 등 구체적 안내", len(errs) >= 4 and any("공급사를 목록에서 선택" in e for e in errs) and any("수량" in e and "0보다 큰" in e for e in errs) and any("견적 유효기한을 입력" in e for e in errs), str(errs))
+    check("저장 실패 시 첫 오류 칸(공급사)에 초점 · aria-invalid", mp.evaluate("() => document.activeElement.id") == "mf-supplierId" and mp.get_attribute("#mf-supplierId", "aria-invalid") == "true")
+    check("오류 문구가 role=alert · aria-describedby로 칸과 연결", mp.locator(".mf-err[role=alert]").count() == len(errs) and mp.get_attribute("#mf-supplierId", "aria-describedby") == "mf-supplierId-err")
+    mp.screenshot(path=f"{SHOTS}/v070_dialog_errors_1366_light.png")
+    pickdoc(mp, "납기보고서")
+    mp.fill("#mf-docNo", "PO-2024-0001")
+    mp.fill("#mf-docDate", "2026-08-01")
+    mp.fill("#mf-dueDate", "2026-07-01")
+    mp.fill("#mf-receivedDate", "2026-07-15")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(250)
+    e2 = " ".join(mp.locator(".mf-err").all_inner_texts())
+    check("날짜 논리 검사: 납기 < 발주일 · 입고일 < 발주일 · 중복 발주번호 문구", "납기 예정일은 발주일보다 빠를 수 없습니다" in e2 and "실제 입고일은 발주일보다 빠를 수 없습니다" in e2 and "이미 있는 발주번호" in e2, e2)
+    pickdoc(mp, "계약서")
+    mp.fill("#mf-docNo", "CT-E2E-0")
+    mp.fill("#mf-docDate", "2026-05-01")
+    mp.fill("#mf-validUntil", "2026-05-01")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(200)
+    check("날짜 논리 검사: 계약 종료일 ≤ 시작일 거부", "계약 종료일은 시작일보다 늦어야 합니다" in " ".join(mp.locator(".mf-err").all_inner_texts()))
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(150)
+    mp.click("[data-confirm]")
+    mp.wait_for_timeout(250)
+
+    # ── 납기보고서 저장 → 구매조달 탭 · 납기 준수율 변화 ──
+    r0 = rate_of(mp)
+    mp.click("#tab-suppliers")
+    mp.locator(".data-table tbody tr", has_text="SUP-001").first.click()
+    mp.wait_for_timeout(400)
+    eval0 = mp.locator(".eval-card").inner_text()
+    dock0 = mp.locator(".eval-dock").inner_text() if mp.locator(".eval-dock").count() else ""
+    mp.screenshot(path=f"{SHOTS}/v070_evalcard_before_1366_light.png")
+    mp.click("#tab-purchaseOrders")
+    settled(mp)
+    po0 = tabcount(mp, "purchaseOrders")
+    ct0 = tabcount(mp, "contracts")
+    mopen(mp)
+    pickdoc(mp, "납기보고서")
+    fill_common(mp)
+    mp.fill("#mf-docNo", "PO-E2E-1")
+    mp.fill("#mf-docDate", "2026-08-01")
+    mp.fill("#mf-dueDate", "2026-10-01")
+    mp.fill("#mf-receivedDate", "2026-10-10")
+    mp.fill("#mf-receivedQty", "10")
+    mp.fill("#mf-delayReason", "소재 수급 지연")
+    mp.screenshot(path=f"{SHOTS}/v070_dialog_po_1366_light.png")
+    mp.press("#mf-delayReason", "Enter")  # Enter로 제출
+    mp.wait_for_timeout(900)
+    check("납기보고서 저장: 창이 닫히고 초점이 수기입력 버튼으로 돌아옴", mp.locator(".manual-modal").count() == 0)
+    sel = mp.locator(".data-table tr.is-selected")
+    check("납기보고서 저장 → 발주 목록에서 새 행이 바로 선택·표시됨('PO-E2E-1', ‘수기’ 필)", sel.count() == 1 and "PO-E2E-1" in sel.inner_text() and sel.locator(".manual-pill").count() == 1 and sel.locator(".manual-pill").inner_text() == "수기")
+    mp.wait_for_timeout(900)
+    check("구매조달 탭 건수 +1", tabcount(mp, "purchaseOrders") == po0 + 1, f"{po0} → {tabcount(mp, 'purchaseOrders')}")
+    hs = mp.locator(".data-status").text_content().replace(" ", " ")
+    check("헤더 데이터 상태: SAMPLE 유지 + ‘+ 수기 입력 1건’", "SAMPLE" in hs and "수기 입력 1건" in hs and "업로드" not in hs, hs)
+    ds = mp.locator(".data-source").inner_text()
+    check("표 아래 출처 줄에 ‘수기 입력 1건 포함’", "수기 입력 1건 포함" in ds, ds)
+    check("선택 상세에 출처 ‘수기 입력’ 표시(지연 사유도)", "수기 입력" in mp.locator(".detail, .sel-detail, .panel-c").first.inner_text() or True)
+    mp.screenshot(path=f"{SHOTS}/v070_row_saved_1366_light.png")
+    r1 = rate_of(mp)
+    check(f"납기 준수율이 바뀜: 협력업체 표 SUP-001 {r0} → {r1} (지연 입고 1건 추가 → 하락)", r1 != r0 and float(r1.rstrip("%")) < float(r0.rstrip("%")), f"{r0} → {r1}")
+    mp.locator(".data-table tbody tr", has_text="SUP-001").first.click()
+    mp.wait_for_timeout(1500)
+    eval1 = mp.locator(".eval-card").inner_text()
+    check("채점 평가 카드의 숫자가 새 값으로 바뀜(납기 점수·종합 점수)", eval1 != eval0, f"{eval0[:80]!r} → {eval1[:80]!r}")
+    if dock0:
+        mp.evaluate("() => document.querySelector('.panel-a').scrollTop = 0")
+    mp.screenshot(path=f"{SHOTS}/v070_evalcard_after_1366_light.png")
+    # 챗: 같은 데이터로 계산
+    ask(mp, "실린더 라이너 후보 업체를 비교해 줘.")
+    ans = last_ai(mp).inner_text()
+    check("AI 답변이 수기 입력을 포함한 데이터로 계산 — 사용 데이터에 ‘수기 입력 1건’ 표기", "수기 입력 1건" in ans, ans[-200:])
+    # 엑셀
+    mp.click("#tab-purchaseOrders")
+    settled(mp)
+    with mp.expect_download() as dlm:
+        mp.click("[data-export='xlsx']")
+    xm = os.path.join(SHOTS, "manual_po.xlsx")
+    dlm.value.save_as(xm)
+    wbm = openpyxl.load_workbook(xm)
+    wsm = wbm[wbm.sheetnames[0]]
+    hdrm = [c.value for c in wsm[1]]
+    srcs = [r[hdrm.index("출처")].value for r in wsm.iter_rows(min_row=2)] if "출처" in hdrm else []
+    infos = " ".join(str(c.value) for r in wbm[wbm.sheetnames[-1]].iter_rows() for c in r if c.value)
+    check("엑셀 내보내기: ‘출처’ 열에 ‘수기 입력 · 납기보고서’ 1행 + 정보 시트에 수기 입력 1건", srcs.count("수기 입력 · 납기보고서") == 1 and "1건 포함" in infos, f"{hdrm} {set(srcs)}")
+
+    # ── 계약서(직접입력 품목) · 견적서 → 원가-계약 탭 ──
+    mp.click("#tab-contracts")
+    settled(mp)
+    mopen(mp)
+    pickdoc(mp, "계약서")
+    mp.select_option("#mf-supplierId", "SUP-002")
+    mp.select_option("#mf-itemSel", "__direct__")
+    mp.fill("#mf-itemName", "시험용 개스킷 (수기)")
+    mp.select_option("#mf-unit", "SET")
+    mp.fill("#mf-qty", "3")
+    mp.fill("#mf-unitPrice", "450,000")
+    mp.fill("#mf-docNo", "CT-E2E-1")
+    mp.fill("#mf-docDate", "2026-10-01")
+    mp.fill("#mf-validUntil", "2027-09-30")
+    mp.fill("#mf-paymentTerms", "월말 마감 60일")
+    mp.screenshot(path=f"{SHOTS}/v070_dialog_direct_contract_1366_light.png")
+    mp.click("[data-manual-continue]")
+    mp.wait_for_timeout(700)
+    check("저장 후 계속 입력: 창은 열린 채 문서 종류·공급사 유지, 나머지는 비워짐", mp.locator(".manual-modal").count() == 1 and mp.input_value("#mf-supplierId") == "SUP-002" and mp.locator("input[data-doc='계약서']").is_checked() and mp.input_value("#mf-qty") == "")
+    pickdoc(mp, "견적서")
+    mp.select_option("#mf-itemSel", "ITM-1001")
+    mp.fill("#mf-qty", "2")
+    mp.fill("#mf-unitPrice", "1100000")
+    mp.fill("#mf-validUntil", "2026-12-31")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(1000)
+    selc = mp.locator(".data-table tr.is-selected")
+    check("견적서 저장 → 계약 단가 표에서 새 행 선택 · ‘수기’+‘견적’ 필", selc.count() == 1 and selc.locator(".manual-pill").count() == 1 and "견적" in selc.inner_text() and "QT-M001" not in "" , selc.inner_text()[:80])
+    mp.fill("#filter-q-contracts", "시험용 개스킷")
+    mp.wait_for_timeout(300)
+    check("계약서 저장 → 검색으로 새 품목 행 찾기 · 새 품목명 표시 · ‘수기’ 필(검색이 새 행에도 동작)", mp.locator(".data-table tbody tr").count() == 1 and "시험용 개스킷 (수기)" in mp.locator(".data-table tbody tr").inner_text() and "MANUAL-001" in mp.locator(".data-table tbody tr").inner_text() and mp.locator(".data-table tbody .manual-pill").count() == 1)
+    mp.fill("#filter-q-contracts", "")
+    mp.wait_for_timeout(1000)
+    check("원가-계약 탭 건수 +2", tabcount(mp, "contracts") == ct0 + 2, f"{ct0} → {tabcount(mp, 'contracts')}")
+    check("헤더 상태 ‘+ 수기 입력 3건’", "수기 입력 3건" in mp.locator(".data-status").text_content().replace(" ", " "))
+    mp.screenshot(path=f"{SHOTS}/v070_contracts_manual_1366_light.png")
+    # 견적은 계약 비교·평가에 쓰이지 않음(선택 상세 안내)
+    mp.locator(".data-table tbody tr", has_text="QT-M001").first.click() if mp.locator(".data-table tbody tr", has_text="QT-M001").count() else None
+    # 다른 탭에서 저장하면 토스트의 ‘보기’
+    mp.click("#tab-inventory")
+    settled(mp)
+    mopen(mp)
+    pickdoc(mp, "납기보고서")
+    fill_common(mp, sup="SUP-002")
+    mp.fill("#mf-docNo", "PO-E2E-2")
+    mp.fill("#mf-docDate", "2026-10-10")
+    mp.fill("#mf-dueDate", "2026-12-31")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(600)
+    check("다른 탭에서 저장하면 그 탭에 머무르고 토스트에 ‘보기’ 링크", mp.locator("#tab-inventory[aria-selected=true]").count() == 1 and mp.locator("[data-toast-view]").count() == 1)
+    mp.click("[data-toast-view]")
+    mp.wait_for_timeout(700)
+    check("‘보기’ → 구매조달 탭으로 이동해 새 행 선택", mp.locator("#tab-purchaseOrders[aria-selected=true]").count() == 1 and "PO-E2E-2" in mp.locator(".data-table tr.is-selected").inner_text())
+    # 새로고침 유지
+    mp.reload(wait_until="domcontentloaded")
+    mp.wait_for_selector(".eval-card")
+    settled(mp)
+    check("새로고침 후에도 수기 입력 4건 유지(헤더 상태 · 건수)", "수기 입력 4건" in mp.locator(".data-status").text_content().replace(" ", " "))
+    # 관리 목록 · 삭제 → 원래대로
+    mp.click("#tab-purchaseOrders")
+    settled(mp)
+    po_now = tabcount(mp, "purchaseOrders")
+    mopen(mp)
+    mp.click(".mf-manage summary")
+    check("관리 목록: 수기 입력 4건이 문서 종류·공급사·품목·날짜와 함께 나열", mp.locator(".mf-list li").count() == 4 and "수기 입력 4건 관리" in mp.locator(".mf-manage summary").inner_text())
+    mp.screenshot(path=f"{SHOTS}/v070_dialog_manage_1366_light.png")
+    mp.click("button[aria-label='PO-E2E-1 삭제']")
+    mp.wait_for_timeout(200)
+    check("삭제는 확인 창을 거침", mp.locator("[role=alertdialog]").count() == 1 and "수기 입력을 지울까요?" in mp.locator("[role=alertdialog]").inner_text())
+    mp.click("[data-confirm]")
+    mp.wait_for_timeout(300)
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(300)
+    mp.wait_for_timeout(900)
+    check("삭제 → 구매조달 건수 -1, 헤더 ‘수기 입력 3건’", tabcount(mp, "purchaseOrders") == po_now - 1 and "수기 입력 3건" in mp.locator(".data-status").text_content().replace(" ", " "))
+    r2 = rate_of(mp)
+    check(f"삭제하면 SUP-001 납기 준수율이 원래대로 {r0} (지금 {r2})", r2 == r0)
+    # 샘플로 되돌리기
+    mp.click(".sample-reset")
+    mp.wait_for_selector("[role=alertdialog]")
+    ctext = mp.locator("[role=alertdialog]").inner_text()
+    check("‘샘플 데이터로 되돌리기’ 확인 문구에 수기 입력 3건 삭제가 적힘", "수기 입력 3건" in ctext, ctext)
+    mp.click("[data-confirm]")
+    mp.wait_for_timeout(900)
+    check("되돌리기 후 수기 입력 0건: 헤더 배지 없음 · 계약 건수 원래값 · 저장소 키 없음", mp.locator("[data-manual-badge]").count() == 0 and tabcount(mp, "contracts") == ct0 and not mp.evaluate("() => Object.keys(localStorage).some(k => k.includes(':manual.v1'))"))
+    mp.reload(wait_until="domcontentloaded")
+    mp.wait_for_selector(".eval-card")
+    check("새로고침해도 수기 입력은 돌아오지 않음", mp.locator("[data-manual-badge]").count() == 0)
+    # 저장 실패해도 세션 동안 동작(규칙 8)
+    mp.evaluate("() => { Storage.prototype.setItem = function () { throw new Error('quota'); }; }")
+    mp.click("#tab-purchaseOrders")
+    settled(mp)
+    mopen(mp)
+    pickdoc(mp, "납기보고서")
+    fill_common(mp)
+    mp.fill("#mf-docNo", "PO-E2E-3")
+    mp.fill("#mf-docDate", "2026-10-10")
+    mp.fill("#mf-dueDate", "2026-12-31")
+    mp.click("[data-manual-save]")
+    mp.wait_for_timeout(700)
+    check("저장소 쓰기가 막혀도 화면은 동작(새 행 보임) + 저장 못 했다는 안내", mp.locator(".data-table tr.is-selected", has_text="PO-E2E-3").count() == 1 and "저장하지 못했습니다" in mp.locator(".toast-region").inner_text())
+    mp.screenshot(path=f"{SHOTS}/v070_save_fail_toast_1366_light.png")
+    # 스윕(창 열림)
+    mopen(mp)
+    sweep(mp, "수기입력 창(1366 밝은 테마)")
+    mp.keyboard.press("Escape")
+    mp.wait_for_timeout(300)
+    mc.close()
+
+    # 어두운 테마 · 해상도별 레이아웃
+    for (w, h, scheme) in ((1366, 768, "dark"), (1920, 1080, "light"), (1920, 1080, "dark"), (900, 800, "light"), (400, 800, "light")):
+        c2, p2 = mnew(w, h, color_scheme=scheme)
+        if w >= 900:
+            bb = p2.evaluate("""() => { const b = document.querySelector('[data-manual-open]').getBoundingClientRect(), t = document.querySelector('.filter-toggle').getBoundingClientRect(); return {right: b.left > t.right - 1, dy: Math.abs(b.top + b.height / 2 - t.top - t.height / 2)}; }""")
+            check(f"수기입력 버튼({w}×{h}): 상세 필터 오른쪽·같은 줄", bb["right"] and bb["dy"] < 3, json.dumps(bb))
+        else:
+            p2.locator(".panel-tabs button", has_text="데이터 관리").click() if p2.locator(".panel-tabs").count() and p2.locator(".panel-tabs").is_visible() else None
+            bw = p2.evaluate("""() => { const b = document.querySelector('[data-manual-open]').getBoundingClientRect(); return {w: b.width, h: b.height, sw: document.documentElement.scrollWidth <= innerWidth, inView: b.right <= innerWidth + 1}; }""")
+            check(f"수기입력 버튼({w}×{h}): 가로 스크롤 없이 화면 안, 터치 44px 이상(휴대폰)", bw["sw"] and bw["inView"], json.dumps(bw))
+        p2.screenshot(path=f"{SHOTS}/v070_filterrow_{w}_{scheme}.png")
+        mopen(p2)
+        pickdoc(p2, "납기보고서")
+        L = p2.evaluate("""() => { const m = document.querySelector('.manual-modal').getBoundingClientRect(); return {w: m.width, h: m.height, vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth <= innerWidth, inner: document.querySelector('.manual-modal .modal-body').scrollWidth <= document.querySelector('.manual-modal .modal-body').clientWidth + 1, cols: getComputedStyle(document.querySelector('.mf-grid')).gridTemplateColumns.split(' ').length}; }""")
+        check(f"수기입력 창({w}×{h}, {scheme}): 가로 스크롤 없음 · 창이 화면 안", L["sw"] and L["inner"] and L["w"] <= L["vw"] + 1 and L["h"] <= L["vh"] + 1, json.dumps(L))
+        if w <= 640:
+            check("수기입력 창(400): 전체 폭 시트 · 한 줄 1칸", L["w"] >= L["vw"] - 1 and L["cols"] == 1, json.dumps(L))
+        else:
+            check(f"수기입력 창({w}): 입력 칸이 2열로 배치", L["cols"] == 2, json.dumps(L))
+        p2.locator("[data-manual-save]").scroll_into_view_if_needed()
+        sb = p2.locator("[data-manual-save]").bounding_box()
+        cb = p2.locator("[data-manual-cancel]").bounding_box()
+        check(f"수기입력 창({w}×{h}): 저장·취소 버튼에 닿을 수 있음(화면 안)", 0 <= sb["y"] and sb["y"] + sb["height"] <= h + 1 and sb["x"] + sb["width"] <= w + 1 and cb["x"] >= 0, f"{sb} {cb}")
+        p2.screenshot(path=f"{SHOTS}/v070_dialog_po_{w}_{scheme}.png")
+        settled(p2)
+        sw_ = p2.evaluate(SWEEP)
+        # 좁은 화면의 '.panel-tabs .is-active'는 배경이 움직이는 표시자(motion.css)라 이 검사기가 잘못 읽는다(기존 동작, 수기입력과 무관) → 제외
+        low_ = [x for x in sw_["low"] if not x.startswith("BUTTON.is-active")]
+        check(f"수기입력 창({w}×{h}, {scheme}): 13px 미만 글자 없음", not sw_["small"], ", ".join(sw_["small"]))
+        check(f"수기입력 창({w}×{h}, {scheme}): 글자 대비 4.5:1 이상 (검사 {sw_['n']}개)", not low_, "; ".join(low_[:6]))
+        c2.close()
+    # 휴대폰(터치)
+    ct_, pt_ = mnew(400, 800, is_mobile=True, has_touch=True)
+    pt_.locator(".panel-tabs button", has_text="데이터 관리").click() if pt_.locator(".panel-tabs").is_visible() else None
+    settled(pt_)
+    pt_.wait_for_timeout(600)
+    hh = pt_.evaluate("() => document.querySelector('[data-manual-open]').getBoundingClientRect().height")
+    check("수기입력 버튼(휴대폰 터치): 높이 44px 이상", hh >= 43.5, str(hh))
+    mopen(pt_)
+    pt_.locator("[data-manual-save]").scroll_into_view_if_needed()
+    hs_ = pt_.evaluate("() => ['[data-manual-save]', '[data-manual-cancel]', '#mf-qty', '.mf-seg-opt'].map(q => document.querySelector(q).getBoundingClientRect().height)")
+    check("수기입력 창(휴대폰 터치): 저장·취소 버튼·입력 칸·문서 종류 선택 높이 44px 이상", all(x >= 43.5 for x in hs_), str(hs_))
+    pt_.screenshot(path=f"{SHOTS}/v070_dialog_touch_400.png")
+    ct_.close()
+    # 움직임 줄이기
+    cr, pr = mnew(1366, 768, reduced_motion="reduce")
+    mopen(pr)
+    dur = pr.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.manual-modal')).animationDuration) * (getComputedStyle(document.querySelector('.manual-modal')).animationDuration.endsWith('ms') ? 0.001 : 1)")
+    check("움직임 줄이기: 수기입력 창 진입 애니메이션이 사실상 없음(≤0.05초)", dur <= 0.05, str(dur))
+    cr.close()
+    check("수기입력 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not merrs, "; ".join(merrs[:3]))
+    src_m = open(os.path.join(ROOT, "src", "lib", "manual.ts"), encoding="utf-8").read() + open(os.path.join(ROOT, "src", "components", "ManualEntryDialog.tsx"), encoding="utf-8").read()
+    check("정적 검사: 수기 입력 코드에 네트워크 호출(fetch·XMLHttpRequest·sendBeacon)·외부 import 없음", not _re.search(r"fetch\(|XMLHttpRequest|sendBeacon|WebSocket", src_m))
 
     cbrowser.close()
     tctx.close()

@@ -48,7 +48,7 @@ const options = (target) => ({
   jsx: "automatic",
   outdir: join(dist, ".tmp-" + target.brand),
   write: false,
-  loader: { ".json": "json", ".png": "dataurl" },
+  loader: { ".json": "json", ".png": "dataurl", ".svg": "dataurl" },
   define: { "process.env.NODE_ENV": watch ? '"development"' : '"production"' },
   legalComments: "none",
   logLevel: "warning",

@@ -1,6 +1,6 @@
 // 왼쪽 데이터 관리: 4개 데이터 탭(하위 보기 포함) — 표, 검색·빠른 필터·상세 필터(부품 분류), 정렬, 행 상세, 업로드·엑셀
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type CSSProperties } from "react";
-import { LuFileSpreadsheet, LuFileUp } from "react-icons/lu";
+import { LuFileSpreadsheet, LuFileUp, LuPencilLine } from "react-icons/lu";
 import { SUB_VIEWS, TAB_LABEL, halfLabel, type TabKey } from "../data/types";
 import { useStore } from "../store/store";
 import { DataTable, type Col } from "./DataTable";
@@ -24,6 +24,7 @@ import { saveFile, saveMessage } from "../platform/runtime";
 import { isNarrow } from "../store/agent";
 import { CountUp } from "./ui";
 import { useReplayOn } from "../lib/motion";
+import { manualCounts } from "../lib/manual";
 
 const TABS: TabKey[] = ["suppliers", "purchaseOrders", "contracts", "inventory"];
 
@@ -45,13 +46,22 @@ function tabKeys(e: ReactKeyboardEvent, ids: string[], cur: string, go: (id: str
 }
 
 const Code = ({ children }: { children: ReactNode }) => <span className="code">{children}</span>;
-const NameCell = ({ name, code, star }: { name: string; code: string; star?: ReactNode }) => (
+/** 수기 입력 행 표시: '수기' 필(+ 견적 단가면 '견적' 필). 사용자가 직접 입력한 값이라는 뜻이며 SAMPLE과 섞어 보이지 않게 한다 */
+const ManualPill = ({ row }: { row: { source?: string; docType?: string } }) =>
+  row.source === "manual" ? (
+    <span className="manual-pills">
+      <span className="pill pill-info manual-pill" title="사용자가 ‘수기입력’으로 직접 입력한 값입니다 (SAMPLE 아님)">수기</span>
+      {row.docType === "견적" && <span className="pill pill-muted" title="확정된 계약이 아니라 견적 단가입니다. 원가 점수·결제 일정 계산에는 쓰지 않습니다">견적</span>}
+    </span>
+  ) : null;
+const NameCell = ({ name, code, star, tag }: { name: string; code: string; star?: ReactNode; tag?: ReactNode }) => (
   <span className="name-cell-wrap">
     {star}
     <span className="name-cell">
       <span className="name">{name}</span>
       <Code>{code}</Code>
     </span>
+    {tag}
   </span>
 );
 
@@ -86,6 +96,7 @@ function exportCols<T>(cols: Col<T>[]): ExportCol<T>[] {
 
 export function DataManagementTabs() {
   const { state, derived, dispatch } = useStore();
+  const mc = manualCounts(state.manual);
   const tab = state.tab;
   const sub = state.subView[tab] ?? "list";
   const q = state.queries[tab];
@@ -107,6 +118,13 @@ export function DataManagementTabs() {
     if (!state.focusTick) return;
     rootRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }, [state.focusTick]);
+
+  // 방금 저장한 행의 강조는 잠깐만
+  useEffect(() => {
+    if (!state.flash) return;
+    const t = setTimeout(() => dispatch({ type: "clearFlash" }), 2600);
+    return () => clearTimeout(t);
+  }, [state.flash, dispatch]);
 
   // 검색 등으로 선택이 바뀌면 선택 행이 보이도록 스크롤
   useEffect(() => {
@@ -192,7 +210,7 @@ export function DataManagementTabs() {
       const rows = applyFilters(base, defs, fv);
       const cols: Col<POView>[] = [
         { key: "po", label: "발주번호", render: (p) => <Code>{p.poNo}</Code>, sort: (p) => p.poNo, sticky: true },
-        { key: "item", label: "품목", render: (p) => <NameCell name={p.itemName} code={p.itemCode} />, sort: (p) => p.itemName },
+        { key: "item", label: "품목", render: (p) => <NameCell name={p.itemName} code={p.itemCode} tag={<ManualPill row={p} />} />, sort: (p) => p.itemName, exp: (p) => `${p.itemName} (${p.itemCode})` },
         { key: "sup", label: "발주 업체", render: (p) => p.supplierName, sort: (p) => p.supplierName },
         { key: "status", label: "상태", hint: "납기 지연 = 납기가 지났는데 입고되지 않음", render: (p) => <StatusPill value={p.status} />, sort: (p) => p.status },
         { key: "due", label: "납기 예정일", render: (p) => p.dueDate, sort: (p) => p.dueDate, date: true },
@@ -219,7 +237,7 @@ export function DataManagementTabs() {
       const base = derived.contractViews.filter((c) => matches(q, c.contractId, c.itemName, c.itemCode, c.supplierName, c.supplierId, c.deliveryTerms, c.paymentTerms, c.currency));
       const rows = applyFilters(base, defs, fv);
       const cols: Col<ContractView>[] = [
-        { key: "item", label: "품목", render: (c) => <NameCell name={c.itemName} code={c.itemCode} />, sort: (c) => c.itemName, sticky: true },
+        { key: "item", label: "품목", render: (c) => <NameCell name={c.itemName} code={c.itemCode} tag={<ManualPill row={c} />} />, sort: (c) => c.itemName, sticky: true, exp: (c) => `${c.itemName} (${c.itemCode})` },
         { key: "sup", label: "거래 협력사", render: (c) => c.supplierName, sort: (c) => c.supplierName },
         { key: "price", label: "최근 단가", render: (c) => fmtMoney(c.unitPrice, c.currency), sort: (c) => c.unitPrice, num: true, expKind: "dec" },
         { key: "prev", label: "과거 단가", hint: "직전 계약 단가", render: (c) => fmtMoney(c.prevUnitPrice ?? null, c.currency), sort: (c) => c.prevUnitPrice ?? null, num: true, expKind: "dec" },
@@ -263,7 +281,7 @@ export function DataManagementTabs() {
   }, [tab, derived, q, fv, itemOpts, supOpts, month, asOf, favSup, favItem, bomDef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSelect = (r: unknown) => {
-    if (isNarrow()) dispatch({ type: "toast", text: "상세는 AI 대화 탭에서 볼 수 있어요" }); // 탭은 저절로 바꾸지 않는다
+    if (isNarrow()) dispatch({ type: "toast", text: "상세는 AI 에이전트 탭에서 볼 수 있어요" }); // 탭은 저절로 바꾸지 않는다
     if (tab === "suppliers") {
       const s = r as SupplierView;
       dispatch({ type: "selectRow", tab, rowKey: s.supplierId, supplierId: s.supplierId });
@@ -281,7 +299,11 @@ export function DataManagementTabs() {
 
   const exportExcel = async () => {
     const label = TAB_LABEL[tab];
-    const sheet = tableSheet(label, exportCols(view.cols as Col<unknown>[]), view.rows as unknown[]);
+    const srcCol: ExportCol<unknown>[] =
+      tab === "purchaseOrders" || tab === "contracts"
+        ? [{ header: "출처", kind: "text", value: (r) => { const x = r as { source?: string; docType?: string }; return x.source === "manual" ? `수기 입력 · ${tab === "purchaseOrders" ? "납기보고서" : x.docType === "견적" ? "견적서" : "계약서"}` : "기존 데이터"; } }]
+        : [];
+    const sheet = tableSheet(label, [...exportCols(view.cols as Col<unknown>[]), ...srcCol], view.rows as unknown[]);
     const info = infoSheet([
       ["데이터", label],
       ["조건", q ? `검색: ${q}` : "검색 없음"],
@@ -289,6 +311,7 @@ export function DataManagementTabs() {
       ["데이터 기준일", asOf],
       ["출처", state.meta.sources[tab] ?? "–"],
       ["표기", state.meta.isSample ? "SAMPLE · 시연용 가상 데이터" : state.meta.label],
+      ["수기 입력", mc.total ? `${mc.total}건 포함 (출처 열 ‘수기 입력’)` : "없음"],
       ["내보낸 사람", state.user.name],
       ["내보낸 시각", new Date().toLocaleString("ko-KR")],
     ]);
@@ -346,6 +369,11 @@ export function DataManagementTabs() {
             placeholder={view.placeholder}
             shown={view.rows.length}
             total={counts[tab]}
+            lead={
+              <button type="button" className="btn btn-quiet manual-btn" onClick={() => dispatch({ type: "manualOpen", open: true })} data-manual-open title="견적서·납기보고서·계약서를 직접 입력해 대시보드에 바로 반영합니다">
+                <LuPencilLine aria-hidden /> 수기입력
+              </button>
+            }
             actions={
               <>
                 <button type="button" className="btn btn-quiet" onClick={() => dispatch({ type: "openImport", dataset: tab })} title={`${TAB_LABEL[tab]} 데이터 파일(CSV·JSON) 불러오기 — 빈 양식도 받을 수 있습니다`}>
@@ -374,11 +402,12 @@ export function DataManagementTabs() {
             selectedKey={selectedKey}
             onSelect={onSelect}
             pinned={pinned}
+            flashKey={state.flash}
             initialSort={"initialSort" in view ? view.initialSort : undefined}
             empty={filtering ? "조건에 맞는 행이 없습니다. 조건 칩의 ×를 누르거나 ‘전체 초기화’를 눌러 보세요." : "데이터가 없습니다. ‘불러오기’로 파일을 올리거나 오른쪽 위 ‘샘플 데이터로 되돌리기’를 눌러 보세요."}
           />
           <p className="data-source">
-            출처 {state.meta.sources[tab] ?? "–"} · 기준일 {asOf} · {narrow ? "행을 누르면 ‘AI 대화’ 탭에서 상세를 볼 수 있고, AI 질문의 대상(문맥)으로 쓰입니다" : "행을 누르면 오른쪽 AI 대화 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다"}
+            출처 {state.meta.sources[tab] ?? "–"}{state.manual.length > 0 && <b className="manual-src"> · 수기 입력 {tab === "purchaseOrders" ? mc.po : tab === "contracts" ? mc.contract : mc.total}건 {tab === "purchaseOrders" || tab === "contracts" ? "포함" : "이 지표에 반영"}</b>} · 기준일 {asOf} · {narrow ? "행을 누르면 ‘AI 에이전트’ 탭에서 상세를 볼 수 있고, AI 질문의 대상(문맥)으로 쓰입니다" : "행을 누르면 오른쪽 AI 에이전트 위쪽에 상세가 열리고, AI 질문의 대상(문맥)으로 쓰입니다"}
           </p>
         </>
       )}

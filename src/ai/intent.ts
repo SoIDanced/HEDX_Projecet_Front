@@ -2,7 +2,7 @@
 import type { Grade, Item, Supplier } from "../data/types";
 import type { IntentKind, PriorityMode } from "../lib/analysisTypes";
 
-export type ParsedKind = IntentKind | "priority_followup" | "help" | "unknown";
+export type ParsedKind = IntentKind | "priority_followup" | "help" | "document_search" | "unknown";
 
 export interface ParsedIntent {
   kind: ParsedKind;
@@ -116,8 +116,12 @@ export function parseQuestion(text: string, catalog: Catalog, asOf: string): Par
   const candWord = has(/(업체|협력사|공급사|후보|거래|공급|비교|추천|어디|누가)/);
   const profileWord = has(/(평가|점수|등급|근거|실적|어때|현황|정보|프로필|요약|정리|분석)/);
 
+  // 문서 찾기: 문서 종류 낱말 + 찾기 동사 (예: "…스크래치 민원 찾아줘", "…견적서 보여줘")
+  const docWord = has(/(민원|클레임|견적서|계약서|성적서|보고서|보증서|증명서|서류|문서)/) && has(/(찾|검색|조회|보여|알려|열어|내용|원본|확인)/);
+
   let kind: ParsedKind = "unknown";
-  if (priceWord && upWord) kind = "price_increase";
+  if (docWord) kind = "document_search";
+  else if (priceWord && upWord) kind = "price_increase";
   else if (deliveryWord && lowWord) kind = "low_delivery";
   else if (stockWord) kind = "stock_risk";
   else if (grade && has(/(품질|실적|정리|현황|목록|어디|업체|협력사|보여)/)) kind = "grade_quality";
