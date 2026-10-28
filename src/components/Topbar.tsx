@@ -77,9 +77,14 @@ function DataStatus() {
   const savedText = saved ? (today ? hhmm : `${saved.getMonth() + 1}/${saved.getDate()} ${hhmm}`) : null;
   const showSaved = !state.meta.isSample;
   return (
-    <div className={`data-status ${showSaved ? "has-saved" : ""}`} title={Object.entries(state.meta.sources).map(([k, v]) => `${k}: ${v}`).join("\n")}>
+    <div className={`data-status ${showSaved ? "has-saved" : ""} ${state.manual.length ? "has-manual" : ""}`} title={Object.entries(state.meta.sources).map(([k, v]) => `${k}: ${v}`).join("\n")}>
       <LuDatabase aria-hidden />
       <span className={`badge-demo ${state.meta.isSample ? "" : "is-upload"}`} title={state.meta.isSample ? "SAMPLE = 시연용 가상 데이터입니다. 실제 데이터는 ‘데이터 불러오기’로 올립니다." : "업로드한 데이터가 섞여 있습니다. ‘샘플 데이터로 되돌리기’로 되돌릴 수 있습니다."}>{state.meta.isSample ? "SAMPLE" : "업로드 포함"}</span>
+      {state.manual.length > 0 && (
+        <span className="badge-demo is-manual" data-manual-badge title="사용자가 ‘수기입력’으로 직접 입력한 값이 SAMPLE 데이터와 함께 계산에 들어 있습니다. ‘샘플 데이터로 되돌리기’로 지울 수 있습니다.">
+          + <span className="mb-long">수기 입력</span><span className="mb-short" aria-hidden data-t="수기" />{" "}{state.manual.length}건
+        </span>
+      )}
       <span className="ds-counts">
         협력사 {derived.supplierViews.length} · 발주 {derived.poViews.length} · 계약 {derived.contractViews.length} · 품목 {derived.itemsByCode.size}
       </span>
@@ -219,15 +224,15 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
             type="button"
             role="menuitem"
             className="menu-item"
-            disabled={state.meta.isSample}
+            disabled={state.meta.isSample && !state.manual.length}
             onClick={() => {
               setOpen(false);
               onDeleteUpload();
             }}
-            title={state.meta.isSample ? "저장된 업로드 데이터가 없습니다 (지금 SAMPLE 데이터)" : "이 브라우저에 저장된 업로드 데이터를 지우고 샘플 데이터로 되돌립니다"}
+            title={state.meta.isSample && !state.manual.length ? "저장된 업로드 데이터가 없습니다 (지금 SAMPLE 데이터)" : "이 브라우저에 저장된 업로드 데이터와 수기 입력을 지우고 샘플 데이터로 되돌립니다"}
           >
             <LuTrash2 aria-hidden /> 저장된 업로드 데이터 삭제
-            {state.meta.isSample && <small>없음</small>}
+            {state.meta.isSample && !state.manual.length && <small>없음</small>}
           </button>
           <button
             type="button"
@@ -272,7 +277,7 @@ export function Topbar({ onLogout }: { onLogout: (wipe: boolean) => void }) {
         <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: "openImport", dataset: datasetFor })} title="CSV·JSON 파일로 데이터 올리기 (형식 검사 후 반영)">
           <LuFileUp aria-hidden /> <span className="hide-md">데이터 </span>불러오기
         </button>
-        <button type="button" className="btn btn-quiet sample-reset" onClick={() => setConfirmReset(true)} title="샘플 데이터로 되돌리기 (업로드한 데이터와 이 브라우저의 저장본이 지워집니다)" aria-label="샘플 데이터로 되돌리기">
+        <button type="button" className="btn btn-quiet sample-reset" onClick={() => setConfirmReset(true)} title="샘플 데이터로 되돌리기 (업로드한 데이터·수기 입력과 이 브라우저의 저장본이 지워집니다)" aria-label="샘플 데이터로 되돌리기">
           <LuRotateCcw aria-hidden />
           <span className="hide-lg">샘플 데이터로 되돌리기</span>
         </button>
@@ -295,11 +300,13 @@ export function Topbar({ onLogout }: { onLogout: (wipe: boolean) => void }) {
             setConfirmReset(false);
           }}
         >
-          {state.meta.isSample ? (
+          {state.meta.isSample && !state.manual.length ? (
             <p>지금도 샘플 데이터를 보고 있습니다. 되돌리면 화면의 데이터만 다시 불러옵니다.</p>
           ) : (
             <p>
-              업로드한 데이터({(state.meta.uploaded ?? []).length}종)와 이 브라우저에 저장된 업로드 사본이 지워집니다. 대화와 분석 이력은 남지만, 업로드 데이터로 만든 결과에는 ‘다시 분석’ 안내가 뜹니다.
+              {!state.meta.isSample && <>업로드한 데이터({(state.meta.uploaded ?? []).length}종)와 이 브라우저에 저장된 업로드 사본이 지워집니다. </>}
+              {state.manual.length > 0 && <>수기 입력 {state.manual.length}건도 함께 지워지고 대시보드 숫자가 샘플 값으로 돌아갑니다. </>}
+              대화와 분석 이력은 남지만, 바뀐 데이터로 만든 결과에는 ‘다시 분석’ 안내가 뜹니다.
             </p>
           )}
         </ConfirmDialog>

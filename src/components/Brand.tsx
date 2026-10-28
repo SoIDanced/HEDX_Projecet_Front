@@ -1,14 +1,13 @@
-// 헤더 브랜드: [로고] 한화엔진 / HANWHA ENGINE │ RAG 기반 협력사 평가 AI 에이전트
+// 헤더 브랜드: [공식 한화엔진 로고(SVG, 흰 판 위)] │ RAG 기반 협력사 평가 AI 에이전트
+// 로고 SVG는 한글 상호가 채움 없는 검정이라 어두운 테마에서 안 보임 → 파일은 그대로 두고 두 테마 모두 흰 판(.brand-plate)을 깐다.
 import { BRAND } from "../brand";
 
 export function BrandBlock({ as: Tag = "h1" }: { as?: "h1" | "div" }) {
-  if (BRAND.kind === "hanwha" && BRAND.company) {
+  if (BRAND.kind === "hanwha" && BRAND.wordmark) {
     return (
       <div className="brand brand-hanwha">
-        {BRAND.logo && <img className="brand-logo" src={BRAND.logo} alt="" width={37} height={34} />}
-        <span className="brand-co" role="img" aria-label={`${BRAND.company} ${BRAND.companyEn ?? ""}`}>
-          <span className="brand-ko" aria-hidden>{BRAND.company}</span>
-          {BRAND.companyEn && <span className="brand-en" aria-hidden>{BRAND.companyEn}</span>}
+        <span className="brand-plate">
+          <img className="brand-logo" src={BRAND.wordmark} alt={BRAND.company ?? ""} width={1602} height={542} draggable={false} />
         </span>
         <span className="brand-divider" aria-hidden />
         <Tag className="brand-product" title={BRAND.product}>{BRAND.product}</Tag>

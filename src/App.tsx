@@ -1,6 +1,6 @@
-// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 65) · AI 대화(오른쪽 35) 2분할
+// MainDashboard: 간이 로그인 → 상단 바 + 데이터 관리(왼쪽 65) · AI 에이전트(오른쪽 35) 2분할
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { LuCheck, LuDatabase, LuMessagesSquare, LuTriangleAlert } from "react-icons/lu";
+import { LuCheck, LuDatabase, LuTriangleAlert } from "react-icons/lu";
 import { StoreProvider, useStore, type Panel } from "./store/store";
 import { AgentProvider } from "./store/agent";
 import { SupplierEvaluationCard } from "./components/SupplierEvaluationCard";
@@ -9,18 +9,20 @@ import { ChatPanel } from "./components/ChatPanel";
 import { readStore, writeStore } from "./platform/storage";
 import { currentUser, logout, type User } from "./platform/users";
 import { ImportDialog } from "./components/ImportDialog";
+import { ManualEntryDialog } from "./components/ManualEntryDialog";
 import { Topbar } from "./components/Topbar";
 import { Onboarding } from "./components/Onboarding";
 import { KeywordSearch } from "./components/KeywordSearch";
 import { LoginScreen } from "./components/LoginScreen";
 import { BRAND } from "./brand";
 import { Words } from "./components/ui";
+import { AiAvatar } from "./components/AiAvatar";
 import { armEnter, useReplayOn } from "./lib/motion";
 import { isNarrow } from "./store/agent";
 
 const PANEL_TABS: { id: Panel; label: string; icon: ReactNode }[] = [
   { id: "A", label: "데이터 관리", icon: <LuDatabase aria-hidden /> },
-  { id: "C", label: "AI 대화", icon: <LuMessagesSquare aria-hidden /> },
+  { id: "C", label: "AI 에이전트", icon: <AiAvatar size={24} /> },
 ];
 
 /** 알림 영역은 항상 그려 두고 안의 글만 바꾼다(그래야 스크린리더가 읽는다). 마우스를 올리거나 초점이 있으면 사라지는 시계를 멈춘다 */
@@ -42,6 +44,11 @@ function Toast() {
         <div className={`toast toast-${state.toast.tone}`} key={state.toast.id}>
           <span className="toast-icon" aria-hidden>{state.toast.tone === "warn" ? <LuTriangleAlert /> : <LuCheck />}</span>
           <span>{state.toast.text}</span>
+          {state.toast.action && (
+            <button type="button" className="toast-action" onClick={() => dispatch({ type: "viewRow", action: state.toast!.action! })} data-toast-view>
+              {state.toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -57,7 +64,7 @@ function SkipLink() {
       href="#chat-input"
       onClick={(e) => {
         e.preventDefault();
-        dispatch({ type: "panel", panel: "C" }); // 좁은 화면에서는 AI 대화 탭을 먼저 연다
+        dispatch({ type: "panel", panel: "C" }); // 좁은 화면에서는 AI 에이전트 탭을 먼저 연다
         setTimeout(() => document.getElementById("chat-input")?.focus(), 50);
       }}
     >
@@ -73,7 +80,7 @@ const SPLIT_MAX = 80;
 const CHAT_MIN_PX = 320; // styles.css 의 .workspace 와 같은 값: 대화 패널 최소 너비
 const SPLITTER_PX = 20; // styles/v14.css 의 --split-gap 과 같은 값
 
-/** 데이터 관리(왼쪽) : AI 대화(오른쪽) = 65 : 35, 가운데 경계선을 끌거나 화살표 키로 조절 */
+/** 데이터 관리(왼쪽) : AI 에이전트(오른쪽) = 65 : 35, 가운데 경계선을 끌거나 화살표 키로 조절 */
 function useSplit() {
   const [left, setLeft] = useState<number>(() => {
     const v = readStore<number>(SPLIT_KEY);
@@ -93,7 +100,7 @@ function Workspace() {
   const mainRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const [contentW, setContentW] = useState(0);
-  useReplayOn(mainRef, state.panel, isNarrow()); // 좁은 화면에서 데이터 관리 ↔ AI 대화 탭을 바꿀 때만 다시 재생
+  useReplayOn(mainRef, state.panel, isNarrow()); // 좁은 화면에서 데이터 관리 ↔ AI 에이전트 탭을 바꿀 때만 다시 재생
 
   // 화면 폭이 좁으면 CSS가 데이터 관리 칸을 (폭 - 332px)로 줄이므로, 화면에 실제로 보이는 값을 따로 계산한다
   useEffect(() => {
@@ -178,7 +185,7 @@ function Workspace() {
           className="splitter"
           role="separator"
           aria-orientation="vertical"
-          aria-label="데이터 관리와 AI 대화 너비 조절"
+          aria-label="데이터 관리와 AI 에이전트 너비 조절"
           aria-valuemin={SPLIT_MIN}
           aria-valuemax={Math.round(effMax)}
           aria-valuenow={Math.round(eff)}
@@ -197,7 +204,7 @@ function Workspace() {
         >
           <span className="splitter-grip" aria-hidden />
         </div>
-        <section className={`panel panel-c ${state.panel === "C" ? "is-active" : ""}`} aria-label="AI 대화">
+        <section className={`panel panel-c ${state.panel === "C" ? "is-active" : ""}`} aria-label="AI 에이전트">
           <ChatPanel />
         </section>
       </main>
@@ -224,6 +231,7 @@ export function App() {
           />
           <Workspace />
           <ImportDialog />
+          <ManualEntryDialog />
           <Onboarding />
           <Toast />
         </div>

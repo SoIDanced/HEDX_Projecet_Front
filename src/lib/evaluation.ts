@@ -78,7 +78,7 @@ export function qualityScore(q: number | null | undefined, defect: number | null
 export function evaluateSupplier(supplierId: string, d: Derived): SupplierEvaluation {
   const s = d.suppliersById.get(supplierId)!;
   const del = d.supplierDelivery.get(supplierId);
-  const contracts = d.contractViews.filter((c) => c.supplierId === supplierId);
+  const contracts = d.agreedContracts.filter((c) => c.supplierId === supplierId);
   const results: CriterionResult[] = [];
   const missing: string[] = [];
   const notes: string[] = [];
@@ -109,7 +109,7 @@ export function evaluateSupplier(supplierId: string, d: Derived): SupplierEvalua
     } else if (def.key === "cost") {
       const parts: { name: string; pct: number; score: number }[] = [];
       for (const c of contracts) {
-        const group = d.contractViews.filter((x) => x.comparableKey === c.comparableKey);
+        const group = d.agreedContracts.filter((x) => x.comparableKey === c.comparableKey);
         if (group.length < 2) continue;
         const min = Math.min(...group.map((x) => x.unitPrice));
         const pct = (c.unitPrice / min - 1) * 100;

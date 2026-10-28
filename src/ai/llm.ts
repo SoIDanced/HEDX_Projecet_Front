@@ -73,7 +73,7 @@ export async function detectProvider(): Promise<LLMProvider | null> {
   };
 }
 
-const KINDS: ParsedKind[] = ["item_candidates", "low_delivery", "price_increase", "grade_quality", "supplier_profile", "supplier_compare", "stock_risk", "priority_followup", "help", "unknown"];
+const KINDS: ParsedKind[] = ["item_candidates", "low_delivery", "price_increase", "grade_quality", "supplier_profile", "supplier_compare", "stock_risk", "priority_followup", "help", "document_search", "unknown"];
 
 export function buildPrompt(question: string, catalog: Catalog, context: { selectedItem?: string; selectedSupplier?: string; lastAnalysis?: string }) {
   return [
@@ -89,6 +89,7 @@ export function buildPrompt(question: string, catalog: Catalog, context: { selec
     "- supplier_compare: 협력사 두 곳 이상 비교",
     "- stock_risk: 안전재고 미달·공급 지연 품목",
     "- priority_followup: 직전 비교에서 우선순위(납기/단가/품질)만 바꾸는 후속 질문",
+    "- document_search: 등록된 문서(민원·견적서·계약서·납기 보고서·검사 성적서) 찾기",
     "- help: 사용법 질문",
     "- unknown: 위에 해당하지 않음",
     "",

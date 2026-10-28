@@ -1,7 +1,9 @@
 // 대화 이력: 지난 답변을 이름·질문으로 찾고, 대화에 다시 보기·이름 바꾸기·고정·삭제
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LuCheck, LuPencil, LuPin, LuPinOff, LuSearch, LuTrash2, LuX } from "react-icons/lu";
 import { MAX_RESULTS, resultName, useStore } from "../store/store";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { trapTab, useReturnFocus } from "./focus";
 import type { AnalysisResult } from "../lib/analysisTypes";
 
@@ -11,27 +13,32 @@ const when = (iso: string) => {
 };
 
 export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen: (resultId: string) => void }) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, meta } = useStore();
   const [q, setQ] = useState("");
   const [order, setOrder] = useState<"new" | "name">("new");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [askDel, setAskDel] = useState<string | null>(null); // 삭제는 한 번 더 확인한다 (되돌릴 수 없음)
+  const [askAll, setAskAll] = useState(false); // 전체 삭제 확인 창
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const outside = useRef(false); // 바깥을 눌러 닫을 때는 누른 곳에 초점을 두고, 그 밖에는 '대화 이력' 버튼으로 돌려준다
   useReturnFocus(outside);
 
   useEffect(() => {
-    searchRef.current?.focus();
+    searchRef.current?.focus(); // 열릴 때 한 번만(아래 효과는 askDel·askAll 이 바뀔 때마다 다시 돌므로 초점을 빼앗지 않게 분리)
+  }, []);
+
+  useEffect(() => {
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (ref.current && !ref.current.contains(t) && !t.closest(".history-toggle")) {
+      if (ref.current && !ref.current.contains(t) && !t.closest(".history-toggle") && !t.closest(".modal-backdrop")) {
         outside.current = true;
         onClose();
       }
     };
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && askAll) return; // 확인 창이 자기 Esc를 처리한다
       if (e.key === "Escape" && askDel) {
         e.preventDefault();
         e.stopPropagation();
@@ -50,7 +57,7 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
       document.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [onClose, editing, askDel]);
+  }, [onClose, editing, askDel, askAll]);
 
   const list = useMemo(() => {
     const all = Object.values(state.results);
@@ -67,6 +74,13 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
   }, [state, q, order]);
 
   const total = Object.keys(state.results).length;
+  const pinnedCount = Object.keys(state.results).filter((id) => state.resultMeta[id]?.pinned).length;
+  const deleteAll = () => {
+    dispatch({ type: "clearResults" });
+    dispatch({ type: "toast", text: `대화 이력 ${total}건을 삭제했습니다` });
+    setAskAll(false);
+    setTimeout(() => searchRef.current?.focus(), 0); // 눌렀던 버튼은 비활성이 되므로 초점을 검색칸으로
+  };
   const saveName = (id: string) => {
     dispatch({ type: "renameResult", id, name: draft });
     setEditing(null);
@@ -103,7 +117,7 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
       <ul className="history-list">
         {list.map((r) => {
           const pinned = !!state.resultMeta[r.id]?.pinned;
-          const stale = r.dataId !== state.meta.dataId;
+          const stale = r.dataId !== meta.dataId;
           const current = state.view.resultId === r.id;
           return (
             <li key={r.id} className={`history-item ${current ? "is-current" : ""}`}>
@@ -203,6 +217,23 @@ export function HistoryPanel({ onClose, onOpen }: { onClose: () => void; onOpen:
         })}
         {!list.length && <li className="table-empty">{total ? "검색어와 맞는 결과가 없습니다." : "아직 분석한 답변이 없습니다. AI에게 질문하면 답변이 여기에 쌓입니다."}</li>}
       </ul>
+      <div className="history-foot">
+        <span className="muted small">고정한 결과도 함께 지워집니다</span>
+        <button type="button" className="btn btn-small history-del-all" disabled={!total} onClick={(e) => { e.currentTarget.focus(); setAskAll(true); }}>
+          <LuTrash2 aria-hidden /> 대화 이력 전체 삭제
+        </button>
+      </div>
+      {askAll &&
+        createPortal(
+          <div onKeyDown={(e) => e.stopPropagation()}>
+            <ConfirmDialog title="대화 이력을 모두 삭제할까요?" confirmLabel="전체 삭제" onCancel={() => setAskAll(false)} onConfirm={deleteAll}>
+              <p data-del-all-count>
+                저장된 대화 이력 {total}건{pinnedCount ? ` (고정한 ${pinnedCount}건 포함)` : ""}이 모두 지워지며 되돌릴 수 없습니다. 대화 창의 글은 남지만, 지운 이력의 답변은 근거 자료·엑셀·CSV 내보내기와 다시 분석을 쓸 수 없습니다.
+              </p>
+            </ConfirmDialog>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

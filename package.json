@@ -1,7 +1,7 @@
 {
   "name": "procure-ai-platform",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.7.0",
   "description": "RAG 기반 협력사 평가 AI 에이전트 (시연용, SAMPLE 데이터)",
   "type": "module",
   "engines": {
@@ -13,7 +13,7 @@
     "start": "node scripts/build.mjs && node server/index.mjs",
     "sample": "node scripts/generate-sample.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test:logic": "tsx tests/logic-smoke.ts && tsx tests/logic-v3.ts",
+    "test:logic": "tsx tests/logic-smoke.ts && tsx tests/logic-v3.ts && tsx tests/logic-docs.ts && tsx tests/logic-manual.ts",
     "test:e2e": "python3 tests/e2e.py http://localhost:5173"
   },
   "dependencies": {

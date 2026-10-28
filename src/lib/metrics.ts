@@ -65,6 +65,8 @@ export interface Derived {
   supplierDelivery: Map<string, DeliveryStats>;
   pairDelivery: Map<string, DeliveryStats>;
   contractViews: ContractView[];
+  /** 견적(수기 입력 docType '견적')을 뺀 계약 — 원가 평가·후보 업체 단가·결제조건·단가 상승 계산은 확정된 계약만 쓴다 */
+  agreedContracts: ContractView[];
   inventoryViews: InventoryView[];
   evaluations: Map<string, SupplierEvaluation>;
   supplierViews: SupplierView[];
@@ -172,11 +174,12 @@ export function derive(data: DataSet, asOf: string): Derived {
     supplierDelivery,
     pairDelivery,
     contractViews,
+    agreedContracts: contractViews.filter((c) => c.docType !== "견적"),
     inventoryViews,
     evaluations: new Map(),
     supplierViews: [],
     bomIndex: buildBomIndex(data.bom ?? []),
-    payments: buildPayments(poViews, data.contracts, asOf),
+    payments: buildPayments(poViews, data.contracts.filter((c) => c.docType !== "견적"), asOf),
   };
   for (const s of data.suppliers) partial.evaluations.set(s.supplierId, evaluateSupplier(s.supplierId, partial));
   partial.supplierViews = data.suppliers.map((s) => {

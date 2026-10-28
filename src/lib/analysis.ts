@@ -111,7 +111,7 @@ function itemCandidates(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     const sup = d.suppliersById.get(sid);
     const mine = pos.filter((p) => p.supplierId === sid);
     const st = deliveryStats(mine);
-    const contract = latestContract(d.contractViews.filter((c) => c.itemCode === item.itemCode && c.supplierId === sid));
+    const contract = latestContract(d.agreedContracts.filter((c) => c.itemCode === item.itemCode && c.supplierId === sid));
     const lastPO = [...mine].filter((p) => p.unitPrice != null).sort((a, b) => b.orderDate.localeCompare(a.orderDate))[0];
     const price = contract ? contract.unitPrice : lastPO?.unitPrice ?? null;
     const currency = contract ? contract.currency : lastPO?.currency ?? "KRW";
@@ -488,12 +488,12 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
 function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   const { d } = ctx;
   const threshold = params.threshold ?? EVAL_CONFIG.priceIncreaseThreshold;
-  const list = d.contractViews
+  const list = d.agreedContracts
     .filter((c) => c.changeRate !== null && (c.changeRate as number) >= threshold)
     .filter((c) => !params.itemCode || c.itemCode === params.itemCode)
     .sort((a, b) => (b.changeRate as number) - (a.changeRate as number));
   const peerAvg = (c: ContractView) => {
-    const peers = d.contractViews.filter((x) => x.itemCode === c.itemCode && x.supplierId !== c.supplierId && x.changeRate !== null);
+    const peers = d.agreedContracts.filter((x) => x.itemCode === c.itemCode && x.supplierId !== c.supplierId && x.changeRate !== null);
     return peers.length ? round(peers.reduce((a, x) => a + (x.changeRate as number), 0) / peers.length, 1) : null;
   };
   const rows: ResultRow[] = list.map((c, i) => {
@@ -530,7 +530,7 @@ function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     purpose: `직전 계약보다 단가가 ${threshold}% 이상 오른 품목·업체를 찾아 협상과 원가 검토에 활용합니다.`,
     scope: [
       { label: "기준", value: `직전 계약 대비 +${threshold}% 이상${params.threshold ? "" : " (예시 기준)"}` },
-      { label: "대상", value: `계약 ${d.contractViews.length}건` },
+      { label: "대상", value: `계약 ${d.agreedContracts.length}건` },
       { label: "기준일", value: ctx.meta.asOf },
     ],
     columns: [
@@ -734,7 +734,7 @@ function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     sources: [
       { table: "suppliers", label: "협력업체", ids: [sid] },
       { table: "purchaseOrders", label: "구매조달 발주", ids: pos.map((p) => p.poNo) },
-      { table: "contracts", label: "원가-계약", ids: d.contractViews.filter((c) => c.supplierId === sid).map((c) => c.contractId) },
+      { table: "contracts", label: "원가-계약", ids: d.agreedContracts.filter((c) => c.supplierId === sid).map((c) => c.contractId) },
     ],
     charts: [
       { id: "crit", title: "평가 항목별 점수", type: "bar", unit: "점", yLabel: "점수 (0~100)", categories: rows.map((r) => r.label), series: [{ key: "s", label: "점수", values: rows.map((r) => (r.values.score === null ? null : Number(r.values.score))) }], digits: 1, caption: rows.some((r) => r.values.score === null) ? "빈 칸은 데이터 누락 항목" : undefined },

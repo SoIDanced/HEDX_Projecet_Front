@@ -1,38 +1,21 @@
-// AI 대화 패널: 오른쪽에 고정된 대화창 — 글 답변만 보여 준다 (표·차트 없음)
-// 위쪽: 선택 정보(접이식) · 대화 이력 · ⋯ 메뉴 / 가운데: 대화 / 아래: 추천 질문 · 입력창
+// AI 에이전트 패널: 오른쪽에 고정된 대화창 — 글 답변만 보여 준다 (표·차트 없음)
+// 위쪽: 선택 정보(접이식) · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEllipsis, LuEraser, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
+import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuFileUp, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
 import { STEPS } from "../ai/agent";
 import { resultName, SUGGESTED, useStore, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
 import { answerSections } from "../lib/answerText";
+import { DOC_ACCEPT, DOC_OK_TEXT, registerDocument, validateDocumentFile } from "../lib/documents";
 import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { resultCsv, resultSheets } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
 import type { AnalysisResult } from "../lib/analysisTypes";
+import { AiAvatar } from "./AiAvatar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { HistoryPanel } from "./HistoryPanel";
 import { SelectionDetail, useSelectionTitle } from "./SelectionDetail";
 import { Chip, Words } from "./ui";
-
-/** 'AI와 대화'임이 바로 보이는 아이콘: 말풍선 + 반짝임 */
-export function AiChatIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg className="ai-chat-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h8A2.5 2.5 0 0 1 17 5.5V7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path
-        d="M3 9.5A2.5 2.5 0 0 1 5.5 7h11A2.5 2.5 0 0 1 19 9.5v6a2.5 2.5 0 0 1-2.5 2.5H10l-4 3v-3h-.5A2.5 2.5 0 0 1 3 15.5z"
-        fill="currentColor"
-        fillOpacity=".16"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M11 9.6l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" />
-      <path d="M19.6 2.2l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z" fill="currentColor" />
-    </svg>
-  );
-}
 
 function EngineBadge({ engine }: { engine: string }) {
   if (engine === "rule") return <span className="engine engine-rule">규칙 기반 데모 응답</span>;
@@ -60,16 +43,16 @@ function ExportButtons({ result }: { result: AnalysisResult }) {
 }
 
 function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
-  const { state } = useStore();
+  const { state, meta } = useStore();
   const { ask, rerun } = useAgent();
   const result = m.resultId ? state.results[m.resultId] : undefined;
   const sections = useMemo(() => (result ? answerSections(result) : []), [result]);
-  const stale = result && result.dataId !== state.meta.dataId && state.lastResultId === result.id; // 가장 최근 답변에만 안내
+  const stale = result && result.dataId !== meta.dataId && state.lastResultId === result.id; // 가장 최근 답변에만 안내
   const sample = result?.dataLabel.includes("SAMPLE");
   return (
     <div className="msg msg-ai" data-mid={m.id} data-result={m.resultId}>
       <div className="msg-avatar" aria-hidden>
-        <AiChatIcon size={18} />
+        <AiAvatar size={32} />
       </div>
       <div className={`msg-body ${m.error ? "is-error" : ""}`}>
         <EngineBadge engine={m.error ? "error" : m.engine} />
@@ -118,6 +101,12 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
             </div>
           </>
         )}
+        {m.resultId && !result && (
+          <p className="msg-gone" data-gone>
+            <LuTriangleAlert aria-hidden />
+            <span>이 답변의 분석 결과는 대화 이력에서 삭제되어 근거 자료·엑셀·CSV 내보내기와 다시 분석을 쓸 수 없습니다. 위의 글 내용은 그대로 남아 있습니다.</span>
+          </p>
+        )}
         {m.options && (
           <div className="opt-chips" role="group" aria-label="선택지">
             {m.options.map((o) => (
@@ -154,15 +143,14 @@ export function ChatPanel() {
   const { state, derived, dispatch } = useStore();
   const { ask, abort, showAnswer } = useAgent();
   const [text, setText] = useState("");
-  const [menu, setMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [newBelow, setNewBelow] = useState(false); // 위를 읽는 중 새 답변이 온 경우
   const [announce, setAnnounce] = useState(""); // 스크린리더용 한 줄 알림 (긴 답변 전체를 읽지 않게)
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [registering, setRegistering] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const nearBottom = useRef(true);
   const seenCount = useRef(state.messages.length);
   const selTitle = useSelectionTitle();
@@ -209,26 +197,6 @@ export function ChatPanel() {
     if (!a || a === document.body || a.disabled || !a.isConnected) inputRef.current?.focus();
   }, [state.busy]);
 
-  useEffect(() => {
-    if (!menu) return;
-    menuRef.current?.querySelector<HTMLElement>("button")?.focus();
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (menuRef.current && !menuRef.current.contains(t) && !t.closest(".chat-menu-btn")) setMenu(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setMenu(false);
-      menuBtnRef.current?.focus();
-    };
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menu]);
-
   const onListScroll = () => {
     const el = listRef.current;
     if (!el) return;
@@ -249,6 +217,27 @@ export function ChatPanel() {
     setText("");
     ask(q);
     inputRef.current?.focus();
+  };
+
+  // 문서 등록: 형식·크기만 화면에서 검사하고, 실제 파싱·청킹·임베딩·벡터DB 저장은 백엔드 몫(src/lib/documents.ts 스텁)
+  const onPickDocs = async (list: FileList | null) => {
+    const files = Array.from(list ?? []);
+    if (fileRef.current) fileRef.current.value = ""; // 같은 파일을 다시 골라도 반응하게
+    if (!files.length || registering) return;
+    for (const f of files) {
+      const err = validateDocumentFile(f);
+      if (err) return void dispatch({ type: "toast", text: files.length > 1 ? `${f.name}: ${err}` : err, tone: "warn" });
+    }
+    setRegistering(true);
+    try {
+      await Promise.all(files.map((f) => registerDocument(f)));
+      dispatch({ type: "toast", text: files.length > 1 ? `${DOC_OK_TEXT}
+(${files.length}건)` : DOC_OK_TEXT });
+    } catch {
+      dispatch({ type: "toast", text: "문서 등록에 실패했습니다. 잠시 뒤 다시 시도해 주세요.", tone: "warn" });
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const openFromHistory = (id: string) => {
@@ -319,10 +308,10 @@ export function ChatPanel() {
         <div className="panel-title-row">
           <div className="chat-title">
             <span className="chat-title-icon" aria-hidden>
-              <AiChatIcon size={18} />
+              <AiAvatar size={36} />
             </span>
             <div className="chat-title-text">
-              <Words as="h2" className="panel-title" text="AI 대화" />
+              <Words as="h2" className="panel-title" text="AI 에이전트" />
               <span>{state.aiMode === "llm" ? "LLM 응답 모드" : "규칙 기반 분석 · 글 답변"}</span>
             </div>
           </div>
@@ -346,7 +335,6 @@ export function ChatPanel() {
               onClick={(e) => {
                 e.currentTarget.focus(); // 눌러도 초점이 안 옮겨지는 브라우저 대비 — 닫을 때 여기로 돌아온다
                 setShowHistory((v) => !v);
-                setMenu(false);
               }}
               aria-expanded={showHistory}
               aria-controls="history-panel"
@@ -354,26 +342,11 @@ export function ChatPanel() {
             >
               <LuHistory aria-hidden /> 대화 이력 <span className="count-badge">{historyCount}</span>
             </button>
-            <button type="button" ref={menuBtnRef} className={`icon-btn chat-menu-btn ${menu ? "is-on" : ""}`} onClick={() => setMenu((v) => !v)} aria-expanded={menu} aria-controls="chat-menu" aria-label="대화 메뉴" title="대화 메뉴 (대화 지우기)">
-              <LuEllipsis aria-hidden />
+            <button type="button" className="btn btn-quiet clear-chat-btn" onClick={() => setConfirmClear(true)} title="지금까지의 대화를 지웁니다 (대화 이력은 남김)">
+              <LuEraser aria-hidden /> 대화 지우기
             </button>
           </div>
         </div>
-        {menu && (
-          <div className="chat-menu" id="chat-menu" ref={menuRef} role="group" aria-label="대화 메뉴">
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                setMenu(false);
-                setConfirmClear(true);
-              }}
-              aria-label="대화 지우기"
-            >
-              <LuEraser aria-hidden /> 대화 지우기 <small>대화 이력은 남김</small>
-            </button>
-          </div>
-        )}
         {showHistory && <HistoryPanel onClose={closeHistory} onOpen={openFromHistory} />}
       </div>
       {selTitle && (
@@ -423,6 +396,13 @@ export function ChatPanel() {
       <div className="composer">
         {onlyWelcome && suggestRow}
         {!selTitle && ctxChips}
+        <div className="doc-row">
+          <input ref={fileRef} id="doc-file-input" type="file" hidden multiple accept={DOC_ACCEPT} onChange={(e) => onPickDocs(e.target.files)} />
+          <button type="button" className="btn btn-quiet btn-small doc-register-btn" onClick={() => fileRef.current?.click()} disabled={registering} aria-busy={registering} title="PDF·DOCX 문서를 등록합니다 (파일당 최대 20MB)">
+            <LuFileUp aria-hidden /> {registering ? "등록 중…" : "문서 등록"}
+          </button>
+          <span className="doc-hint">PDF · DOCX, 20MB 이하</span>
+        </div>
         <form
           className="composer-form"
           onSubmit={(e) => {
@@ -457,15 +437,12 @@ export function ChatPanel() {
         <ConfirmDialog
           title="대화를 지울까요?"
           confirmLabel="대화 지우기"
-          onCancel={() => {
-            setConfirmClear(false);
-            setTimeout(() => inputRef.current?.focus(), 0);
-          }}
+          onCancel={() => setConfirmClear(false)} /* 초점은 확인 창이 열릴 때 있던 '대화 지우기' 버튼으로 돌아간다 */
           onConfirm={() => {
             dispatch({ type: "clearChat" });
             dispatch({ type: "toast", text: "대화를 지웠습니다. 대화 이력은 그대로 남아 있습니다." });
             setConfirmClear(false);
-            setTimeout(() => inputRef.current?.focus(), 0);
+            setTimeout(() => inputRef.current?.focus(), 30); // 확인 창의 초점 복귀(0ms)보다 뒤에 입력칸으로
           }}
         >
           <p>지금까지 주고받은 대화가 지워집니다. 분석한 답변은 ‘대화 이력’에 그대로 남아 있어 다시 볼 수 있습니다.</p>

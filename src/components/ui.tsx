@@ -1,6 +1,6 @@
 // 공통 UI 조각
 import { createElement, Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import { motionScale, reducedMotion } from "../lib/motion";
+import { motionScale, reducedMotion, tweenScale } from "../lib/motion";
 import type { ColumnKind, ResultColumn } from "../lib/analysisTypes";
 import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "../lib/format";
 
@@ -111,7 +111,7 @@ export function CountUp({ value, format = (n) => String(Math.round(n)), as = "sp
       const base = parseFloat(getComputedStyle(el).getPropertyValue("--base")) || 0; // 지금 재생 범위의 기준 지연(ms, 디자인 시간)
       animate(0, (base + delay) * k, duration * k);
     };
-    if (shown.current !== null && shown.current !== value && el.closest("[data-tween]") && !reducedMotion()) animate(shown.current, 0, 1600 * motionScale()); // 약 600ms
+    if (shown.current !== null && shown.current !== value && el.closest("[data-tween]") && !reducedMotion()) animate(shown.current, 0, 1600 * tweenScale()); // 약 600ms
     else if (el.closest(".is-entering")) run();
     else show(value);
     const onReplay = (e: Event) => {

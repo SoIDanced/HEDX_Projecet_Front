@@ -4,7 +4,7 @@ import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type Mous
 import type { ChartSpec } from "../../lib/analysisTypes";
 import { fmtInt, fmtNum } from "../../lib/format";
 import { ScrollX } from "../ScrollX";
-import { motionScale, reducedMotion } from "../../lib/motion";
+import { reducedMotion, tweenScale } from "../../lib/motion";
 
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 const colorOf = (spec: ChartSpec, i: number) => (spec.series.length === 1 ? "var(--series-single)" : SERIES[i % SERIES.length]);
@@ -348,7 +348,7 @@ function useMorph(on: boolean, sig: string, tgt: Pts) {
     cancelAnimationFrame(raf.current);
     if (!on || !from || reducedMotion() || from.vals.length !== tgt.vals.length) return setA(null);
     const t0 = performance.now();
-    const dur = 1600 * motionScale();
+    const dur = 1600 * tweenScale();
     setA({ from, to: tgt, e: 0 });
     const tick = (now: number) => {
       const t = Math.min(1, (now - t0) / dur);

@@ -1,12 +1,12 @@
 /* v0.5.2 — Dashboard v14 모션 세트 (원래 구조·순서·이징 그대로, 전체 길이만 압축)
-   ─ 시간은 모두 'v14 디자인 시간(ms)'으로 적고 --k(동작 배율) 하나를 곱한다. 첫 화면 전체가 약 1초에 끝나도록 .38.
+   ─ 시간은 모두 'v14 디자인 시간(ms)'으로 적고 --k(동작 배율) 하나를 곱한다. 첫 화면 전체가 약 1.2초에 끝나도록 .5 (v0.5.6: .38 → .5, 약 +30%).
    ─ 재생 범위: 처음 열 때(.app.is-entering)와 탭·하위 보기·화면 전환(#tab-panel / .workspace 에 붙는 .is-entering)뿐.
      필터·정렬·페이지·데이터 편집은 클래스가 없으므로 동작 없이 바로 최종 모습 (src/lib/motion.ts).
    ─ 클래스가 없거나 JS가 실패해도 모든 요소는 보이는 상태가 기본이다(숨김은 키프레임 from 에만 있다).
    ─ transform/opacity 위주. clip-path·filter 는 v14가 쓰는 곳(rise·wordIn·panelIn·rowIn·wipeIn·glowIn)만.
      너비·높이는 애니메이션하지 않고 scaleX/scaleY 를 쓴다. */
 
-:root { --k: 0.38; }
+:root { --k: 0.5; --k-tween: 0.38; } /* --k: 처음 열기·탭 전환 진입 동작 / --k-tween: 선택 바꿈 이어서 움직이기(약 600ms, v0.5.6에서도 그대로) */
 
 /* ── 키프레임 (v14 원본 그대로, 너비/높이 → scale) ── */
 @keyframes shellIn { from { opacity: 0; transform: scale(0.985); } }
@@ -50,8 +50,9 @@
 .app.is-entering .tb-actions { --pd: 160ms; }
 .app.is-entering .tb-tools { --pd: 200ms; }
 .app.is-entering .tb-user { --pd: 260ms; }
-.app.is-entering .brand-logo { animation: logoIn calc(1000ms * var(--k)) var(--spring) calc(150ms * var(--k)) both; }
-.app.is-entering .brand-co, .app.is-entering .brand-product { animation: wipeIn calc(800ms * var(--k)) var(--ease) calc(350ms * var(--k)) both; }
+.app.is-entering .brand-plate, .app.is-entering .brand-product { animation: wipeIn calc(800ms * var(--k)) var(--ease) calc(350ms * var(--k)) both; }
+/* v0.6.0: 넓은 한글 상호 로고는 회전이 어색해 wipeIn(위), 둥근 AI 심볼이 예전 logoIn 회전을 이어받음 */
+.app.is-entering .chat-title-icon .ai-avatar { animation: logoIn calc(1000ms * var(--k)) var(--spring) calc(250ms * var(--k)) both; }
 .app.is-entering .brand-divider { animation: fadeIn calc(600ms * var(--k)) var(--ease) calc(450ms * var(--k)) both; }
 .app.is-entering .panel-a { animation: cardIn calc(750ms * var(--k)) var(--ease) calc(var(--base) * var(--k)) both; }
 .app.is-entering .panel-c { animation: cardIn calc(750ms * var(--k)) var(--ease) calc((var(--base) + 80ms) * var(--k)) both; }
@@ -128,16 +129,16 @@
 
 /* ── 2-2) 선택 바꿈 이어서 움직이기 (v0.5.4): 평가 대상·소재·직종·기간이 바뀌어도 0에서 다시 시작하지 않는다 ──
    도넛 호 길이·점수 막대 너비는 CSS 전환(transition)이 '지금 보이는 크기'에서 새 값까지 키우거나 줄이고(도중에 또 바뀌면 그 자리에서 다시 출발),
-   숫자는 CountUp(data-tween 안), 꺾은선은 Chart.tsx 의 morph. 길이는 숫자·꺾은선과 같은 1600ms × --k(약 600ms), 이징은 ease-out-quart. */
+   숫자는 CountUp(data-tween 안), 꺾은선은 Chart.tsx 의 morph. 길이는 숫자·꺾은선과 같은 1600ms × --k-tween(약 600ms), 이징은 ease-out-quart. */
 :root { --ease-q: cubic-bezier(0.25, 1, 0.5, 1); }
-.donut-arc { transition: stroke-dasharray calc(1600ms * var(--k)) var(--ease-q); }
-.eval-bar-fill { transition: width calc(1600ms * var(--k)) var(--ease-q); }
+.donut-arc { transition: stroke-dasharray calc(1600ms * var(--k-tween)) var(--ease-q); }
+.eval-bar-fill { transition: width calc(1600ms * var(--k-tween)) var(--ease-q); }
 
 /* ── 3) 자기 신호로 움직이는 것 (재생 범위와 무관): 팝오버·모달·토스트·말풍선·툴팁 ── */
 .msg { animation: bubbleIn 450ms var(--spring) both; }
 .app.is-entering .chat-list > .msg { animation: bubbleIn calc(450ms * var(--k)) var(--spring) calc((var(--base) + 500ms + min(var(--r, 0), 6) * 40ms) * var(--k)) both; }
 .tooltip, .steps-tip { animation: tipIn 250ms var(--ease) both; }
-.popover, .menu, .chat-menu, .kw-results { animation: popOpen 250ms var(--ease) both; }
+.popover, .menu, .kw-results { animation: popOpen 250ms var(--ease) both; }
 .modal { animation: modalIn 420ms var(--spring) both; }
 .modal-backdrop { animation: fadeIn 250ms ease both; }
 .toast { animation: toastIn 450ms var(--spring) both; }

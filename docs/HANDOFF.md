@@ -21,7 +21,7 @@
 | v0.3.0 | 브랜드 헤더, 정렬 두 방향, 스크롤 1개+페이지 나누기, 근거 팝오버, 탭 4등분, 챗봇 왼쪽 아래·새 디자인, 샘플 버튼 정리, 간이 로그인·사용자별 저장, 업로드 IndexedDB 저장, 관심 목록, 분석 이력, 엑셀, 요약 지표 4개, 부품 분류 필터, 등급 이력, 대금 결제 일정·알림, 원자재 시세, 인건비, 경쟁사·업계 동향, 첫 사용 안내, 처음 사용자 점검 |
 | v0.3.1 | 사용자 요청: 요약 지표 버튼 4개 **삭제**, 협력사·부품 상세를 **오른쪽 분석 결과창**으로 이동(챗봇 결과가 나오면 자동 접힘, 결과창 머리 아이콘으로 열고 닫기). (채점 카드를 작은 위젯으로 줄였는데 이는 오해였음 → v0.3.2에서 되돌림) |
 | v0.3.2 | 채점 카드 원래 모양 복원, **카드 아래 처리 단계 영역만 잘라 카드 오른쪽 위 구석에 작은 아이콘 줄로** 이동 |
-| v0.4.0 | 사용자 요청: 2분할 **70:30**, 오른쪽을 **고정 AI 대화 패널**로(떠 있는 챗봇 삭제), 답변은 **글로만**(4형식·보기 설정·프리셋 삭제), 선택 정보는 대화 패널 위 접이식, 분석 이력 → 대화 이력, 답변별 엑셀·CSV 유지 |
+| v0.4.0 | 사용자 요청: 2분할 **70:30**, 오른쪽을 **고정 AI 에이전트 패널**로(떠 있는 챗봇 삭제), 답변은 **글로만**(4형식·보기 설정·프리셋 삭제), 선택 정보는 대화 패널 위 접이식, 분석 이력 → 대화 이력, 답변별 엑셀·CSV 유지 |
 
 자세한 항목은 `CHANGELOG.md`.
 
@@ -50,15 +50,15 @@
   - 자재-공급관리: 재고·공급 · **경쟁사 공급 동향** · **업계 동향**
 - 목록 공통: 검색, 빠른 필터(★ 관심만 포함), 상세 필터(다중 선택·범위·기간·**부품 분류 4단계 엔진›대부품›중부품›소부품**), 조건 칩·전체 초기화, "관심 항목 맨 위", 불러오기, 엑셀 내보내기(지금 조건의 행).
 - 표: 모든 정렬 열이 첫 방향(숫자 큰 값·날짜 최근·글자 가나다) → 반대 → 해제, 위·아래 화살표, 20/50/100행 페이지 나누기("1–20 / 346행"), 선택 행이 있는 쪽 자동 이동, 왼쪽 패널 세로 스크롤 1개, 가로로 넘치면 가장자리 그림자(`ScrollX.tsx`).
-- 행을 누르면 **상세는 오른쪽 AI 대화 패널 위쪽**에 표시(태블릿·휴대폰은 AI 대화 탭). AI 질문의 대상(문맥)도 된다.
+- 행을 누르면 **상세는 오른쪽 AI 에이전트 패널 위쪽**에 표시(태블릿·휴대폰은 AI 에이전트 탭). AI 질문의 대상(문맥)도 된다.
 
-### 3-4. 오른쪽 AI 대화 패널 (`ChatPanel.tsx`, `SelectionDetail.tsx`, `HistoryPanel.tsx`) — v0.4.0
-- 머리: AI 대화 제목, **선택 정보 아이콘(ⓘ, 아이콘만·aria-label)**, 대화 이력(n), ⋯ 메뉴(대화 지우기, 일반 팝오버). 그 아래 선택 정보(접이식)+질문 대상 칩, 대화(위를 읽는 중 '새 답변 ↓'), 진행 중 '중단', 추천 질문(환영 메시지만 있을 때만 표시, 첫 질문 뒤에는 완전히 숨김 — v0.4.3)·입력창. (v0.4.2) 키워드 검색은 왼쪽 데이터 관리 패널 머리로 옮겼다.
+### 3-4. 오른쪽 AI 에이전트 패널 (`ChatPanel.tsx`, `SelectionDetail.tsx`, `HistoryPanel.tsx`) — v0.4.0
+- 머리: AI 에이전트 제목, **선택 정보 아이콘(ⓘ, 아이콘만·aria-label)**, 대화 이력(n), **대화 지우기(독립 버튼, v0.5.6: ⋯ 메뉴 삭제)**. 대화 이력 창 아래에 **대화 이력 전체 삭제**(확인 창·고정 포함, 삭제된 이력의 답변은 글만 남고 안내 줄 `[data-gone]`). 아이콘은 `AiAvatar.tsx`(공식 로고 PNG를 CSS로 원판에 맞춤, 중립 빌드는 말풍선 아이콘). 그 아래 선택 정보(접이식)+질문 대상 칩, 대화(위를 읽는 중 '새 답변 ↓'), 진행 중 '중단', 추천 질문(환영 메시지만 있을 때만 표시, 첫 질문 뒤에는 완전히 숨김 — v0.4.3)·입력창. (v0.4.2) 키워드 검색은 왼쪽 데이터 관리 패널 머리로 옮겼다.
 - **선택 정보:** 협력사·발주·계약·부품 상세(등급·납기·공급 부품 분류 경로·등급 변동 이력 등). 새 답변이 오면 접힘, '선택 해제'.
 - **답변은 글로만(표·차트·카드·보고서 없음).** `answerSections(result)`가 핵심 지표·비교 결과·위험 요소·검토할 사항·평가 근거를 글 목록으로 만든다. 계산과 문장은 코드(분석 결과 구조)에서 나온다. 답변마다 사용 데이터·기준일·SAMPLE·"최종 선정은 담당자" 문구, 다시 분석, 엑셀·CSV 내보내기(근거 표를 파일로만).
 - 데이터가 바뀌면 가장 최근 답변에 "다시 분석" 안내(stale).
 - 대화 이력: 최대 50건(넘으면 고정 안 한 오래된 것부터 삭제·알림), 이름·질문 검색, 최신순·이름순, 이름 바꾸기, 고정, 삭제(한 번 더 확인). 항목을 누르면 대화의 그 답변으로 이동·강조.
-- 좁은 화면(1180px 이하): "데이터 관리"/"AI 대화" 탭. 행을 눌러도 탭은 저절로 바뀌지 않고 AI 대화 탭에 점이 뜬다.
+- 좁은 화면(1180px 이하): "데이터 관리"/"AI 에이전트" 탭. 행을 눌러도 탭은 저절로 바뀌지 않고 AI 에이전트 탭에 점이 뜬다.
 
 ### 3-5. AI 질문 처리 (`src/ai/*`, `src/store/agent.tsx`, 답변 글 `src/lib/answerText.ts`)
 - (v0.4.0) 떠 있는 챗봇 창·버튼·말풍선은 없어지고 같은 대화 기능이 오른쪽 패널에 고정되었다. 입력창 위 추천 질문 칩, 질문 대상 칩, Enter 전송.
@@ -87,13 +87,13 @@
 | 영역 | 파일 |
 |---|---|
 | 뼈대·2분할·로그인 게이트 | `src/App.tsx`, `src/main.tsx` |
-| 상단 바·브랜드 | `src/components/Topbar.tsx`, `Brand.tsx`, `src/brand/{hanwha,neutral,types,index}.ts`, `src/assets/brand/logo.png` |
+| 상단 바·브랜드 | `src/components/Topbar.tsx`, `Brand.tsx`, `src/brand/{hanwha,neutral,types,index}.ts`, `src/assets/brand/{hanwha-engine-logo.svg,logo.png}` |
 | 로그인·첫 안내 | `LoginScreen.tsx`, `Onboarding.tsx`, `src/platform/users.ts` |
 | 채점 카드·근거 팝오버 | `SupplierEvaluationCard.tsx`, `src/lib/evaluation.ts` |
 | 데이터 탭·표·필터 | `DataManagementTabs.tsx`, `DataTable.tsx`, `FilterBar.tsx`, `ScrollX.tsx`, `src/lib/filters.ts`, `kpi.ts`(QUICK), `bom.ts` |
 | 하위 보기 | `src/components/subviews/{SubViewHead,PaymentSchedule,MaterialPrices,LaborWages,CompetitorSupply,IndustryNews}.tsx` |
 | 선택 정보 | `SelectionDetail.tsx`, `GradeTimeline.tsx`, `FavStar.tsx` |
-| AI 대화·답변 | `ChatPanel.tsx`(대화·입력·내보내기 버튼), `HistoryPanel.tsx`, `src/lib/answerText.ts`, `charts/Chart.tsx`(왼쪽 하위 보기용) |
+| AI 에이전트·답변 | `ChatPanel.tsx`(대화·입력·내보내기 버튼), `HistoryPanel.tsx`, `src/lib/answerText.ts`, `charts/Chart.tsx`(왼쪽 하위 보기용) |
 | AI | `KeywordSearch.tsx`, `src/ai/{intent,llm,agent}.ts`, `src/store/agent.tsx`, `server/index.mjs`(`/api/ai/interpret`, `/api/ai/status`) |
 | 상태 | `src/store/store.tsx`(State·액션: selectRow·detailOpen·addResult·focusData·goPayments·favorites·payCheck·replaceData·resetSample 등) |
 | 계산 | `src/lib/{metrics,analysis,payments,market,search}.ts` |
@@ -103,12 +103,13 @@
 | 대화상자·공통 | `ConfirmDialog.tsx`, `ImportDialog.tsx`, `ui.tsx`, `focus.ts` |
 | 스타일 | `src/styles.css` (토큰, 버전별 블록 주석, 미디어·컨테이너 쿼리) |
 | 빌드 | `scripts/build.mjs` (`virtual:brand` 플러그인으로 두 번 빌드) |
+| 수기입력 | `src/lib/manual.ts`, `src/components/ManualEntryDialog.tsx`(+ 스토어 `manual*`, `FilterBar` `lead`), `tests/logic-manual.ts` |
 | 테스트 | `tests/e2e.py`, `tests/logic-smoke.ts`, `tests/logic-v3.ts` |
 
 `src/components/KpiStrip.tsx`는 v0.3.1에서 삭제됨(옛 저장소에서 수동 삭제 필요했음).
 
 ## 5. 저장 키 (`procure-ai:` 접두)
-사용자별: `u:{id}:session.v3`(대화·결과·이력 메타), `u:{id}:view-settings.v2`, `u:{id}:prefs.v1`(관심·맨 위 고정·결제 확인), `u:{id}:onboarded.v1`, IndexedDB `u:{id}:uploads`. 공용: `users.v1`, `current-user.v1`, `chat-window.v2`, `chat-nudge.v1`, `split.v1`. 키 구조를 바꾸면 버전을 올리고 이전 코드를 넣는다.
+사용자별: `u:{id}:session.v3`(대화·결과·이력 메타), `u:{id}:view-settings.v2`, `u:{id}:prefs.v1`(관심·맨 위 고정·결제 확인), `u:{id}:onboarded.v1`, `u:{id}:manual.v1`(수기 입력, v0.7.0), IndexedDB `u:{id}:uploads`. 공용: `users.v1`, `current-user.v1`, `chat-window.v2`, `chat-nudge.v1`, `split.v1`. 키 구조를 바꾸면 버전을 올리고 이전 코드를 넣는다.
 
 ## 6. 샘플 데이터 결정 사항
 - 기준일 2026-10-15. 협력업체 12, 품목 10, 발주 346, 계약 23, 재고 10, BOM 18행(SAMPLE 엔진 X형·Y형, 대부품: 기관 본체·실린더부·운동부·연료·유압 공급부·소기·과급부·배관·냉각부 — 2행정 선박 엔진 설명서 묶음 참고), 시세 336행, 환율 24, 임금 288, 경쟁사 7(가온중공업 엔진사업부(가상)·서진마린엔진(가상)·동해파워텍(가상)), 기사 8(SAMPLE 기사(가상)).
@@ -154,6 +155,28 @@ claude.ai에서 v0.1.0~v0.3.2까지(v0.4.0은 Claude Code) 만들어 왔고, 여
 규칙: SAMPLE 데이터 외에 수치·업체명을 지어내지 말 것, 새 npm 패키지 추가 금지(필요하면 먼저 물어볼 것),
 API 키·비밀번호·면담 기록은 커밋 금지, 기존 기능은 내가 지우라고 한 것만 지울 것.
 ```
+
+## v0.7.0 메모 (수기입력)
+- 요청: 견적서·납기보고서·계약서를 손으로 입력하는 팝업, 입력 즉시 대시보드 반영. 버튼 '수기입력'은 필터 줄에서 **상세 필터 바로 오른쪽**(`FilterBar`의 `lead` 슬롯, `DataManagementTabs`가 채움).
+- 구조: `src/lib/manual.ts`(순수 함수: 칸 정의 `DETAIL_FIELDS`, 검증 `validateManual`, 금액 동기화 `syncAmount`, 변환 `buildEntry`/`entryRow`, 합치기 `mergeManual`) · `ManualEntryDialog.tsx`(화면) · 스토어 `state.manual`(원본 목록)·`manualOpen`·`flash` + Store 컨텍스트의 `data`·`meta`(= 기본 데이터+수기 입력). **계산·질문 답변은 `state.data`가 아니라 컨텍스트의 `data`/`meta`를 쓸 것.** `state.data`는 샘플/업로드 원본이며 업로드 저장·병합 대상.
+- 데이터 종류 맞춤: 납기보고서 → `purchaseOrders`, 계약서 → `contracts`(`docType:'계약'`), 견적서 → `contracts`(`docType:'견적'`, 시작=견적일, 종료=유효기한, 견적번호 `QT-M001` 자동). **견적은 `derived.agreedContracts`에서 빠져** 원가 점수·최저가 비교·후보 업체 단가·결제조건·단가 상승 계산에 안 쓰임(표·검색·건수에는 나옴). 새 품목은 `MANUAL-001`… 로 품목 마스터에 합쳐짐(같은 이름 재사용).
+- 날짜 기본값은 `meta.asOf`(샘플 2026-10-15)로 견적일·발주일·계약 시작일만. 번호가 겹치는 수기 행은 합칠 때 건너뜀.
+- 저장: localStorage `u:{id}:manual.v1`. 되돌리기·업로드 삭제 메뉴·로그아웃 삭제와 함께 지워짐.
+- 일부러 안 한 것: 수정(삭제 후 재입력), 공급사 직접 입력(공급사는 기존 목록에서만 선택), 문서 종류 '기타'(담을 데이터 종류 없음), 첨부 파일, 견적의 원가 비교 반영.
+- 바뀐 e2e: 기존 항목은 지우지 않음. 수기입력 시나리오(⑫)를 `tests/e2e.py` 끝에 추가. 좁은 화면 스윕에서 `.panel-tabs .is-active`(움직이는 배경 표시자라 검사기가 1.1:1로 오독, 기존 동작)는 새 창 검사에서만 제외.
+
+## v0.6.0 메모 (로고 SVG · 카드 폭 · 문서 등록 · 문서 검색)
+- 브랜드: `Brand.tsx` = `.brand-plate`(흰 판) > `img.brand-logo`(alt 한화엔진) + 구분선 + 제품 이름. `Brand` 타입의 `companyEn` 삭제, `wordmark` 추가(`src/brand/*`). 로고 높이 44/38/34px. SVG 파일은 수정 금지. 파일 지도: `src/assets/brand/hanwha-engine-logo.svg`, `src/lib/documents.ts`, `src/lib/documentSearch.ts`, `src/data/sample/documents.ts`, `tests/logic-docs.ts`.
+- 평가 카드 폭: 원인은 스크롤바 유무(`scrollbar-gutter: stable`로 해결). e2e는 클래식 스크롤바 브라우저(`cbrowser`)로 1366·1920(밝/어둠)·2560 모든 탭·하위 보기에서 폭·높이 ≤0.5px 확인.
+- 문서 등록은 UI+스텁뿐: 실제 파싱→청킹→임베딩→벡터DB 는 백엔드(POST /api/documents, multipart "file" → {docId,name,size,registeredAt}) 담당이 만든다. `registerDocument` 한 곳만 fetch 로 바꾸면 됨. 파서 라이브러리·FileReader 금지(정적 검사 e2e·logic).
+- 문서 검색은 시연용 규칙 코드. 백엔드 벡터DB 가 생기면 `searchDocuments` 결과 자리에 그 응답을 넣는다. 말뭉치는 전부 SAMPLE(가상).
+- 바뀐 e2e 항목(지우지 않고 바꿈): ① 로그인 화면 '한화엔진/HANWHA ENGINE 유지'(.brand-ko/.brand-en) → 로고 alt·영문 글자 없음 ② '로고 표시' + 브랜드 글자 한 덩어리·4.6배·HANWHA ENGINE 양끝맞춤·글자 크기 22px↑·서체·'로고 높이 38~42px' 묶음 → SVG 로고 한 장·옛 글자칸 없음·높이 44~48px·흰 판 ④개 ③ '한화엔진이 플랫폼 이름보다 큰 글자' → 로고 높이가 제품 이름 글자보다 큼 ④ logo.png 해시 검사의 'src/assets 변경 없음' → 새 SVG 추가만 허용. 모션 목록의 logoIn 은 AI 아이콘으로 이전. 새 검사 46개.
+
+## v0.5.6 메모 (사용자 요청 8가지)
+- 모션: `--k` .5(진입), `--k-tween` .38(선택 바꿈 이어서 움직이기 약 600ms). 글자 토큰 `--fs-*` 값 13/14/15/17/21. 여백 `--frame-x` clamp(12px,4.8vw,78px)·≤1180 15px·≤640 9px.
+- 상단 바 반응 규칙(v14.css): ≤2000 되돌리기 글자 접힘, ≤1900 질문 해석 글자 접힘+제품 이름 두 줄, ≤1700 기준일 접힘, ≤1500 제품 이름 15px, ≤1440 사용자 이름 접힘, ≤1270 상단 바 두 줄. 폭 바꿀 때 `.tb-status` 안 SAMPLE이 잘리는지 e2e('상태 알약 안 SAMPLE')가 1366·1920에서 확인한다.
+- 검색·필터 입력 통일 토큰 `--field-*`(tokens.css), 적용은 v14.css '데이터 관리 패널' 블록(`.panel-a` 범위 + `.kw-field`·`.search-field`).
+- 새 e2e는 e2e.py 'v0.5.6 새 검사' 블록(이력 전체 삭제·글자 +1px(v0.5.5 값 표 기록)·검색창 통일·AI 아이콘(로고 바이트 비교·git 해시)·중립 빌드·머리 버튼·여백 ×1.5). E2E 491개·로직 51개 통과.
 
 ## v0.5.5 메모 (채점 요약 막대 도킹, 선택 정보 머리 줄 고정)
 - 왼쪽 `.panel-body-a` 맨 앞에 `.eval-dock`(높이 0 sticky 래퍼) + `.eval-dock-bar`(role=region '채점 요약'). `SupplierEvaluationCard.tsx` 의 `useDocked`(IntersectionObserver 2개: 나타남 56px, 사라짐 56+24px)가 `is-on` 을 켠다. 전체 카드는 건드리지 않는다. 막대는 항상 그려 두어 평가 대상이 바뀌면 숨어 있어도 값이 이어서 움직인다. CSS 는 `styles/v14.css` 끝(v0.5.5 블록): sticky `top: calc(-1 * var(--pb-pt))`(패널 안쪽 여백 12px/8px 만큼 올려 맨 위에 맞춤), 아래 여백 -18px(= `.panel-body-a` gap 18px; gap 을 바꾸면 같이 바꿀 것), 막대 높이 56px 는 JS `DOCK_H` 와 같은 값.

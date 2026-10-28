@@ -13,6 +13,7 @@ export function FilterBar<T>({
   placeholder,
   shown,
   total,
+  lead,
   actions,
   extra,
 }: {
@@ -25,6 +26,7 @@ export function FilterBar<T>({
   placeholder: string;
   shown: number;
   total: number;
+  lead?: ReactNode; // 상세 필터 버튼 바로 오른쪽에 놓는 버튼(수기입력)
   actions?: ReactNode;
   extra?: ReactNode;
 }) {
@@ -51,6 +53,7 @@ export function FilterBar<T>({
           <LuListFilter aria-hidden /> 상세 필터{detailActive ? ` ${detailActive}` : ""}
           {open ? <LuChevronUp aria-hidden /> : <LuChevronDown aria-hidden />}
         </button>
+        {lead}
         {actions}
       </div>
       {quick.length > 0 && (
