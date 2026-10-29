@@ -114,6 +114,11 @@ def sort_all(page, table_sel, cycle_none=True):
     return n, bad
 
 
+def probe_primary(page):
+    """v0.7.1: 상단 바의 주황 '데이터 불러오기' 버튼이 없어져, .btn-primary 클래스(주 버튼 스타일)를 임시 버튼으로 만들어 색을 읽는다"""
+    return page.evaluate("() => { const b = document.createElement('button'); b.className = 'btn btn-primary'; document.querySelector('.tb-actions').appendChild(b); const s = getComputedStyle(b); const r = s.backgroundColor + '|' + s.color; b.remove(); return r; }")
+
+
 def no_hscroll(page):
     return page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth")
 
@@ -699,7 +704,7 @@ with sync_playwright() as p:
     csv = "업체ID,협력사명,품질 평가 점수,불량률(%),기술·대응력 점수,경영·ESG 점수\nSUP-011,업체 K,60,4.5,50,40\n"
     path = os.path.join(SHOTS, "upload.csv")
     open(path, "w", encoding="utf-8").write(csv)
-    page.locator(".topbar .btn-primary").click()
+    page.locator(".filter-row button", has_text="불러오기").click()  # v0.7.1: 상단 바 '데이터 불러오기' 삭제 → 필터 줄의 불러오기
     page.select_option("#import-dataset", "suppliers")
     page.set_input_files("#import-file", path)
     page.wait_for_selector(".validation")
@@ -805,9 +810,9 @@ with sync_playwright() as p:
     lap.locator(".pager .icon-btn[aria-label='이전 쪽']").click()
     lap.evaluate("() => document.querySelector('.panel-body-a').scrollTo(0, 0)")
     lap.get_by_role("tab", name="협력업체").click()
-    g = lap.evaluate("() => { const l=document.querySelector('.chat-list').getBoundingClientRect(), c=document.querySelector('.composer').getBoundingClientRect(), p=document.querySelector('.panel-c').getBoundingClientRect(), t=document.querySelector('#chat-input').getBoundingClientRect(), r=document.querySelector('.suggest-row'); return {list:l.height, cb:c.bottom, pb:p.bottom, tb:t.bottom, th:t.height, rowFits: r.scrollHeight <= r.clientHeight + 1, hint:getComputedStyle(document.querySelector('.composer-hint')).display}; }")
+    g = lap.evaluate("() => { const l=document.querySelector('.chat-list').getBoundingClientRect(), c=document.querySelector('.composer').getBoundingClientRect(), p=document.querySelector('.panel-c').getBoundingClientRect(), t=document.querySelector('#chat-input').getBoundingClientRect(), r=document.querySelector('.suggest-row'); return {list:l.height, cb:c.bottom, pb:p.bottom, tb:t.bottom, th:t.height, rowFits: r.scrollHeight <= r.clientHeight + 1 && r.scrollWidth <= r.clientWidth + 1, hint:getComputedStyle(document.querySelector('.composer-hint')).display}; }")
     check("1366×768 환영 상태: 대화 영역 96px 이상, 입력창이 잘리지 않음", g["list"] >= 96 and g["cb"] <= g["pb"] + 1 and g["tb"] <= g["pb"] and g["th"] >= 40, json.dumps({k: (round(v) if isinstance(v, float) else v) for k, v in g.items()}))
-    check("1366×768: 입력 안내 숨김 · 추천 질문은 한 줄(가로 스크롤)", g["hint"] == "none" and g["rowFits"])
+    check("1366×768: 입력 안내 숨김 · 추천 질문은 줄바꿈으로 모두 보임(스크롤 없음, v0.7.1: 예전 한 줄 가로 스크롤에서 바꿈) · 대화 영역 160px 이상", g["hint"] == "none" and g["rowFits"] and g["list"] >= 160)
     lap.locator(".data-table tbody tr", has_text="업체 B").locator(".name").click()
     g2 = lap.evaluate("() => { const l=document.querySelector('.chat-list').getBoundingClientRect(), c=document.querySelector('.composer').getBoundingClientRect(), p=document.querySelector('.panel-c').getBoundingClientRect(), h=document.querySelector('.chat-head').getBoundingClientRect(); return {list:l.height, cb:c.bottom, pb:p.bottom, head:h.height}; }")
     check("1366×768 행 선택 후: 머리 두 줄 이내(v0.5.6: 제목 줄 + 버튼 줄, v0.5.5는 80px 미만 한 줄) · 대화 영역 96px 이상 · 입력창 보임", g2["head"] < 130 and g2["list"] >= 96 and g2["cb"] <= g2["pb"] + 1, json.dumps({k: round(v) for k, v in g2.items()}))
@@ -928,7 +933,7 @@ with sync_playwright() as p:
     ph.locator(".panel-tabs button", has_text="AI 에이전트").click()
     check("휴대폰: 대화 패널·입력창 보임, 가로 스크롤 없음, 보내기 버튼 44px", ph.locator("#chat-input").is_visible() and no_hscroll(ph) and ph.locator(".send-btn").bounding_box()["width"] >= 44)
     ph.locator(".panel-tabs button", has_text="데이터 관리").click()
-    check("휴대폰: 상단 바 두 줄 (브랜드·알림·사용자 / 데이터 상태·불러오기)", ph.locator(".user-btn").bounding_box()["y"] < ph.locator(".topbar .btn-primary").bounding_box()["y"])
+    check("휴대폰: 상단 바 두 줄 (브랜드·알림·사용자 / 데이터 상태·샘플로 되돌리기)", ph.locator(".user-btn").bounding_box()["y"] < ph.locator(".topbar .sample-reset").bounding_box()["y"])
     sf4 = small_fonts(ph)
     check("휴대폰: 글자 13px 이상", not sf4, ", ".join(sf4))
     ph.set_viewport_size({"width": 400, "height": 800})
@@ -1000,7 +1005,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     cv = lambda n: dp.evaluate("n => { const d=document.createElement('i'); d.style.color='var('+n+')'; document.body.appendChild(d); const c=getComputedStyle(d).color; d.remove(); return c; }", n)
     check("브랜드 팔레트(밝은 테마): --accent #F37321 · 70% #F89B6C · 50% #FBB584", cv("--accent") == "rgb(243, 115, 33)" and cv("--accent-2") == "rgb(248, 155, 108)" and cv("--accent-3") == "rgb(251, 181, 132)", f"{cv('--accent')} {cv('--accent-2')} {cv('--accent-3')}")
     check("브랜드 검정(밝은 테마): --solid·--ink = #1B1B1B", cv("--solid") == "rgb(27, 27, 27)" and cv("--ink") == "rgb(27, 27, 27)")
-    check("주 버튼: 오렌지 채움 + #1B1B1B 글자 (흰 글자 아님)", dp.evaluate("() => { const b=getComputedStyle(document.querySelector('.topbar .btn-primary')); return b.backgroundColor+'|'+b.color; }") == "rgb(243, 115, 33)|rgb(27, 27, 27)")
+    check("주 버튼: 오렌지 채움 + #1B1B1B 글자 (흰 글자 아님) — v0.7.1: 상단 바 버튼이 없어져 .btn-primary 클래스를 임시 버튼으로 검사", probe_primary(dp) == "rgb(243, 115, 33)|rgb(27, 27, 27)")
     check("테마 전환: 해/달 선택 상자 (라디오 2개, 접근 이름)", dp.locator(".theme-seg [role='radio']").count() == 2 and dp.locator(".theme-seg").get_attribute("aria-label") == "화면 테마")
     dp.wait_for_timeout(500)
     sweep(dp, "밝은 테마")
@@ -1037,11 +1042,11 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     check("새로고침 후 어두운 테마 유지", dp.evaluate("() => document.documentElement.dataset.theme") == "dark" and dp.locator(".theme-seg button[aria-checked='true']").get_attribute("aria-label") == "어둡게")
     dp.locator(".user-btn").click()
     check("강조색 선택: 5개 라디오 (색 이름 접근 이름)", dp.locator(".accent-pick [role='radio']").count() == 5 and dp.locator(".accent-pick [aria-label='강조색 파랑']").count() == 1)
-    base_fill = dp.evaluate("() => getComputedStyle(document.querySelector('.topbar .btn-primary')).backgroundColor")
+    base_fill = probe_primary(dp).split("|")[0]
     dp.locator(".accent-pick [aria-label='강조색 파랑']").click()
     dp.keyboard.press("Escape")
     dp.wait_for_timeout(400)
-    check("강조색 파랑: data-accent·주 버튼 색 변경", dp.evaluate("() => document.documentElement.dataset.accent") == "blue" and dp.evaluate("() => getComputedStyle(document.querySelector('.topbar .btn-primary')).backgroundColor") != base_fill)
+    check("강조색 파랑: data-accent·주 버튼 색 변경", dp.evaluate("() => document.documentElement.dataset.accent") == "blue" and probe_primary(dp).split("|")[0] != base_fill)
     check("강조색 파랑: 70%·50% 색이 따로 계산됨", cv("--accent-2") != "rgb(248, 155, 108)" and cv("--accent-3") != cv("--accent-2"))
     check("강조색 저장됨", dp.evaluate("() => localStorage.getItem('procure-ai:accent')") == '"blue"')
     for lab in ("파랑", "초록", "보라", "분홍", "한화 오렌지"):
@@ -1081,7 +1086,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     fin = dp.evaluate("() => [...document.querySelectorAll('[data-final]')].filter(e => e.textContent !== e.dataset.final).length")
     check("숫자 올라가기: 끝나면 모든 값이 data-final 과 같음", fin == 0 and dp.locator("[data-final]").count() >= 8, f"불일치 {fin}")
     # 재생 규칙: 탭 전환은 재생, 필터·정렬·페이지는 재생 안 함
-    live = "() => document.getAnimations().filter(a => a.animationName && a.effect.getComputedTiming().iterations !== Infinity && !/^(popOpen|tipIn|modalIn|toastIn|bubbleIn|fadeIn)$/.test(a.animationName)).map(a => a.animationName)"
+    live = "() => document.getAnimations().filter(a => a.animationName && a.effect.getComputedTiming().iterations !== Infinity && !/^(popOpen|tipIn|modalIn|toastIn|toastOut|bubbleIn|fadeIn)$/.test(a.animationName)).map(a => a.animationName)"
     dp.get_by_role("tab", name="구매조달").click()
     got = set(dp.evaluate(live))
     check("탭 전환(구매조달): 표 행 rowIn·panelIn 이 다시 재생됨", {"rowIn", "panelIn"} <= got, str(sorted(got)))
@@ -1285,10 +1290,10 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     dp.get_by_role("tab", name="협력업체").click()
     settled(dp)
     # 손잡이 위 올림은 1px 이하
-    hb = dp.locator(".tb-actions .btn-primary")
+    hb = dp.locator(".tb-actions .sample-reset")  # v0.7.1: 예전 주황 버튼 → 샘플 되돌리기 버튼
     hb.hover()
     dp.wait_for_timeout(450)
-    ty = dp.evaluate("() => { const m = new DOMMatrix(getComputedStyle(document.querySelector('.tb-actions .btn-primary')).transform); return m.m42; }")
+    ty = dp.evaluate("() => { const m = new DOMMatrix(getComputedStyle(document.querySelector('.tb-actions .sample-reset')).transform); return m.m42; }")
     check("호버 올림 1px 이하 유지", ty >= -1.01, f"translateY {ty}")
     # 동작 줄이기
     rctx = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion="reduce")
@@ -1676,9 +1681,10 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         pd.on("request", lambda r: posts.append((r.method, r.url, r.post_data_buffer or b"")))
         demo_login(pd)
         settled(pd)
-        B = pd.evaluate("""() => { const b = document.querySelector('.doc-register-btn'), f = document.querySelector('.composer-form').getBoundingClientRect(), r = b.getBoundingClientRect(), s = document.querySelector('#suggest-row'), i = document.querySelector('#doc-file-input'), comp = document.querySelector('.composer').getBoundingClientRect();
-          return {txt: b.textContent.trim(), above: r.bottom <= f.top + 1, gap: f.top - r.bottom, belowChips: !s || s.getBoundingClientRect().bottom <= r.top + 1, accept: i.getAttribute('accept'), multiple: i.multiple, type: i.type, h: r.height, fs: parseFloat(getComputedStyle(b).fontSize), inComposer: r.left >= comp.left && r.right <= comp.right}; }""")
-        check(f"문서 등록({motion}): 버튼 글자가 정확히 '문서 등록', 입력창 바로 위(틈 ≤16px), 추천 질문 아래, 패널 안", B["txt"] == "문서 등록" and B["above"] and 0 <= B["gap"] <= 16 and B["belowChips"] and B["inComposer"], json.dumps(B, ensure_ascii=False))
+        B = pd.evaluate("""() => { const b = document.querySelector('.doc-register-btn'), h = document.querySelector('.history-toggle').getBoundingClientRect(), r = b.getBoundingClientRect(), i = document.querySelector('#doc-file-input'), head = document.querySelector('.chat-head').getBoundingClientRect(), comp = document.querySelector('.composer');
+          return {txt: b.textContent.trim(), leftOfHistory: r.right <= h.left + 0.5, gap: h.left - r.right, sameRow: Math.abs((r.top + r.height / 2) - (h.top + h.height / 2)) < 2, inHeader: r.top >= head.top && r.bottom <= head.bottom + 1, notInComposer: !comp.contains(b) && !comp.querySelector('.doc-hint, .doc-row'), accept: i.getAttribute('accept'), multiple: i.multiple, type: i.type, h: r.height, fs: parseFloat(getComputedStyle(b).fontSize), title: b.title, desc: b.getAttribute('aria-description')}; }""")
+        check(f"문서 등록({motion}): 버튼 글자가 정확히 '문서 등록', 대화 패널 머리의 '대화 이력' 바로 왼쪽(같은 줄), 입력창 위에는 없음 (v0.7.1: 예전 '입력창 바로 위'에서 이동)", B["txt"] == "문서 등록" and B["leftOfHistory"] and B["sameRow"] and 0 <= B["gap"] <= 12 and B["inHeader"] and B["notInComposer"], json.dumps(B, ensure_ascii=False))
+        check(f"문서 등록({motion}): 형식·크기 안내는 보이는 글자가 아니라 title·aria-description 에 (20MB·PDF·DOCX), 높이 38px", "20MB" in B["title"] and "PDF" in B["title"] and "DOCX" in B["title"] and "20MB" in (B["desc"] or "") and abs(B["h"] - 38) < 1.5, json.dumps(B, ensure_ascii=False))
         check(f"문서 등록({motion}): 파일 선택은 PDF·DOCX 만(accept 속성 정확히), 여러 파일 가능, 글자 13px 이상", B["accept"] == ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" and B["multiple"] and B["type"] == "file" and B["fs"] >= 13, json.dumps(B))
         with pd.expect_file_chooser() as fc:
             pd.click(".doc-register-btn")
@@ -1732,7 +1738,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     demo_login(ps)
     settled(ps)
     chips = ps.locator("#suggest-row .suggest-chip").all_inner_texts()
-    check("추천 질문 칩에 문서 찾기 3개 추가(환영 상태에서만)", all(q in chips for q in ("2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘", "업체 C 납기 지연 보고서 찾아줘", "실린더 커버 가스켓 견적서 보여줘")), str(chips))
+    check("추천 질문 칩에 문서 찾기 2개(민원·견적서) 포함(환영 상태에서만) — v0.7.1: 칩을 7→5개로 줄이며 '업체 C 납기 지연 보고서 찾아줘'(납기 칩과 겹침)·'A등급 협력사의 품질 실적을 정리해 줘.' 칩은 뺌(질문 자체는 직접 입력하면 그대로 동작)", all(q in chips for q in ("2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘", "실린더 커버 가스켓 견적서 보여줘", "해당 품목의 과거 거래 협력사를 비교해 줘.")) and len(chips) == 5 and "업체 C 납기 지연 보고서 찾아줘" not in chips, str(chips))
     ask(ps, "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘")
     ta = last_ai(ps).inner_text()
     check("문서 검색 답변: '해당 민원 문서 원본 ID는'·'DOC-'·'다음은 문서 내용입니다:'·SAMPLE 안내·유사도 줄", "해당 민원 문서 원본 ID는 (DOC-2026-0918-001)입니다" in ta and "다음은 문서 내용입니다:" in ta and "※ SAMPLE 문서입니다(가상 데이터, 실제 자료 아님)" in ta and "(의미 검색 결과: 유사도 " in ta, ta[:160])
@@ -2122,6 +2128,270 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     check("수기입력 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not merrs, "; ".join(merrs[:3]))
     src_m = open(os.path.join(ROOT, "src", "lib", "manual.ts"), encoding="utf-8").read() + open(os.path.join(ROOT, "src", "components", "ManualEntryDialog.tsx"), encoding="utf-8").read()
     check("정적 검사: 수기 입력 코드에 네트워크 호출(fetch·XMLHttpRequest·sendBeacon)·외부 import 없음", not _re.search(r"fetch\(|XMLHttpRequest|sendBeacon|WebSocket", src_m))
+
+    # v0.7.2: 앞 시나리오가 연 페이지가 많이 쌓여 뒤쪽에서 Chromium 이 죽으므로(Target crashed) 브라우저를 새로 띄워 ⑬·⑭ 를 돌린다
+    browser.close()
+    browser = p.chromium.launch()
+    # ⑬ v0.7.1: 문서 등록 버튼 → 대화 패널 머리 · 다른 아이콘 · 상단 바 '데이터 불러오기' 삭제 · 샘플 되돌리기 아이콘만 · 추천 질문 스크롤 없음
+    v71errs = []
+
+    def v71new_once(w, h, theme="light", **kw):
+        c = browser.new_context(viewport={"width": w, "height": h}, **kw)
+        pg = c.new_page()
+        pg.on("pageerror", lambda e: v71errs.append(str(e)))
+        pg.on("console", lambda m: v71errs.append(m.text) if m.type == "error" and "ERR_TUNNEL_CONNECTION_FAILED" not in m.text else None)
+        demo_login(pg)
+        settled(pg)
+        if theme == "dark":
+            pg.locator(".theme-seg [aria-label='어둡게']").click()
+            pg.wait_for_timeout(900)
+        return c, pg
+
+    def v71new(w, h, theme="light", **kw):  # 이 환경에서 가끔 Chromium 페이지가 죽는(Target crashed) 일이 있어 3번까지 다시 시도
+        for i in range(3):
+            try:
+                return v71new_once(w, h, theme, **kw)
+            except Exception as e:
+                if i == 2 or "crash" not in str(e).lower():
+                    raise
+
+    # 1·2) 아이콘: 문서 등록 ≠ 불러오기 ≠ 나머지 버튼 (SVG 모양 데이터 비교)
+    ci, pi = v71new(1920, 1080)
+    ICONS = pi.evaluate("""() => { const d = (el) => el ? [...el.querySelectorAll('svg')].map(s => s.innerHTML).join('|') : null;
+      const imp = document.querySelector('.filter-row button[title*="불러오기"]');
+      return {doc: d(document.querySelector('.doc-register-btn')), imp: d(imp), manual: d(document.querySelector('[data-manual-open]')), xlsx: d(document.querySelector('.filter-row [data-export=xlsx]')), hist: d(document.querySelector('.history-toggle')), clear: d(document.querySelector('.clear-chat-btn')), reset: d(document.querySelector('.sample-reset')), bell: d(document.querySelector('.bell'))}; }""")
+    vals = [v for v in ICONS.values()]
+    check("아이콘: 문서 등록·불러오기·수기입력·엑셀·대화 이력·대화 지우기·되돌리기·알림의 SVG 가 모두 서로 다름", all(vals) and len(set(vals)) == len(vals), str([k for k in ICONS if not ICONS[k]]))
+    check("아이콘: 문서 등록 ≠ 불러오기 (모양 데이터 다름)", ICONS["doc"] != ICONS["imp"] and bool(ICONS["doc"]) and bool(ICONS["imp"]))
+    # 3) 상단 바: '데이터 불러오기' 없음 + 도달성 표
+    check("상단 바에 '데이터 불러오기'·주황 채움 버튼 없음 (상단 바 버튼은 샘플 되돌리기·알림·테마·사용자 메뉴뿐)", pi.locator(".topbar .btn-primary").count() == 0 and "불러오기" not in pi.locator(".topbar").inner_text() and pi.locator(".topbar button", has_text="불러오기").count() == 0 and pi.locator(".tb-actions .btn").count() == 1)
+    REACH = []
+    reach_ok = True
+    for t in ("suppliers", "purchaseOrders", "contracts", "inventory"):
+        pi.click(f"#tab-{t}")
+        settled(pi)
+        subs = pi.locator(".subtab[data-sub]").evaluate_all("els => els.map(e => e.dataset.sub)") or ["list"]
+        for sv in subs:
+            if pi.locator(".subtab[data-sub]").count():
+                pi.click(f".subtab[data-sub='{sv}']")
+                settled(pi)
+            where, btn = None, None
+            if pi.locator(".filter-row button", has_text="불러오기").count():
+                where, btn = "필터 줄의 불러오기", pi.locator(".filter-row button", has_text="불러오기").first
+            elif pi.locator(".sv-title-row button", has_text="불러오기").count():
+                where, btn = "하위 보기 머리의 불러오기", pi.locator(".sv-title-row button", has_text="불러오기").first
+            ok = btn is not None
+            first = None
+            if ok:
+                btn.click()
+                pi.wait_for_selector("#import-dataset")
+                first = pi.input_value("#import-dataset")
+                nopt = pi.locator("#import-dataset option").count()
+                ok = nopt >= 9
+                pi.click(".modal [aria-label='닫기']")
+                pi.wait_for_selector(".modal", state="detached")
+            REACH.append(f"{t}/{sv}->{where}({first})")
+            reach_ok = reach_ok and ok
+    check(f"불러오기 도달성: 4개 탭 × 모든 하위 보기({len(REACH)}곳)에 불러오기 입구가 있고, 창에서 모든 데이터 종류(9종 이상)를 고를 수 있음", reach_ok and len(REACH) >= 9, " ; ".join(REACH))
+    print("REACH", " ; ".join(REACH))
+    ci.close()
+
+    # 3) 상단 바(2560→400): 샘플 되돌리기는 아이콘만(폭 ≤44) · 알약 안 SAMPLE 안 잘림 · 가로 스크롤 없음, 수기 배지가 있을 때도
+    for (w, h) in [(2560, 1200), (1920, 1080), (1500, 800), (1366, 768), (1270, 800), (1181, 800), (900, 800), (640, 800), (400, 800)]:
+        for with_manual in (False, True):
+            ct, pt = v71new(w, h)
+            if with_manual:
+                if not pt.locator("[data-manual-open]").is_visible():
+                    pt.locator(".panel-tabs button", has_text="데이터 관리").click()
+                pt.click("[data-manual-open]")
+                pt.wait_for_selector(".manual-modal")
+                pt.wait_for_timeout(500)
+                pickdoc(pt, "견적서")
+                fill_common(pt)
+                pt.fill("#mf-validUntil", "2026-12-31")
+                pt.click("[data-manual-save]")
+                pt.wait_for_timeout(1000)
+                settled(pt)
+            T = pt.evaluate("""() => { const st = document.querySelector('.tb-status'), sr = st.getBoundingClientRect(), b = document.querySelector('.badge-demo').getBoundingClientRect(), rs = document.querySelector('.sample-reset'), rr = rs.getBoundingClientRect(), tb = document.querySelector('.topbar').getBoundingClientRect();
+              const kids = [...st.querySelectorAll('.badge-demo, .ai-status, .mode')].filter(e => e.getBoundingClientRect().width).map(e => e.getBoundingClientRect());
+              return {rw: rr.width, rh: rr.height, txt: rs.textContent.trim(), aria: rs.getAttribute('aria-label'), title: rs.title, badgeIn: b.left >= sr.left - 0.5 && b.right <= sr.right + 0.5, kidsIn: kids.every(k => k.left >= sr.left - 0.5 && k.right <= sr.right + 0.5), noClip: st.scrollWidth <= st.clientWidth + 1, hs: document.documentElement.scrollWidth <= innerWidth, rIn: rr.right <= innerWidth && rr.left >= 0, manual: document.querySelectorAll('[data-manual-badge]').length, topbarH: Math.round(tb.height), pills: [...document.querySelectorAll('.tb-pill')].every(p => p.getBoundingClientRect().right <= innerWidth + 0.5)}; }""")
+            tag = f"{w}px{' · 수기 배지 있음' if with_manual else ''}"
+            check(f"상단 바({tag}): 샘플 되돌리기는 아이콘만(글자 없음·폭 ≤44px·aria-label·title '샘플 데이터로 되돌리기')", T["txt"] == "" and T["rw"] <= 44.01 and T["aria"] == "샘플 데이터로 되돌리기" and T["title"].startswith("샘플 데이터로 되돌리기"), json.dumps(T, ensure_ascii=False))
+            check(f"상단 바({tag}): SAMPLE 알약·상태 칸이 잘리지 않음 · 가로 스크롤 없음 · 알약이 화면 안" + (" · 수기 배지 표시됨" if with_manual else ""), T["badgeIn"] and T["kidsIn"] and T["noClip"] and T["hs"] and T["rIn"] and T["pills"] and (T["manual"] == 1) == with_manual, json.dumps(T, ensure_ascii=False))
+            if (not with_manual and w in (1920, 1366, 400)) or (with_manual and w == 1366):
+                pt.screenshot(path=f"{SHOTS}/v071_topbar_{w}{'_manual' if with_manual else ''}.png")
+            ct.close()
+    ct, pt = v71new(400, 800, is_mobile=True, has_touch=True)
+    rbw = pt.locator(".sample-reset").bounding_box()
+    check("상단 바(휴대폰 터치): 샘플 되돌리기 44×44px (터치 크기) · 폭 ≤44", 43.5 <= rbw["width"] <= 44.5 and rbw["height"] >= 43.5, json.dumps(rbw))
+    ct.close()
+
+    # 1) 대화 패널 머리: [문서 등록][대화 이력][대화 지우기] 한 줄 · 5개 화면 크기 × 두 테마 + 4) 추천 질문 스크롤 없음·글 안 잘림·대화 영역 160px 이상
+    for (w, h) in [(1366, 768), (1920, 1080), (1500, 800), (900, 800), (400, 800)]:
+        for th in ("light", "dark"):
+            ct, pt = v71new(w, h, th)
+            open_chat(pt)
+            pt.wait_for_timeout(500)
+            Hd = pt.evaluate("""() => { const r = s => document.querySelector(s).getBoundingClientRect(); const d = r('.doc-register-btn'), hs = r('.history-toggle'), c = r('.clear-chat-btn'), tools = r('.chat-tools'), head = r('.chat-head'), ti = r('.chat-title-icon'), tx = r('.chat-title-text');
+              return {order: d.right <= hs.left + 0.5 && hs.right <= c.left + 0.5, oneRow: Math.abs(d.top - hs.top) < 2 && Math.abs(hs.top - c.top) < 2, gap: hs.left - d.right, inside: c.right <= head.right + 0.5 && d.left >= head.left - 0.5, h: [d.height, hs.height, c.height].map(Math.round), headH: Math.round(head.height), titleOk: ti.width > 0 && tx.width > 0, hs: document.documentElement.scrollWidth <= innerWidth, tools: document.querySelector('.chat-tools').scrollWidth <= document.querySelector('.chat-tools').clientWidth + 2, doc: document.querySelector('.doc-register-btn').textContent.trim()}; }""")
+            check(f"대화 패널 머리({w}×{h}, {th}): [문서 등록][대화 이력][대화 지우기] 순서·한 줄·패널 안 · 제목·아바타 영역 그대로 · 가로 스크롤 없음", Hd["order"] and Hd["oneRow"] and 0 <= Hd["gap"] <= 12 and Hd["inside"] and Hd["titleOk"] and Hd["hs"] and Hd["tools"], json.dumps(Hd, ensure_ascii=False))
+            check(f"대화 패널 머리({w}×{h}, {th}): 세 버튼 높이 같음(38px, 터치·휴대폰 44px)", len(set(Hd["h"])) == 1 and Hd["h"][0] in (38, 44), json.dumps(Hd["h"]))
+            S = pt.evaluate("""() => { const row = document.querySelector('#suggest-row'), chips = [...row.querySelectorAll('.suggest-chip')].filter(c => getComputedStyle(c).display !== 'none');
+              const bad = chips.filter(c => { const s = getComputedStyle(c); return c.scrollWidth > c.clientWidth + 1 || c.scrollHeight > c.clientHeight + 1 || s.textOverflow === 'ellipsis' || s.overflow !== 'visible' || c.getBoundingClientRect().right > row.getBoundingClientRect().right + 0.5 || c.getBoundingClientRect().left < row.getBoundingClientRect().left - 0.5; }).length;
+              const rr = row.getBoundingClientRect(), pn = document.querySelector('.panel-c').getBoundingClientRect(), s = getComputedStyle(row);
+              const comp = document.querySelector('.composer').getBoundingClientRect();
+              return {n: chips.length, vOK: row.scrollHeight <= row.clientHeight + 1, hOK: row.scrollWidth <= row.clientWidth + 1, ovY: s.overflowY, ovX: s.overflowX, maxH: s.maxHeight, bad, rowH: Math.round(rr.height), pct: Math.round(100 * rr.height / pn.height), list: Math.round(document.querySelector('.chat-list').getBoundingClientRect().height), compInPanel: comp.bottom <= pn.bottom + 1, hs: document.documentElement.scrollWidth <= innerWidth, order: chips.map(c => c.textContent.trim().slice(0, 8))}; }""")
+            check(f"추천 질문({w}×{h}, {th}): 스크롤 없음(세로·가로, overflow visible·max-height 없음) · 보이는 칩 모두 글 안 잘림·줄임표 없음 · 입력창 패널 안", S["vOK"] and S["hOK"] and S["ovY"] == "visible" and S["ovX"] == "visible" and S["maxH"] == "none" and S["bad"] == 0 and S["compInPanel"] and S["hs"], json.dumps(S, ensure_ascii=False))
+            check(f"추천 질문({w}×{h}, {th}): 칩 {'3' if w <= 640 else '5'}개 표시 · 칩 영역 패널 높이의 40% 이하 · 대화 영역 160px 이상", S["n"] == (3 if w <= 640 else 5) and S["pct"] <= 40 and S["list"] >= 160, json.dumps(S, ensure_ascii=False))
+            sw = pt.evaluate(SWEEP)
+            low = [x for x in sw["low"] if not x.startswith("BUTTON.is-active")]
+            check(f"v0.7.1 화면({w}×{h}, {th}): 13px 미만 글자 0 · 글자 대비 4.5:1 미만 0 (검사 {sw['n']}개)", not sw["small"] and not low, "; ".join(sw["small"] + low[:5]))
+            if (w, h) in ((1366, 768), (1920, 1080)) or (w == 400 and th == "light"):
+                pt.screenshot(path=f"{SHOTS}/v071_welcome_{w}_{th}.png")
+            ct.close()
+    # 첫 질문 뒤에는 추천 질문이 사라지고 대화 영역이 넓어짐 (v0.4.3 규칙 유지)
+    ct, pt = v71new(1366, 768)
+    ask(pt, "납기 준수율이 낮은 협력사를 찾아줘.")
+    check("첫 질문 뒤: 추천 질문 영역 없음(v0.4.3 유지) · 문서 등록은 머리에 그대로", pt.locator("#suggest-row").count() == 0 and pt.locator(".chat-head .doc-register-btn").count() == 1)
+    ct.close()
+    # 문서 등록: 머리 버튼으로 파일 선택 창이 열림 · 키보드 순서
+    ct, pt = v71new(1366, 768)
+    with pt.expect_file_chooser() as fc_:
+        pt.click(".chat-head .doc-register-btn")
+    check("문서 등록(머리 버튼): 누르면 파일 선택 창(여러 파일) 열림", fc_.value.is_multiple())
+    pt.focus(".doc-register-btn")
+    pt.keyboard.press("Tab")
+    check("키보드: 문서 등록 다음 Tab 이 대화 이력으로 이동", pt.evaluate("() => document.activeElement.classList.contains('history-toggle')"))
+    ct.close()
+    check("v0.7.1 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not v71errs, "; ".join(v71errs[:3]))
+    src_chat = open(os.path.join(ROOT, "src", "components", "ChatPanel.tsx"), encoding="utf-8").read()
+    src_top = open(os.path.join(ROOT, "src", "components", "Topbar.tsx"), encoding="utf-8").read()
+    check("정적 검사: ChatPanel 은 문서 등록에 LuFilePlus2 를 쓰고 LuFileUp 을 쓰지 않음 · Topbar 에 openImport 호출과 LuFileUp 없음", "LuFilePlus2" in src_chat and "LuFileUp" not in src_chat and "openImport" not in src_top and "LuFileUp" not in src_top)
+
+    # ⑭ v0.7.2: (1) 휴대폰 환영 상태 — 대화 영역 스크롤 없음 (2) 토스트 2초 + 나타남·사라짐 동작
+    v72errs = []
+
+    def v72new_once(w, h, theme="light", **kw):
+        c = browser.new_context(viewport={"width": w, "height": h}, **kw)
+        pg = c.new_page()
+        pg.on("pageerror", lambda e: v72errs.append(str(e)))
+        pg.on("console", lambda m: v72errs.append(m.text) if m.type == "error" and "ERR_TUNNEL_CONNECTION_FAILED" not in m.text else None)
+        demo_login(pg)
+        settled(pg)
+        if theme == "dark":
+            pg.locator(".theme-seg [aria-label='어둡게']").click()
+            pg.wait_for_timeout(900)
+        open_chat(pg)
+        pg.wait_for_timeout(500)
+        return c, pg
+
+    def v72new(w, h, theme="light", **kw):  # 이 환경에서 가끔 Chromium 페이지가 죽는(Target crashed) 일이 있어 3번까지 다시 시도
+        for i in range(3):
+            try:
+                return v72new_once(w, h, theme, **kw)
+            except Exception as e:
+                if i == 2 or "crash" not in str(e).lower():
+                    raise
+
+    WEL = """() => { const l = document.querySelector('.chat-list'), lr = l.getBoundingClientRect(), ps = [...l.querySelectorAll('.msg-body p')], last = ps[ps.length - 1].getBoundingClientRect(), first = ps[0].getBoundingClientRect(),
+      tools = [...document.querySelectorAll('.chat-tools .btn')].map(b => { const r = b.getBoundingClientRect(); return {l: r.left, r: r.right, h: r.height, w: r.width}; }), pr = document.querySelector('.panel-c').getBoundingClientRect(), comp = document.querySelector('.composer').getBoundingClientRect();
+      return {sh: l.scrollHeight, ch: l.clientHeight, lastIn: last.bottom <= lr.bottom + 0.5 && last.top >= lr.top - 0.5 && first.top >= lr.top - 0.5, hs: document.documentElement.scrollWidth > innerWidth, tools, list: lr.height, compIn: comp.bottom <= pr.bottom + 1,
+      chips: [...document.querySelectorAll('#suggest-row .suggest-chip')].filter(c => getComputedStyle(c).display !== 'none').length, head: document.querySelector('.chat-head').getBoundingClientRect().height,
+      txt: l.querySelector('.msg-body').innerText.replace(/\\s+/g, ' '), tab: l.scrollTop}; }"""
+    for (w, h) in [(400, 800), (360, 640), (390, 844), (412, 915), (400, 700), (900, 800)]:
+        for th in ("light", "dark"):
+            ct, pt = v72new(w, h, th)
+            W = pt.evaluate(WEL)
+            check(f"환영 상태({w}×{h}, {th}): 대화 영역에 스크롤 없음(scrollHeight ≤ clientHeight) · 환영 말풍선의 마지막 문장까지 목록 안에 다 보임 · 가로 스크롤 없음", W["sh"] <= W["ch"] and W["lastIn"] and not W["hs"] and W["tab"] == 0, f"sh {W['sh']} / ch {W['ch']}, 머리 {round(W['head'])}px, 칩 {W['chips']}개")
+            check(f"환영 상태({w}×{h}, {th}): 머리 버튼 3개가 화면 안(가로 0~{w})·38px 이상 · 대화 영역 150px 이상 · 입력창 패널 안", all(t["l"] >= 0 and t["r"] <= w and t["h"] >= 38 and t["w"] >= 38 for t in W["tools"]) and len(W["tools"]) == 3 and W["list"] >= 150 and W["compIn"], json.dumps(W["tools"]) + f" 목록 {round(W['list'])}px")
+            if w <= 640:
+                check(f"환영 상태({w}×{h}, {th}): 휴대폰은 같은 두 문단의 짧은 변형 · 핵심(분석 도우미·질문·추천 질문·데이터 관리 탭에서 품목·협력사 고르기) 유지", "분석 도우미" in W["txt"] and "추천 질문" in W["txt"] and "데이터 관리 탭" in W["txt"] and "품목·협력사" in W["txt"], W["txt"])
+            sw = pt.evaluate(SWEEP)
+            low = [x for x in sw["low"] if not x.startswith("BUTTON.is-active")]
+            check(f"환영 상태({w}×{h}, {th}): 13px 미만 글자 0 · 글자 대비 4.5:1 미만 0 (검사 {sw['n']}개)", not sw["small"] and not low, "; ".join(sw["small"] + low[:5]))
+            if w == 400 and h == 800:
+                pt.screenshot(path=f"{SHOTS}/v072_welcome_400x800_{th}.png")
+            ct.close()
+    for (w, h) in [(360, 640), (400, 700), (400, 800)]:  # 터치(거친 포인터) 기기: 칩·버튼이 44px 로 커져도 스크롤 없음
+        ct, pt = v72new(w, h, is_mobile=True, has_touch=True)
+        W = pt.evaluate(WEL)
+        check(f"환영 상태(터치 {w}×{h}): 스크롤 없음 · 마지막 문장 보임 · 머리 버튼 44px 이상 · 가로 스크롤 없음", W["sh"] <= W["ch"] and W["lastIn"] and not W["hs"] and all(t["h"] >= 43.5 and t["w"] >= 43.5 for t in W["tools"]), f"sh {W['sh']} / ch {W['ch']}")
+        ct.close()
+    ct, pt = v72new(400, 800)
+    pt.fill("#chat-input", "납기 준수율이 낮은 협력사를 찾아줘.")
+    pt.press("#chat-input", "Enter")
+    pt.wait_for_function("() => !document.querySelector('.progress')", timeout=8000)
+    check("휴대폰(400): 첫 질문 뒤 추천 질문 영역 사라짐(v0.4.3 유지) · 대화는 필요하면 스크롤(정상)", pt.locator("#suggest-row").count() == 0 and pt.locator(".chat-list").evaluate("e => e.scrollHeight >= e.clientHeight"))
+    ct.close()
+    # 넓은 화면은 환영 문구가 그대로(긴 변형) · 레이아웃 값 회귀 없음 (1366: 칩 178/대화 196, 1920: 153/510, 1500×800: 178/226, 900×800: 93/253)
+    for (w, h, chips, lst) in [(1366, 768, 178, 196), (1920, 1080, 153, 510), (1500, 800, 178, 226), (900, 800, 93, 253)]:
+        ct, pt = v72new(w, h)
+        W = pt.evaluate(WEL)
+        G = pt.evaluate("() => ({chips: Math.round(document.querySelector('#suggest-row').getBoundingClientRect().height), list: Math.round(document.querySelector('.chat-list').getBoundingClientRect().height)})")
+        long_ok = "협력사 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요." in W["txt"] and "입력창 위의 추천 질문을 누르거나" in W["txt"]
+        check(f"{w}×{h} 환영 상태: 긴 환영 문구 그대로 · 칩 영역 {chips}px · 대화 영역 {lst}px(v0.7.1과 같음) · 환영 말풍선 스크롤 없음", long_ok and abs(G["chips"] - chips) <= 2 and abs(G["list"] - lst) <= 2 and W["sh"] <= W["ch"] + 1 and not W["hs"], json.dumps(G) + f" sh {W['sh']}/ch {W['ch']}")
+        ct.close()
+
+    # (2) 토스트: 문서 등록 성공 2초 · 나타남(toastIn)·사라짐(toastOut) 동작
+    PDFF = {"name": "t.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 x"}
+    REC = """() => { const R = window.__rec = {t0: performance.now(), names: {}, seen: null, gone: null, leave: null, maxN: 0, text: null}; const f = () => { const ts = document.querySelectorAll('.toast'), t = ts[0], n = performance.now() - R.t0; R.maxN = Math.max(R.maxN, ts.length);
+      if (t) { if (R.seen === null) { R.seen = n; R.text = t.innerText; } for (const a of t.getAnimations()) R.names[a.animationName] = a.effect.getComputedTiming().duration; if (t.classList.contains('is-leaving') && R.leave === null) R.leave = n; }
+      else if (R.seen !== null && R.gone === null) R.gone = n; requestAnimationFrame(f); }; f(); }"""
+    for motion in ("no-preference", "reduce"):
+        ct = browser.new_context(viewport={"width": 1366, "height": 768}, reduced_motion=motion)
+        pt = ct.new_page()
+        pt.on("pageerror", lambda e: v72errs.append(str(e)))
+        demo_login(pt)
+        settled(pt)
+        pt.evaluate(REC)
+        pt.set_input_files("#doc-file-input", PDFF)
+        pt.wait_for_function("() => window.__rec.gone !== null", timeout=8000)
+        R = pt.evaluate("() => window.__rec")
+        vis = (R["gone"] - R["seen"]) / 1000
+        if motion == "no-preference":
+            check("토스트(문서 등록 성공): 문구는 정확히 '문서가 벡터DB에 저장되었습니다' · 나타날 때 toastIn 동작(450ms)", R["text"].strip() == "문서가 벡터DB에 저장되었습니다" and R["names"].get("toastIn") == 450, json.dumps(R["names"]) + R["text"])
+            check("토스트(문서 등록 성공): 사라질 때 toastOut 동작(280ms)이 먼저 돌고, 나타난 지 2.0~2.6초 사이에 DOM에서 없어짐 · 동시에 하나만", R["names"].get("toastOut") == 280 and R["leave"] is not None and 1.95 <= (R["leave"] - R["seen"]) / 1000 <= 2.2 and 2.0 <= vis <= 2.6 and R["maxN"] == 1, f"나타남→사라짐 시작 {(R['leave'] - R['seen']) / 1000 if R['leave'] else None}s, 제거 {vis:.2f}s, {R['names']}")
+            # 사라지는 중 한 프레임을 멈춰 모양을 확인: toastOut 중간에 투명도·이동이 실제로 바뀜
+            pt.set_input_files("#doc-file-input", PDFF)
+            pt.wait_for_selector(".toast.is-leaving", timeout=6000)
+            mid = pt.evaluate("() => { const t = document.querySelector('.toast'), a = t.getAnimations().find(x => x.animationName === 'toastOut'); a.pause(); a.currentTime = 40; const cs = getComputedStyle(t); return {op: parseFloat(cs.opacity), tf: cs.transform, pe: cs.pointerEvents}; }")
+            check("토스트 사라짐 초반(40ms, 이징이 빨라 150ms 에서는 이미 거의 투명): 투명도가 0~1 사이로 내려가는 중 · 아래로 살짝 이동·축소(transform 있음) · 클릭 통과", 0.05 < mid["op"] < 0.95 and mid["tf"] != "none" and mid["pe"] == "none", json.dumps(mid))
+            pt.screenshot(path=f"{SHOTS}/v072_toast_exit_mid.png")
+        else:
+            check("토스트(동작 줄이기): 사라짐 동작 없이 2초 뒤 바로 지워짐(toastOut 없음)", "toastOut" not in R["names"] and R["leave"] is None and 1.95 <= vis <= 2.5, f"{vis:.2f}s {R['names']}")
+        ct.close()
+    ct = browser.new_context(viewport={"width": 1366, "height": 768})
+    pt = ct.new_page()
+    demo_login(pt)
+    settled(pt)
+    pt.evaluate(REC)
+    pt.set_input_files("#doc-file-input", PDFF)
+    pt.wait_for_selector(".toast")
+    pt.locator(".toast").hover()
+    pt.wait_for_timeout(3200)
+    still = pt.locator(".toast").count() == 1 and pt.locator(".toast.is-leaving").count() == 0
+    pt.mouse.move(10, 400)
+    t_leave = pt.evaluate("() => performance.now()")
+    pt.wait_for_function("() => window.__rec.gone !== null", timeout=6000)
+    after = (pt.evaluate("() => window.__rec.gone + window.__rec.t0") - t_leave) / 1000
+    check("토스트: 마우스를 올리고 있으면 2초가 지나도 사라지지 않고(사라짐 동작도 시작 안 함), 벗어나면 약 2초 뒤 사라짐", still and 1.8 <= after <= 2.7, f"벗어난 뒤 {after:.2f}s")
+    # 사라지는 중에 새 토스트(즉시 뜨는 오류 토스트)가 오면 깨끗이 바뀜
+    pt.evaluate(REC)
+    pt.set_input_files("#doc-file-input", PDFF)
+    pt.wait_for_selector(".toast.is-leaving", timeout=6000)
+    pt.set_input_files("#doc-file-input", {"name": "메모.txt", "mimeType": "text/plain", "buffer": b"x"})
+    pt.wait_for_function("() => document.querySelector('.toast') && document.querySelector('.toast').innerText.includes('지원하지 않는 형식')", timeout=3000)
+    st = pt.evaluate("() => ({n: document.querySelectorAll('.toast').length, leaving: !!document.querySelector('.toast.is-leaving'), warn: !!document.querySelector('.toast.toast-warn')})")
+    check("토스트: 사라지는 중에 새 토스트가 오면 이전 것을 대신해 하나만, 사라짐 상태를 물려받지 않음(깜빡임 없음)", st["n"] == 1 and not st["leaving"] and st["warn"], json.dumps(st))
+    t_new = pt.evaluate("() => performance.now()")
+    pt.wait_for_timeout(2700)
+    long_stay = pt.locator(".toast").count() == 1
+    pt.wait_for_function("() => !document.querySelector('.toast')", timeout=4000)
+    stay = (pt.evaluate("() => performance.now()") - t_new) / 1000
+    check("토스트: 오류 토스트는 더 오래(3.6초 + 사라짐 0.28초) 보임 — 2초 토스트보다 김", long_stay and 3.5 <= stay <= 4.6, f"{stay:.2f}s")
+    ct.close()
+    check("v0.7.2 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not v72errs, "; ".join(v72errs[:3]))
+    check("정적 검사: 토스트 보이는 시간은 토스트별 ms 옵션(문서 등록 성공 2000) · 기본 3600 · toastOut 키프레임 존재", "ms: 2000" in src_chat and "TOAST_MS = 3600" in open(os.path.join(ROOT, "src", "App.tsx"), encoding="utf-8").read() and "@keyframes toastOut" in open(os.path.join(ROOT, "src", "styles", "motion.css"), encoding="utf-8").read())
 
     cbrowser.close()
     tctx.close()

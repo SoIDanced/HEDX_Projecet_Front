@@ -371,7 +371,7 @@ export function SupplierEvaluationCard() {
       </div>
 
       {!sup || !ev ? (
-        <p className="eval-empty">협력업체 데이터가 없습니다. 상단의 데이터 불러오기로 협력업체 파일을 올려 주세요.</p>
+        <p className="eval-empty">협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요.</p>
       ) : (
         <>
           <div className="eval-body" data-tween>

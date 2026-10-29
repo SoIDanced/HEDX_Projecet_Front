@@ -71,7 +71,7 @@ export interface State {
   importFor: DatasetKey | null;
   onboarding: boolean; // 첫 사용 안내 열림
   detailOpen: boolean; // AI 에이전트 패널 위쪽의 선택 정보(협력사·부품 상세) 펼침
-  toast: { id: number; text: string; tone: "ok" | "warn"; action?: ToastAction } | null;
+  toast: { id: number; text: string; tone: "ok" | "warn"; action?: ToastAction; ms?: number } | null;
   manual: ManualEntry[]; // v0.7.0 수기 입력 원본 목록 (화면 데이터 = data + manual → 스토어의 data)
   manualOpen: boolean;
   flash: string | null; // 방금 저장한 행(표에서 잠깐 강조)
@@ -121,7 +121,7 @@ export type Action =
   | { type: "dataReady" }
   | { type: "saved"; at: string | null; error?: string | null }
   | { type: "resetSample" }
-  | { type: "toast"; text: string; tone?: "ok" | "warn" }
+  | { type: "toast"; text: string; tone?: "ok" | "warn"; ms?: number } /* ms: 보이는 시간(기본 3600, 문서 등록 성공은 2000) */
   | { type: "clearToast" }
   | { type: "clearChat" }
   | { type: "manualOpen"; open: boolean }
@@ -136,9 +136,7 @@ export const SUGGESTED = [
   "해당 품목의 과거 거래 협력사를 비교해 줘.",
   "납기 준수율이 낮은 협력사를 찾아줘.",
   "최근 단가가 상승한 품목을 보여줘.",
-  "A등급 협력사의 품질 실적을 정리해 줘.",
   "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘",
-  "업체 C 납기 지연 보고서 찾아줘",
   "실린더 커버 가스켓 견적서 보여줘",
 ];
 
@@ -152,6 +150,12 @@ export const WELCOME: ChatMessage = {
     "입력창 위의 추천 질문을 누르거나, 왼쪽 데이터 관리에서 품목·협력사를 고른 뒤 질문하면 그 대상을 기준으로 분석합니다.",
   ],
 };
+
+/** 휴대폰(≤640px) 환영 말풍선: 같은 두 문단의 짧은 변형 — 대화 영역에 스크롤 없이 다 보이게(넓은 화면은 위 WELCOME 그대로). '왼쪽'은 탭 구조라 '데이터 관리 탭'으로 */
+export const WELCOME_SHORT = [
+  "안녕하세요. 구매·협력사 데이터 분석 도우미입니다. 협력사 평가, 거래 이력, 단가, 납기를 질문해 주세요.",
+  "아래 추천 질문을 누르거나, 데이터 관리 탭에서 품목·협력사를 고른 뒤 질문하면 그 대상 기준으로 분석합니다.",
+];
 
 // ── 브라우저 저장 (사용자별) ──
 export const MAX_RESULTS = 50;
@@ -259,7 +263,7 @@ function initial(user: User): State {
 
 let toastSeq = 0;
 const newDataId = () => `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-const toast = (text: string, tone: "ok" | "warn" = "ok", action?: ToastAction) => ({ id: ++toastSeq, text, tone, action });
+const toast = (text: string, tone: "ok" | "warn" = "ok", action?: ToastAction, ms?: number) => ({ id: ++toastSeq, text, tone, action, ms });
 
 function reducer(s: State, a: Action): State {
   switch (a.type) {
@@ -448,7 +452,7 @@ function reducer(s: State, a: Action): State {
     case "clearFlash":
       return { ...s, flash: null };
     case "toast":
-      return { ...s, toast: toast(a.text, a.tone) };
+      return { ...s, toast: toast(a.text, a.tone, undefined, a.ms) };
     case "clearToast":
       return { ...s, toast: null };
     case "clearChat":

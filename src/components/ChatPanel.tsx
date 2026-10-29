@@ -1,9 +1,9 @@
 // AI 에이전트 패널: 오른쪽에 고정된 대화창 — 글 답변만 보여 준다 (표·차트 없음)
-// 위쪽: 선택 정보(접이식) · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuFileUp, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
+// 위쪽: 선택 정보(접이식) · 문서 등록 · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuFilePlus2, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
 import { STEPS } from "../ai/agent";
-import { resultName, SUGGESTED, useStore, type ChatMessage } from "../store/store";
+import { resultName, SUGGESTED, useStore, WELCOME_SHORT, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
 import { answerSections } from "../lib/answerText";
 import { DOC_ACCEPT, DOC_OK_TEXT, registerDocument, validateDocumentFile } from "../lib/documents";
@@ -42,6 +42,14 @@ function ExportButtons({ result }: { result: AnalysisResult }) {
   );
 }
 
+const PHONE_Q = "(max-width: 640px)";
+const subscribePhone = (cb: () => void) => {
+  const mq = window.matchMedia(PHONE_Q);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const isPhone = () => window.matchMedia(PHONE_Q).matches;
+
 function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
   const { state, meta } = useStore();
   const { ask, rerun } = useAgent();
@@ -49,6 +57,8 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
   const sections = useMemo(() => (result ? answerSections(result) : []), [result]);
   const stale = result && result.dataId !== meta.dataId && state.lastResultId === result.id; // 가장 최근 답변에만 안내
   const sample = result?.dataLabel.includes("SAMPLE");
+  const phone = useSyncExternalStore(subscribePhone, isPhone, () => false);
+  const paras = m.id === "welcome" && phone ? WELCOME_SHORT : m.text;
   return (
     <div className="msg msg-ai" data-mid={m.id} data-result={m.resultId}>
       <div className="msg-avatar" aria-hidden>
@@ -56,7 +66,7 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
       </div>
       <div className={`msg-body ${m.error ? "is-error" : ""}`}>
         <EngineBadge engine={m.error ? "error" : m.engine} />
-        {m.text.map((t, i) => (
+        {paras.map((t, i) => (
           <p key={i}>{t}</p>
         ))}
         {result && (
@@ -232,7 +242,7 @@ export function ChatPanel() {
     try {
       await Promise.all(files.map((f) => registerDocument(f)));
       dispatch({ type: "toast", text: files.length > 1 ? `${DOC_OK_TEXT}
-(${files.length}건)` : DOC_OK_TEXT });
+(${files.length}건)` : DOC_OK_TEXT, ms: 2000 });
     } catch {
       dispatch({ type: "toast", text: "문서 등록에 실패했습니다. 잠시 뒤 다시 시도해 주세요.", tone: "warn" });
     } finally {
@@ -274,7 +284,7 @@ export function ChatPanel() {
       </div>
     ) : null;
 
-  // 추천 질문: 기본 4개 + 관심 협력사·부품을 넣은 질문
+  // 추천 질문: 기본 + 관심 협력사·부품을 넣은 질문
   const suggestions = useMemo(() => {
     const out: string[] = [];
     const fs = state.favorites.suppliers.map((id) => derived.suppliersById.get(id)?.name).filter(Boolean) as string[];
@@ -282,7 +292,7 @@ export function ChatPanel() {
     if (fs[0]) out.push(`${fs[0]} 평가 근거 보여줘`);
     if (fi[0]) out.push(`${fi[0]} 후보 업체 비교해 줘`);
     else if (fs[1]) out.push(`${fs[0]}랑 ${fs[1]} 비교해줘`);
-    return [...out, ...SUGGESTED];
+    return [...out, ...SUGGESTED].slice(0, 5); // 대화 영역이 줄지 않게 최대 5개 (관심 질문이 앞)
   }, [state.favorites, derived]);
 
   const suggestRow = (
@@ -329,6 +339,10 @@ export function ChatPanel() {
                 <LuInfo aria-hidden />
               </button>
             )}
+            <input ref={fileRef} id="doc-file-input" type="file" hidden multiple accept={DOC_ACCEPT} onChange={(e) => onPickDocs(e.target.files)} />
+            <button type="button" className="btn btn-quiet doc-register-btn" onClick={() => fileRef.current?.click()} disabled={registering} aria-busy={registering} title="문서 등록 — PDF · DOCX, 파일당 20MB 이하" aria-description="PDF 또는 DOCX 파일, 파일당 20MB 이하">
+              <LuFilePlus2 aria-hidden /> <span className="tool-label">{registering ? "등록 중…" : "문서 등록"}</span>
+            </button>
             <button
               type="button"
               className={`btn btn-quiet history-toggle ${showHistory ? "is-on" : ""}`}
@@ -340,10 +354,10 @@ export function ChatPanel() {
               aria-controls="history-panel"
               title="지난 대화(답변)를 이름으로 찾아 다시 보기"
             >
-              <LuHistory aria-hidden /> 대화 이력 <span className="count-badge">{historyCount}</span>
+              <LuHistory aria-hidden /> <span className="tool-label">대화 이력</span> <span className="count-badge">{historyCount}</span>
             </button>
             <button type="button" className="btn btn-quiet clear-chat-btn" onClick={() => setConfirmClear(true)} title="지금까지의 대화를 지웁니다 (대화 이력은 남김)">
-              <LuEraser aria-hidden /> 대화 지우기
+              <LuEraser aria-hidden /> <span className="tool-label">대화 지우기</span>
             </button>
           </div>
         </div>
@@ -396,13 +410,6 @@ export function ChatPanel() {
       <div className="composer">
         {onlyWelcome && suggestRow}
         {!selTitle && ctxChips}
-        <div className="doc-row">
-          <input ref={fileRef} id="doc-file-input" type="file" hidden multiple accept={DOC_ACCEPT} onChange={(e) => onPickDocs(e.target.files)} />
-          <button type="button" className="btn btn-quiet btn-small doc-register-btn" onClick={() => fileRef.current?.click()} disabled={registering} aria-busy={registering} title="PDF·DOCX 문서를 등록합니다 (파일당 최대 20MB)">
-            <LuFileUp aria-hidden /> {registering ? "등록 중…" : "문서 등록"}
-          </button>
-          <span className="doc-hint">PDF · DOCX, 20MB 이하</span>
-        </div>
         <form
           className="composer-form"
           onSubmit={(e) => {

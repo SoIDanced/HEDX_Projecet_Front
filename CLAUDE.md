@@ -3,7 +3,7 @@
 이 파일은 Claude Code가 이 저장소에서 작업할 때마다 먼저 읽는 지시서입니다. 전체 개발 과정·결정 사항·화면별 상세는 `docs/HANDOFF.md`에 있습니다. **처음 작업을 시작하면 `docs/HANDOFF.md`, `README.md`, `CHANGELOG.md`를 모두 읽고 시작하세요.**
 
 ## 프로젝트 한 줄 요약
-한화엔진 구매·품질 실무자용 시연 웹앱(학생 DX팀 과제). 협력업체·구매조달·원가-계약·자재-공급 데이터를 한 화면에서 보고, 자연어로 질문하면 코드가 데이터로 계산한 결과를 오른쪽 고정 AI 에이전트 패널에 글로만 답한다(표·차트 없음, 근거 표는 엑셀·CSV로 내보내기). 데이터 관리 : AI 에이전트 = 65:35. 현재 버전 **v0.7.0** (왼쪽 필터 줄의 **수기입력** 창: 견적서·납기보고서·계약서를 직접 입력 → 대시보드 실시간 반영, `src/lib/manual.ts`·`ManualEntryDialog.tsx`; v14 디자인·어두운 테마·강조색·v14 모션 세트(첫 화면 약 1.2초, `src/styles/motion.css`·`src/lib/motion.ts`, 속도는 `--k` 하나, 선택 바꿈 이어서 움직이기는 `--k-tween`); 토큰 `src/styles/tokens.css`, 적용층 `src/styles/v14.css`, 테마 `src/platform/theme.ts`).
+한화엔진 구매·품질 실무자용 시연 웹앱(학생 DX팀 과제). 협력업체·구매조달·원가-계약·자재-공급 데이터를 한 화면에서 보고, 자연어로 질문하면 코드가 데이터로 계산한 결과를 오른쪽 고정 AI 에이전트 패널에 글로만 답한다(표·차트 없음, 근거 표는 엑셀·CSV로 내보내기). 데이터 관리 : AI 에이전트 = 65:35. 현재 버전 **v0.7.2** (v0.7.2: 휴대폰 환영 말풍선 스크롤 없음(머리 아이콘만·짧은 환영 문구·칩 개수 조정), 토스트는 `ms` 옵션·사라짐 동작 `toastOut`, 문서 등록 성공 2초; v0.7.1: 문서 등록 버튼은 대화 패널 머리 '대화 이력' 왼쪽·아이콘 LuFilePlus2, 상단 바 '데이터 불러오기' 삭제(불러오기는 데이터 관리 패널 필터 줄·하위 보기 머리), 샘플 되돌리기는 아이콘만, 추천 질문 5개·스크롤 없음; v0.7.0 = 왼쪽 필터 줄의 **수기입력** 창: 견적서·납기보고서·계약서를 직접 입력 → 대시보드 실시간 반영, `src/lib/manual.ts`·`ManualEntryDialog.tsx`; v14 디자인·어두운 테마·강조색·v14 모션 세트(첫 화면 약 1.2초, `src/styles/motion.css`·`src/lib/motion.ts`, 속도는 `--k` 하나, 선택 바꿈 이어서 움직이기는 `--k-tween`); 토큰 `src/styles/tokens.css`, 적용층 `src/styles/v14.css`, 테마 `src/platform/theme.ts`).
 
 ## 반드시 지킬 규칙 (모든 작업에 적용)
 1. **데이터를 지어내지 않는다.** (수기입력으로 사용자가 직접 넣은 값은 SAMPLE이 아니므로 항상 '수기'·'수기 입력'으로 표시하고 SAMPLE과 섞어 보이지 않게 한다.) 수치·업체명·근거를 만들어 내지 않는다. 새 데이터는 모두 SAMPLE(가상)로 만들고 화면에 "SAMPLE · 실제 자료 아님"을 표시한다. 가상 수치의 출처로 실제 기관·거래소 이름을 쓰지 않는다.
@@ -28,7 +28,7 @@ npm start            # 빌드 후 서버
 npm run build        # dist/index.html(hanwha) + dist/artifact.html(neutral, body만)
 npm run sample       # 샘플 JSON 재생성 (시드 고정 — 기존 발주·재고 데이터가 바뀌지 않게 주의)
 npm run test:logic   # tests/logic-smoke.ts + logic-v3.ts + logic-docs.ts + logic-manual.ts (131개)
-npm start & npm run test:e2e   # tests/e2e.py (Python Playwright + openpyxl, 635개)
+npm start & npm run test:e2e   # tests/e2e.py (Python Playwright + openpyxl, 796개)
 npm run typecheck
 ```
 - 변경 후에는 **빌드 → 로직 테스트 → E2E 전부 통과**를 확인하고, 1920·1366·태블릿(900)·휴대폰(400) 화면을 캡처로 확인한다(가로 스크롤 없음, 13px 미만 글자 없음(브랜드 글자 제외), 콘솔 오류 없음).

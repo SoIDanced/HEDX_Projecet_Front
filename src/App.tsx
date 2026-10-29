@@ -17,7 +17,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { BRAND } from "./brand";
 import { Words } from "./components/ui";
 import { AiAvatar } from "./components/AiAvatar";
-import { armEnter, useReplayOn } from "./lib/motion";
+import { armEnter, reducedMotion, useReplayOn } from "./lib/motion";
 import { isNarrow } from "./store/agent";
 
 const PANEL_TABS: { id: Panel; label: string; icon: ReactNode }[] = [
@@ -25,28 +25,40 @@ const PANEL_TABS: { id: Panel; label: string; icon: ReactNode }[] = [
   { id: "C", label: "AI 에이전트", icon: <AiAvatar size={24} /> },
 ];
 
-/** 알림 영역은 항상 그려 두고 안의 글만 바꾼다(그래야 스크린리더가 읽는다). 마우스를 올리거나 초점이 있으면 사라지는 시계를 멈춘다 */
+export const TOAST_MS = 3600; // 보이는 시간 기본값(오류·일반 알림). 토스트마다 ms 로 바꿀 수 있다(문서 등록 성공 2000)
+const TOAST_EXIT_MS = 280; // 사라지는 동작 길이(CSS toastOut 과 같게)
+
+/** 알림 영역은 항상 그려 두고 안의 글만 바꾼다(그래야 스크린리더가 읽는다). 마우스를 올리거나 초점이 있으면 사라지는 시계를 멈춘다.
+ *  보이는 시간(ms)이 지나면 먼저 is-leaving(toastOut 동작)을 달고, 끝난 뒤(animationend, 없으면 350ms 뒤) 지운다. 동작 줄이기면 바로 지운다 */
 function Toast() {
   const { state, dispatch } = useStore();
   const [paused, setPaused] = useState(false);
+  const [leavingId, setLeavingId] = useState<number | null>(null); // id 로 비교해야 새 토스트가 이전 토스트의 사라짐 상태를 물려받지 않는다
+  const t = state.toast;
+  const leaving = !!t && leavingId === t.id;
   useEffect(() => {
-    if (!state.toast) {
+    if (!t) {
       setPaused(false);
       return;
     }
-    if (paused) return;
-    const t = setTimeout(() => dispatch({ type: "clearToast" }), 3600);
-    return () => clearTimeout(t);
-  }, [state.toast, paused, dispatch]);
+    if (paused || leaving) return;
+    const timer = setTimeout(() => (reducedMotion() ? dispatch({ type: "clearToast" }) : setLeavingId(t.id)), t.ms ?? TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [t, paused, leaving, dispatch]);
+  useEffect(() => {
+    if (!leaving) return;
+    const fallback = setTimeout(() => dispatch({ type: "clearToast" }), TOAST_EXIT_MS + 70);
+    return () => clearTimeout(fallback);
+  }, [leaving, dispatch]);
   return (
     <div className="toast-region" role="status" aria-live="polite" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
-      {state.toast && (
-        <div className={`toast toast-${state.toast.tone}`} key={state.toast.id}>
-          <span className="toast-icon" aria-hidden>{state.toast.tone === "warn" ? <LuTriangleAlert /> : <LuCheck />}</span>
-          <span>{state.toast.text}</span>
-          {state.toast.action && (
-            <button type="button" className="toast-action" onClick={() => dispatch({ type: "viewRow", action: state.toast!.action! })} data-toast-view>
-              {state.toast.action.label}
+      {t && (
+        <div className={`toast toast-${t.tone}${leaving ? " is-leaving" : ""}`} key={t.id} onAnimationEnd={(e) => e.animationName === "toastOut" && dispatch({ type: "clearToast" })}>
+          <span className="toast-icon" aria-hidden>{t.tone === "warn" ? <LuTriangleAlert /> : <LuCheck />}</span>
+          <span>{t.text}</span>
+          {t.action && (
+            <button type="button" className="toast-action" onClick={() => dispatch({ type: "viewRow", action: t.action! })} data-toast-view>
+              {t.action.label}
             </button>
           )}
         </div>
