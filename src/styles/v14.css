@@ -537,3 +537,84 @@ th.sticky-col { background: var(--soft); }
 .filter-row .search-field { flex: 1 1 140px; }
 .data-status.has-manual .ds-asof, .tb-status:has(.has-manual) .ai-status-text { display: none; } /* 배지가 늘어난 만큼 기준일·AI 상태 글자를 접음(기준일은 표 아래 출처 줄에 있음) */
 @media (max-width: 1500px) { .tb-status:has(.has-manual) { padding: 0 8px; gap: 6px; } .data-status.has-manual { gap: 6px; } .data-status.has-manual .badge-demo { padding: 0 8px; } .tb-status:has(.has-manual) .ai-status .dot { display: none; } }
+
+
+/* ── v0.7.3 디자인 다듬기 (기능·문구 그대로, 레이아웃·여백만) ── */
+/* 검색 칸: 위의 .panel-a input 16px 왼쪽 여백이 .search-field input 의 0 을 이겨서 아이콘과 글자 사이가 벌어져 있었음 → 0 으로 되돌리고, 긴 안내 글은 …로 줄임 */
+.panel-a :is(.search-field, .kw-field) input { padding-left: 0; text-overflow: ellipsis; }
+/* 낮은 데스크톱(1366×768): 채점 카드가 화면 절반을 차지해 표의 첫 행이 화면 밖(y≈763)이었음 → 장식 줄(영문 소제목·설명)을 접고 여백을 줄여 표가 첫 화면에 보이게 */
+@media (max-height: 820px) and (min-width: 641px) {
+  .eval-card { padding: 14px 18px; gap: 10px; }
+  .eval-eyebrow, .eval-sub { display: none; }
+  .eval-body { grid-template-columns: 108px minmax(0, 1fr); gap: 18px; }
+  .donut { width: 108px; height: 108px; }
+  .eval-bars { gap: 4px; }
+  .eval-progress { padding-top: 8px; }
+  .eval-head { align-items: center; }
+  .eval-head-side { flex-direction: row-reverse; align-items: center; gap: 8px; }
+  .panel-body-a { gap: 12px; }
+}
+/* 폰: 채점 카드만 화면 하나를 다 써서 표가 스크롤 한참 아래(y≈1240)였음 → 같은 장식 줄을 접고 간격을 줄임 */
+@media (max-width: 640px) {
+  .eval-card { padding: 14px; gap: 10px; }
+  .eval-eyebrow, .eval-sub { display: none; }
+  .eval-bars { gap: 6px; }
+  .panel-body-a { gap: 12px; }
+}
+/* 아주 좁은 폭: 데이터 탭 이름('자재-공급관리')이 …로 잘리던 것을 두 줄로 */
+@container dtabs (max-width: 420px) {
+  .tab { height: auto; min-height: 44px; padding: 4px 3px; }
+  .tab-label { white-space: normal; overflow: visible; text-align: center; line-height: 1.2; }
+}
+@media (max-width: 400px) { .eval-picker { gap: 6px; } .eval-picker select { padding-left: 10px; padding-right: 26px; } } /* 360px: 업체 ID 가 잘리던 선택 칸 */
+
+/* ── v0.7.3 2차: impeccable audit 보완 ── */
+/* AI 티: 카드 위 영문 소제목('AI SCORING AGENT', 작은 대문자·자간)은 제목과 같은 뜻이라 모든 화면에서 접고(글자는 DOM에 남김), 카드 오른쪽 아래 주황 번짐은 세기만 낮춤 */
+.eval-eyebrow { display: none; }
+.eval-card::after { background: radial-gradient(circle, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%); } /* v14 진입 동작(glowIn)이 쓰는 요소라 지우지 않고 세기만 22% → 10% 로 */
+/* 도킹 바: 패널이 좁으면(1366 등) 항목 이름이 '기술…'로 잘려 뜻이 사라지므로 막대는 접고 점수 링·이름·선택 칸만 보여 줌 */
+@container (max-width: 760px) { .dock-bars { display: none; } .dock-info { flex: 1 1 auto; } }
+.dock-select { flex: 0 1 190px; }
+/* 낮은 데스크톱(≤820px): 첫 화면에서 표의 첫 행이 하단 쪽수 바 뒤에 숨던 것을 위쪽 여백·장식 높이를 줄여 해결 */
+@media (max-height: 820px) and (min-width: 641px) {
+  .app { padding-top: 10px; gap: 10px; }
+  .tb-pill { height: 52px; }
+  .topbar .brand-logo { height: 38px; }
+  .panel-head { padding: 12px 20px 4px; }
+  .panel-body-a { padding-top: 8px; gap: 10px; --pb-pt: 8px; }
+  .eval-card { padding: 12px 16px; gap: 8px; }
+  .eval-picker select, .eval-picker .fav-star { height: 34px; }
+  .eval-body { grid-template-columns: 92px minmax(0, 1fr); gap: 16px; }
+  .donut { width: 92px; height: 92px; }
+  .eval-bars { gap: 2px; }
+  .eval-progress { padding-top: 4px; }
+  .data-tabs { gap: 8px; }
+  .tab { height: 36px; }
+  .pager { padding: 6px 4px; }
+}
+/* 폰(≤400px): 로고·테마·종·계정이 한 줄에 못 들어가 360px에서 서로 겹치던 상단 바를 두 줄로 — 윗줄 로고·되돌리기·계정, 아랫줄 상태·테마·알림 */
+@media (max-width: 400px) {
+  .tb-brand { order: 1; }
+  .tb-actions { order: 2; flex: none; padding: 0 2px; }
+  .tb-user { order: 3; }
+  .tb-status { order: 4; flex: 1 1 0; }
+  .tb-tools { order: 5; }
+}
+/* 터치 화면(pointer: coarse): 44px 미만이던 칩·근거·필터 줄 버튼·정렬 버튼은 styles.css 의 관례대로 보이는 크기는 두고 누르는 영역만 44px 로, 검색 칸·평가 대상 선택 칸·접기 줄은 실제 높이를 44px 로 */
+@media (pointer: coarse) {
+  :root { --field-h: 44px; }
+  .eval-basis-btn, .chip-btn, .filter-row .btn, .opt-chip, .th-sort, .seg-ctl button { position: relative; }
+  .eval-basis-btn::after, .chip-btn::after, .filter-row .btn::after, .opt-chip::after, .th-sort::after, .seg-ctl button::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+  .eval-picker select { min-height: 44px; }
+  .swatch { min-width: 44px; }
+  .manual-modal summary { min-height: 44px; display: flex; align-items: center; }
+}
+/* 차트 경고 점의 '!' 가 10px 이라 규칙 7(13px 이상)에 걸렸음 → 원을 18px 로 키워 13px 글자가 들어가게 */
+.status-icon { width: 18px; height: 18px; font-size: var(--fs-12); line-height: 1; }
+/* 폰의 도킹 바: 점수 글자와 선택 칸이 서로 잘리지 않게 간격·링을 줄이고, 선택 칸은 …로 줄임 */
+@media (max-width: 440px) {
+  .eval-dock-bar { gap: 10px; padding: 0 10px; }
+  .dock-ring { width: 34px; height: 34px; }
+  .dock-info { flex: 1 1 auto; }
+  .dock-select { flex: 0 1 140px; padding-left: 10px; padding-right: 24px; text-overflow: ellipsis; background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%; }
+}

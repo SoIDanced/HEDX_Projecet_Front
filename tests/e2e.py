@@ -2323,13 +2323,13 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     pt.wait_for_function("() => !document.querySelector('.progress')", timeout=8000)
     check("휴대폰(400): 첫 질문 뒤 추천 질문 영역 사라짐(v0.4.3 유지) · 대화는 필요하면 스크롤(정상)", pt.locator("#suggest-row").count() == 0 and pt.locator(".chat-list").evaluate("e => e.scrollHeight >= e.clientHeight"))
     ct.close()
-    # 넓은 화면은 환영 문구가 그대로(긴 변형) · 레이아웃 값 회귀 없음 (1366: 칩 178/대화 196, 1920: 153/510, 1500×800: 178/226, 900×800: 93/253)
-    for (w, h, chips, lst) in [(1366, 768, 178, 196), (1920, 1080, 153, 510), (1500, 800, 178, 226), (900, 800, 93, 253)]:
+    # 넓은 화면은 환영 문구가 그대로(긴 변형) · 레이아웃 값 회귀 없음 (1366: 칩 178/대화 224, 1920: 153/510, 1500×800: 178/254, 900×800: 93/281 — v0.7.3: 높이 ≤820 화면에서 위쪽 여백·장식을 줄여 대화 영역이 +28px)
+    for (w, h, chips, lst) in [(1366, 768, 178, 224), (1920, 1080, 153, 510), (1500, 800, 178, 254), (900, 800, 93, 281)]:
         ct, pt = v72new(w, h)
         W = pt.evaluate(WEL)
         G = pt.evaluate("() => ({chips: Math.round(document.querySelector('#suggest-row').getBoundingClientRect().height), list: Math.round(document.querySelector('.chat-list').getBoundingClientRect().height)})")
         long_ok = "협력사 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요." in W["txt"] and "입력창 위의 추천 질문을 누르거나" in W["txt"]
-        check(f"{w}×{h} 환영 상태: 긴 환영 문구 그대로 · 칩 영역 {chips}px · 대화 영역 {lst}px(v0.7.1과 같음) · 환영 말풍선 스크롤 없음", long_ok and abs(G["chips"] - chips) <= 2 and abs(G["list"] - lst) <= 2 and W["sh"] <= W["ch"] + 1 and not W["hs"], json.dumps(G) + f" sh {W['sh']}/ch {W['ch']}")
+        check(f"{w}×{h} 환영 상태: 긴 환영 문구 그대로 · 칩 영역 {chips}px · 대화 영역 {lst}px(v0.7.3 기준) · 환영 말풍선 스크롤 없음", long_ok and abs(G["chips"] - chips) <= 2 and abs(G["list"] - lst) <= 2 and W["sh"] <= W["ch"] + 1 and not W["hs"], json.dumps(G) + f" sh {W['sh']}/ch {W['ch']}")
         ct.close()
 
     # (2) 토스트: 문서 등록 성공 2초 · 나타남(toastIn)·사라짐(toastOut) 동작
