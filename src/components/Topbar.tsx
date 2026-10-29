@@ -1,6 +1,6 @@
-// 상단 바: 브랜드 · 데이터 상태 · AI 연결 상태 · 결제 알림 · 데이터 불러오기/샘플로 되돌리기 · 사용자 메뉴
+// 상단 바: 브랜드 · 데이터 상태 · AI 연결 상태 · 결제 알림 · 샘플로 되돌리기(불러오기는 데이터 관리 패널) · 사용자 메뉴
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { LuBell, LuBookOpen, LuCheck, LuChevronDown, LuMoon, LuSun, LuDatabase, LuFileUp, LuLogOut, LuRotateCcw, LuStar, LuTrash2, LuX } from "react-icons/lu";
+import { LuBell, LuBookOpen, LuCheck, LuChevronDown, LuMoon, LuSun, LuDatabase, LuLogOut, LuRotateCcw, LuStar, LuTrash2, LuX } from "react-icons/lu";
 import { useStore } from "../store/store";
 import { useAgent } from "../store/agent";
 import { alertCount } from "../lib/payments";
@@ -79,7 +79,7 @@ function DataStatus() {
   return (
     <div className={`data-status ${showSaved ? "has-saved" : ""} ${state.manual.length ? "has-manual" : ""}`} title={Object.entries(state.meta.sources).map(([k, v]) => `${k}: ${v}`).join("\n")}>
       <LuDatabase aria-hidden />
-      <span className={`badge-demo ${state.meta.isSample ? "" : "is-upload"}`} title={state.meta.isSample ? "SAMPLE = 시연용 가상 데이터입니다. 실제 데이터는 ‘데이터 불러오기’로 올립니다." : "업로드한 데이터가 섞여 있습니다. ‘샘플 데이터로 되돌리기’로 되돌릴 수 있습니다."}>{state.meta.isSample ? "SAMPLE" : "업로드 포함"}</span>
+      <span className={`badge-demo ${state.meta.isSample ? "" : "is-upload"}`} title={state.meta.isSample ? "SAMPLE = 시연용 가상 데이터입니다. 실제 데이터는 ‘불러오기’(데이터 관리 패널)로 올립니다." : "업로드한 데이터가 섞여 있습니다. ‘샘플 데이터로 되돌리기’로 되돌릴 수 있습니다."}>{state.meta.isSample ? "SAMPLE" : "업로드 포함"}</span>
       {state.manual.length > 0 && (
         <span className="badge-demo is-manual" data-manual-badge title="사용자가 ‘수기입력’으로 직접 입력한 값이 SAMPLE 데이터와 함께 계산에 들어 있습니다. ‘샘플 데이터로 되돌리기’로 지울 수 있습니다.">
           + <span className="mb-long">수기 입력</span><span className="mb-short" aria-hidden data-t="수기" />{" "}{state.manual.length}건
@@ -263,7 +263,6 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
 export function Topbar({ onLogout }: { onLogout: (wipe: boolean) => void }) {
   const { state, dispatch } = useStore();
   const [confirmReset, setConfirmReset] = useState(false);
-  const datasetFor = state.subView[state.tab] === "list" ? state.tab : state.tab;
   return (
     <header className="topbar">
       <div className="tb-pill tb-brand">
@@ -274,12 +273,8 @@ export function Topbar({ onLogout }: { onLogout: (wipe: boolean) => void }) {
         <AiStatus />
       </div>
       <div className="tb-pill tb-actions">
-        <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: "openImport", dataset: datasetFor })} title="CSV·JSON 파일로 데이터 올리기 (형식 검사 후 반영)">
-          <LuFileUp aria-hidden /> <span className="hide-md">데이터 </span>불러오기
-        </button>
         <button type="button" className="btn btn-quiet sample-reset" onClick={() => setConfirmReset(true)} title="샘플 데이터로 되돌리기 (업로드한 데이터·수기 입력과 이 브라우저의 저장본이 지워집니다)" aria-label="샘플 데이터로 되돌리기">
           <LuRotateCcw aria-hidden />
-          <span className="hide-lg">샘플 데이터로 되돌리기</span>
         </button>
       </div>
       <div className="tb-pill tb-tools">

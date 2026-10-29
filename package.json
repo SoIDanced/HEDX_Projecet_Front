@@ -1,7 +1,7 @@
 {
   "name": "procure-ai-platform",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.2",
   "description": "RAG 기반 협력사 평가 AI 에이전트 (시연용, SAMPLE 데이터)",
   "type": "module",
   "engines": {

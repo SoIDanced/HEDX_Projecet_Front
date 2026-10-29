@@ -31,6 +31,7 @@
 @keyframes popOpen { from { opacity: 0; transform: translateY(-6px) scale(0.95); } }
 @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
 @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(0.94); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(10px) scale(0.96); } } /* toastIn 의 거울: 사라질 때 (v0.7.2, 280ms) */
 @keyframes bubbleIn { from { opacity: 0; transform: translateY(12px) scale(0.92); } }
 @keyframes accIn { from { grid-template-rows: 0fr; opacity: 0; } }
 @keyframes starPop { 40% { transform: scale(1.5) rotate(20deg); } }
@@ -142,6 +143,7 @@
 .modal { animation: modalIn 420ms var(--spring) both; }
 .modal-backdrop { animation: fadeIn 250ms ease both; }
 .toast { animation: toastIn 450ms var(--spring) both; }
+.toast.is-leaving { animation: toastOut 280ms var(--ease) both; pointer-events: none; }
 .acc { display: grid; grid-template-rows: 1fr; }
 .acc > ul { min-height: 0; }
 .acc.acc-in { animation: accIn 450ms var(--ease) both; }
