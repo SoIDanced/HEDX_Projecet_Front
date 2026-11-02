@@ -11,7 +11,7 @@ const timers = new WeakMap<Element, number>();
 
 export const reducedMotion = () => {
   try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
+    return document.documentElement.dataset.motion === "reduced";
   } catch {
     return false;
   }

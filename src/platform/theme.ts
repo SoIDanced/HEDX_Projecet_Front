@@ -1,5 +1,5 @@
 // 테마(밝게/어둡게)·강조색: <html data-theme data-accent>. 첫 화면 전에 빌드 템플릿의 인라인 스크립트가 먼저 적용한다.
-// 전환은 View Transitions API로 물방울처럼 번지게(900ms), 지원하지 않거나 '동작 줄이기'면 200ms 색 페이드. 어느 쪽이든 data-theme는 곧바로(≤900ms) 바뀐다.
+// 전환은 View Transitions API로 물방울처럼 번지게(900ms), 지원하지 않거나 움직임 효과를 끄면 200ms 색 페이드. 어느 쪽이든 data-theme는 곧바로(≤900ms) 바뀐다.
 import { useSyncExternalStore } from "react";
 import { readStore, writeStore } from "./storage";
 
@@ -45,13 +45,21 @@ try {
   /* 오래된 브라우저 */
 }
 
-const reduced = () => {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches || root().dataset.motion === "reduced";
-  } catch {
-    return false;
-  }
+// 움직임 효과: 기본 켬(운영체제의 '애니메이션 끔' 설정과 무관). 사용자가 보기 메뉴에서 끄면 data-motion="reduced" 로 모든 동작이 즉시 끝난다.
+const reduced = () => root().dataset.motion === "reduced";
+let motionOn = readStore<string>("motion") !== "off";
+const paintMotion = () => {
+  if (motionOn) delete root().dataset.motion;
+  else root().dataset.motion = "reduced";
 };
+paintMotion();
+export function setMotion(on: boolean) {
+  motionOn = on;
+  writeStore("motion", on ? "on" : "off");
+  paintMotion();
+  emit();
+}
+export const useMotion = () => useSyncExternalStore(sub, () => motionOn);
 const POINTS = 10;
 const FRAMES = 20;
 const WOBBLE = 0.24;

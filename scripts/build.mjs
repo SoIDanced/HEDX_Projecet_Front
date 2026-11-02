@@ -19,7 +19,7 @@ const FONTS =
 // 첫 화면을 그리기 전에 저장된(없으면 운영체제) 테마·강조색을 <html>에 적용 → 깜빡임 방지 (src/platform/theme.ts와 같은 키)
 const PREPAINT =
   '<script>(function(){var d=document.documentElement,t="light";try{t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}' +
-  'try{var s=JSON.parse(localStorage.getItem("procure-ai:theme"));if(s==="light"||s==="dark")t=s;var a=JSON.parse(localStorage.getItem("procure-ai:accent"));if(["blue","green","violet","rose"].indexOf(a)>=0)d.setAttribute("data-accent",a)}catch(e){}' +
+  'try{var s=JSON.parse(localStorage.getItem("procure-ai:theme"));if(s==="light"||s==="dark")t=s;var a=JSON.parse(localStorage.getItem("procure-ai:accent"));if(JSON.parse(localStorage.getItem("procure-ai:motion"))==="off")d.setAttribute("data-motion","reduced");if(["blue","green","violet","rose"].indexOf(a)>=0)d.setAttribute("data-accent",a)}catch(e){}' +
   'd.setAttribute("data-theme",t)})()</script>';
 
 const TARGETS = [

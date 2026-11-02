@@ -15,10 +15,28 @@ def _wfs(self, selector, **kw):
     r = _orig_wfs(self, selector, **kw)
     if selector == ".eval-card":
         self.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+        # v0.7.4: 첫 실행은 선택 없음('협력사를 선택하세요'). 이후 검사들은 예전 첫 상태(업체 A 선택)를 전제로 하므로 여기서 A 를 골라 준다.
+        if self.evaluate("() => { const s = document.querySelector('#eval-supplier'); return !!s && s.value === '' }"):
+            self.select_option("#eval-supplier", "SUP-001")
     return r
 
 
 Page.wait_for_selector = _wfs
+
+# v0.7.4: 움직임 효과는 기본 켬이고 운영체제의 '애니메이션 끔'을 따르지 않는다. '동작 줄이기' 검사용 컨텍스트는 앱 안의 끄기 설정(저장값 motion=off)을 함께 넣어 만든다.
+from playwright.sync_api import Browser
+
+_orig_nc = Browser.new_context
+
+
+def _nc(self, *a, **kw):
+    ctx = _orig_nc(self, *a, **kw)
+    if kw.get("reduced_motion") == "reduce":
+        ctx.add_init_script("try{localStorage.setItem('procure-ai:motion','\"off\"')}catch(e){}")
+    return ctx
+
+
+Browser.new_context = _nc
 
 
 def settled(pg):
@@ -157,7 +175,11 @@ with sync_playwright() as p:
     page.click("#ob-next")
     page.click("#ob-next")
     page.click("#ob-done")
-    page.wait_for_selector(".eval-card")
+    _orig_wfs(page, ".eval-card")
+    # v0.7.4: 처음 켜면 선택된 협력사·'협력사 · 업체 A' 필터 칩 없음, 평가 대상 칸은 안내 문구, 화면·테마는 밝게(OS가 어두워도)
+    check("첫 실행: 협력사 선택 없음 — 칩 없음, 평가 대상 '협력사를 선택하세요', 안내 문구, 도넛 없음", page.locator(".chip", has_text="업체 A").count() == 0 and page.locator("#eval-supplier").input_value() == "" and "협력사를 선택하세요" in page.locator("#eval-supplier").inner_text() and "평가 대상을 고르면" in page.locator(".eval-empty").inner_text() and page.locator(".eval-card .donut").count() == 0)
+    check("첫 실행: 저장된 테마가 없으면 운영체제 설정(이 컨텍스트는 라이트)을 따름, 움직임 효과 켬(data-motion 없음)", page.evaluate("() => document.documentElement.dataset.theme === 'light' && !document.documentElement.dataset.motion"))
+    page.select_option("#eval-supplier", "SUP-001")
     check("사용 안내 닫힘", page.locator(".onboarding").count() == 0)
     check("헤더에 사용자 이름", "홍길동" in page.locator(".user-btn").inner_text())
     check("v0.2.0 저장 내용 이전 후 예전 키 삭제", page.evaluate("() => localStorage.getItem('procure-ai:session.v2') === null"))
@@ -169,7 +191,7 @@ with sync_playwright() as p:
     check("로고 표시: 상단 바에 공식 SVG 로고 한 장(<img alt='한화엔진'>, data:image/svg+xml)", bk["n"] == 1 and bk["imgs"] == 1 and bk["alt"] == "한화엔진" and bk["src"].startswith("data:image/svg+xml") and bk["nw"] > 0, json.dumps(bk, ensure_ascii=False))
     check("브랜드: 영문 'HANWHA ENGINE'·따로 쓴 '한화엔진' 글자·옛 글자 칸(.brand-ko/.brand-en/.brand-co) 없음, 접근 가능한 이름은 alt '한화엔진'뿐", bk["ko"] == 0 and not bk["hasEn"] and bk["aria"] == [], json.dumps(bk, ensure_ascii=False))
     check("로고: 1920에서 표시 높이 44~48px, 가로세로 비율(심볼+한글 상호 2.96:1) 유지", 43.9 <= bk["h"] <= 48.1 and abs(bk["w"] / bk["h"] - 1602.4410203 / 541.5305176) < 0.03, f"{bk['h']}px x {round(bk['w'], 1)}px, 비율 {round(bk['w'] / bk['h'], 3)}")
-    check("로고 판: 두 테마 모두 흰 판(#fff) — 검정 상호가 어두운 테마에서도 보임", bk["plateBg"] == "rgb(255, 255, 255)", bk["plateBg"])
+    check("로고 판: 라이트(첫 로그인은 라이트 컨텍스트)는 흰 판(#fff). 어두운 테마는 판 없음+글자 #F2F2F2 파생 로고(v0.7.4, 아래 새 로고 검사에서 확인)", bk["plateBg"] == "rgb(255, 255, 255)", bk["plateBg"])
     ml = page.evaluate("() => { const a = document.querySelector('.app').getBoundingClientRect(); return [a.left, innerWidth - a.right]; }")
     check("쪽 좌우 여백: 1920에서 v0.5.5의 52px ×1.5 = 78px (v0.5.6, 76.5~79.5px)", all(76.5 <= m <= 79.5 for m in ml), f"52px → {ml}")
     pn = page.evaluate("() => { const p = document.querySelector('.topbar .brand-product'), r = p.getBoundingClientRect(); return {t: p.textContent, title: p.title, tag: p.tagName, h: r.height, fs: parseFloat(getComputedStyle(p).fontSize), clip: p.scrollWidth > p.clientWidth + 1, hdr: document.querySelector('.topbar').innerText}; }")
@@ -1071,9 +1093,9 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     starts = {n: round(v["s"] - t0) for n, v in names.items()}
     mx = max(ends.values()) if ends else 9999
     check("진입 동작: 첫 화면 전체가 1500ms 안에 끝남 (지연 포함, v0.5.6 --k .5)", bool(ends) and mx <= 1500, f"최대 {mx}ms · {len(names)}종 · " + json.dumps(ends, ensure_ascii=False))
-    check("진입 동작: 핵심 숫자(막대·도넛)와 표 첫 행이 520ms 안에 시작 (v0.5.6)", starts.get("rowIn", 9999) <= 520 and starts.get("fillIn", 9999) <= 520 and starts.get("dash", 9999) <= 520, f"rowIn {starts.get('rowIn')} · fillIn {starts.get('fillIn')} · dash {starts.get('dash')}")
+    check("진입 동작: 표 첫 행이 520ms 안에 시작 (v0.5.6; v0.7.4: 첫 실행은 선택된 협력사가 없어 막대·도넛이 없으므로 막대·도넛 시작 검사는 뺌)", starts.get("rowIn", 9999) <= 520, f"rowIn {starts.get('rowIn')} · fillIn {starts.get('fillIn')} · dash {starts.get('dash')}")
     need = ["shellIn", "popPill", "logoIn", "wipeIn", "rise", "wordIn", "cardIn", "tileIn", "glowIn", "indIn", "fillIn", "dash", "rowIn"]
-    miss = [n for n in need if n not in names]
+    miss = [n for n in need if n not in names and n not in ("fillIn", "dash")]  # v0.7.4: 첫 실행엔 도넛·막대가 없다(선택 전)
     check("v14 모션 세트: 로드 때 실제로 실행되는 동작 이름 13종 (getAnimations)", not miss, "없음: " + ", ".join(miss))
     check("반복 장식(알림 점 pulse·상태 점 livePulse)이 무한 반복으로 돈다", names.get("pulse", {}).get("inf") and names.get("livePulse", {}).get("inf"))
     kf = dp.evaluate("() => { const o = new Set(); for (const sh of document.styleSheets) { try { for (const r of sh.cssRules) if (r.type === CSSRule.KEYFRAMES_RULE) o.add(r.name); } catch (e) {} } return [...o]; }")
@@ -1567,7 +1589,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
             h_now = subprocess.run(["git", "hash-object", "src/assets/brand/logo.png"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
             h_head = subprocess.run(["git", "rev-parse", "HEAD:src/assets/brand/logo.png"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
             st_assets = subprocess.run(["git", "status", "--porcelain", "--", "src/assets"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-            check("logo.png 해시가 git HEAD 와 같음(수정 안 됨) · src/assets 의 변경은 새 공식 로고 hanwha-engine-logo.svg 추가뿐 (v0.6.0)", h_now == h_head and len(h_now) == 40 and set(l[3:] for l in st_assets.splitlines()) <= {"src/assets/brand/hanwha-engine-logo.svg"}, f"{h_now[:10]} / {h_head[:10]} / '{st_assets}'")
+            check("logo.png 해시가 git HEAD 와 같음(수정 안 됨) · src/assets 의 변경은 새 공식 로고 hanwha-engine-logo.svg 추가뿐 (v0.6.0)", h_now == h_head and len(h_now) == 40 and set(l[3:] for l in st_assets.splitlines()) <= {"src/assets/brand/hanwha-engine-logo.svg", "src/assets/brand/hanwha-engine-logo-dark.svg"}, f"{h_now[:10]} / {h_head[:10]} / '{st_assets}'")
         c62.close()
 
     # 중립 빌드(dist/artifact.html): 로고 없이 중립 아이콘
@@ -1659,8 +1681,8 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
             demo_login(pl)
             settled(pl)
             T = pl.evaluate("""() => { const tb = document.querySelector('.topbar').getBoundingClientRect(), lg = document.querySelector('.topbar .brand-logo').getBoundingClientRect(), br = document.querySelector('.tb-brand'), pills = [...document.querySelectorAll('.tb-pill')], sm = document.querySelector('.badge-demo').getBoundingClientRect(), pl = document.querySelector('.brand-plate'), ds = document.querySelector('.data-status');
-              return {hs: document.documentElement.scrollWidth <= innerWidth, logoIn: lg.left >= tb.left && lg.right <= br.getBoundingClientRect().right + 0.5, brClip: br.scrollWidth > br.clientWidth + 1, pillsIn: pills.every(p => { const r = p.getBoundingClientRect(); return r.left >= tb.left - 1 && r.right <= tb.right + 1; }), sample: sm.width > 20 && sm.left >= 0 && sm.right <= innerWidth, dsClip: ds.scrollWidth > ds.clientWidth + 1, h: lg.height, plate: getComputedStyle(pl).backgroundColor, tbH: tb.height}; }""")
-            check(f"새 로고 상단 바 {theme} {w}px: 가로 스크롤 없음 · 로고·알약이 상단 바 안 · 잘림 없음 · SAMPLE 표시 보임 · 흰 판", T["hs"] and T["logoIn"] and not T["brClip"] and T["pillsIn"] and T["sample"] and not T["dsClip"] and T["plate"] == "rgb(255, 255, 255)", json.dumps(T))
+              return {src: document.querySelector('.topbar .brand-logo').src.includes('svg+xml') && decodeURIComponent(document.querySelector('.topbar .brand-logo').src).includes('f2f2f2') ? 'dark' : 'light', hs: document.documentElement.scrollWidth <= innerWidth, logoIn: lg.left >= tb.left && lg.right <= br.getBoundingClientRect().right + 0.5, brClip: br.scrollWidth > br.clientWidth + 1, pillsIn: pills.every(p => { const r = p.getBoundingClientRect(); return r.left >= tb.left - 1 && r.right <= tb.right + 1; }), sample: sm.width > 20 && sm.left >= 0 && sm.right <= innerWidth, dsClip: ds.scrollWidth > ds.clientWidth + 1, h: lg.height, plate: getComputedStyle(pl).backgroundColor, tbH: tb.height}; }""")
+            check(f"새 로고 상단 바 {theme} {w}px: 가로 스크롤 없음 · 로고·알약이 상단 바 안 · 잘림 없음 · SAMPLE 표시 보임 · 흰 판", T["hs"] and T["logoIn"] and not T["brClip"] and T["pillsIn"] and T["sample"] and not T["dsClip"] and T["plate"] == ("rgb(255, 255, 255)" if theme == "light" else "rgba(0, 0, 0, 0)") and T["src"] == ("light" if theme == "light" else "dark"), json.dumps(T))
             if w in (1366, 1920, 900, 400):
                 pl.screenshot(path=f"{SHOTS}/v060_topbar_{theme}_{w}.png", clip={"x": 0, "y": 0, "width": w, "height": min(h, 200)})
             cl.close()
@@ -1668,6 +1690,9 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     svg_bytes = open(os.path.join(ROOT, "src", "assets", "brand", "hanwha-engine-logo.svg"), "rb").read()
     svg_txt = svg_bytes.decode("utf-8")
     check("로고 파일: viewBox 1602.44×541.53, 주황 3색(#F37321·#F89B6C·#FBB584) 들어 있음", 'viewBox="0 0 1602.4410203 541.5305176"' in svg_txt and all(c in svg_txt.lower() for c in ("#f37321", "#f89b6c", "#fbb584")))
+    dk = open(os.path.join(ROOT, "src", "assets", "brand", "hanwha-engine-logo-dark.svg"), "rb").read().decode("utf-8")
+    i_last = svg_txt.rindex("<path d=")
+    check("다크 파생 로고: 원본 복사본에서 마지막 글자 경로에 fill=#f2f2f2 하나만 더한 것(주황 3색·모양 그대로, v0.7.4 사용자 승인)", dk == svg_txt[:i_last] + '<path fill="#f2f2f2" d=' + svg_txt[i_last + len("<path d="):] and all(c in dk.lower() for c in ("#f37321", "#f89b6c", "#fbb584")))
     check("로고 파일: SHA-256 이 사용자가 준 원본(a74709a8…6d4a)과 같음 — 수정 안 됨", hashlib.sha256(svg_bytes).hexdigest() == "a74709a84486cbd50fc828efdbb65bb0f6b7b3b8ed1d2339004ab5776f3b6d4a")
     idx = open(os.path.join(DIST, "index.html"), encoding="utf-8").read()
     check("빌드: dist/index.html 에 SVG 로고(data URL) 포함 · dist/artifact.html(중립)에는 한화엔진·HANWHA·SVG 로고 없음", "data:image/svg+xml" in idx and "한화엔진" not in art and "HANWHA" not in art and "data:image/svg+xml" not in art)

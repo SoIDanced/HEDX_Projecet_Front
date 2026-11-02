@@ -236,7 +236,7 @@ function initial(user: User): State {
     filters: EMPTY_TABS(() => ({})),
     queries: EMPTY_TABS(() => ""),
     focusTick: 0,
-    selection: { supplierId: data.suppliers[0]?.supplierId ?? null, itemCode: null, rowKey: null, rowTab: null },
+    selection: { supplierId: null, itemCode: null, rowKey: null, rowTab: null },
     messages: saved?.messages?.length ? saved.messages : [WELCOME],
     results: saved?.results ?? {},
     resultMeta: saved?.resultMeta ?? {},
@@ -387,7 +387,7 @@ function reducer(s: State, a: Action): State {
         dataId: newDataId(),
         uploaded: Array.from(new Set([...(s.meta.uploaded ?? []), a.dataset])),
       };
-      const supplierId = data.suppliers.some((x) => x.supplierId === s.selection.supplierId) ? s.selection.supplierId : data.suppliers[0]?.supplierId ?? null;
+      const supplierId = data.suppliers.some((x) => x.supplierId === s.selection.supplierId) ? s.selection.supplierId : null;
       const itemCode = data.items.some((x) => x.itemCode === s.selection.itemCode) ? s.selection.itemCode : null;
       return { ...s, data, meta, selection: { supplierId, itemCode, rowKey: null, rowTab: null } };
     }
@@ -400,7 +400,7 @@ function reducer(s: State, a: Action): State {
         data,
         meta: { ...a.meta, version: s.meta.version + 1 },
         savedAt: a.savedAt,
-        selection: { supplierId: data.suppliers[0]?.supplierId ?? null, itemCode: null, rowKey: null, rowTab: null },
+        selection: { supplierId: null, itemCode: null, rowKey: null, rowTab: null },
       };
     }
     case "dataReady":
@@ -417,7 +417,7 @@ function reducer(s: State, a: Action): State {
         saveError: null,
         manual: [], // 샘플로 되돌리면 수기 입력도 함께 지운다
         flash: null,
-        selection: { supplierId: data.suppliers[0]?.supplierId ?? null, itemCode: null, rowKey: null, rowTab: null },
+        selection: { supplierId: null, itemCode: null, rowKey: null, rowTab: null },
       };
     }
     case "manualOpen":

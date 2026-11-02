@@ -165,19 +165,14 @@ input[type="checkbox"].switch:active::before { scale: 1.25 1; }
 /* ── 5) 좁은 화면 화면 전환 막대: 활성 알약이 미끄러진다 (.panel-tabs 의 ::before) ── */
 @media (max-width: 1180px) {
   .panel-tabs { position: relative; --i: 0; }
-  .panel-tabs::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: calc((100% - 6px) / 2); border-radius: 999px; background: var(--solid); transform: translateX(calc(var(--i) * (100% + 6px))); transition: transform 0.4s var(--ease); pointer-events: none; }
+  .panel-tabs::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: calc((100% - 6px) / 2); border-radius: var(--r-sm); background: var(--solid); transform: translateX(calc(var(--i) * (100% + 6px))); transition: transform 0.4s var(--ease); pointer-events: none; }
   .panel-tabs button { position: relative; z-index: 1; transition: color 0.3s; }
   .panel-tabs button.is-active { background: transparent; border-color: transparent; color: var(--on-solid); }
 }
 
-/* ── 6) 동작 줄이기: 운영체제 설정 또는 data-motion="reduced" → 전부 즉시 (v14 규칙 + 반복 정지) ── */
+/* ── 6) 동작 줄이기: data-motion="reduced"(상단 메뉴의 움직임 효과 끔) → 전부 즉시 (v14 규칙 + 반복 정지) ── */
 [data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
-  animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
 }
 [data-motion="reduced"] :is(.bell-badge, .dot-on, .badge-demo::before) { animation: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-  .bell-badge, .dot-on, .badge-demo::before { animation: none !important; }
-  .typing i { animation: none !important; opacity: 0.6; }
-}
 [data-motion="reduced"] .typing i { animation: none !important; opacity: 0.6; }
