@@ -365,13 +365,14 @@ export function SupplierEvaluationCard() {
       <div className="eval-picker">
         <label htmlFor="eval-supplier">평가 대상</label>
         <select id="eval-supplier" value={sid ?? ""} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
+          {!sid && <option value="" disabled>협력사를 선택하세요</option>}
           <SupplierOptions />
         </select>
         {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
       </div>
 
       {!sup || !ev ? (
-        <p className="eval-empty">협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요.</p>
+        <p className="eval-empty">{!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}</p>
       ) : (
         <>
           <div className="eval-body" data-tween>

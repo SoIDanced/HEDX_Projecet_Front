@@ -6,7 +6,7 @@ import { useAgent } from "../store/agent";
 import { alertCount } from "../lib/payments";
 import { BrandBlock } from "./Brand";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ACCENTS, setAccent, setTheme, useAccent, useTheme } from "../platform/theme";
+import { ACCENTS, setAccent, setMotion, setTheme, useAccent, useMotion, useTheme } from "../platform/theme";
 
 function AiStatus() {
   const { state, dispatch } = useStore();
@@ -66,6 +66,16 @@ function AccentPicker() {
         </button>
       ))}
     </div>
+  );
+}
+
+function MotionToggle() {
+  const on = useMotion();
+  return (
+    <label className="motion-toggle">
+      <input type="checkbox" checked={on} onChange={(e) => setMotion(e.target.checked)} />
+      <span>움직임 효과</span>
+    </label>
   );
 }
 
@@ -154,6 +164,7 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
             </div>
           </div>
           <AccentPicker />
+          <MotionToggle />
           <p className="user-note">시연용 간이 로그인 · 대화·분석 이력·관심 목록·업로드 데이터가 이 브라우저에 사용자별로 저장됩니다.</p>
           <div className="fav-section">
             <p className="menu-label">
