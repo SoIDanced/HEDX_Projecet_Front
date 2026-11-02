@@ -91,7 +91,7 @@ check("분류 경로 문구", (pathText(d.bomIndex, "ITM-1001") ?? "").includes(
 // ── 업로드 검사 (새 데이터 종류) ──
 const v = validateRows("materialPrices", [{ 기준월: "2026.10", 원자재: "니켈", 시장: "국내", 가격: "27,000", 단위: "kg", 통화: "KRW" }, { 기준월: "2026-13", 원자재: "니켈", 시장: "국내", 가격: 1 }]);
 check("원자재 업로드: 월 형식 변환·오류", v.rows.length === 1 && (v.rows[0] as { month: string }).month === "2026-10" && v.errors.length === 1);
-const h = validateRows("suppliers", [{ 업체ID: "X1", 협력사명: "테스트", 평가이력: "2025H1:B:84:납기 개선;2025 하반기:A:86" }]);
+const h = validateRows("suppliers", [{ 업체ID: "X1", 협력업체명: "테스트", 평가이력: "2025H1:B:84:납기 개선;2025 하반기:A:86" }]);
 const hist = (h.rows[0] as { evalHistory: { half: number; reason?: string | null }[] }).evalHistory;
 check("평가 이력 반기·사유 형식", hist.length === 2 && hist[0].half === 1 && hist[0].reason === "납기 개선" && hist[1].half === 2);
 const dup = validateRows("bom", [{ 엔진모델: "E", 대부품: "a", 중부품: "b", 소부품: "c", 품목코드: "ITM-1001" }, { 엔진모델: "E", 대부품: "a", 중부품: "b", 소부품: "d", 품목코드: "ITM-1001" }]);

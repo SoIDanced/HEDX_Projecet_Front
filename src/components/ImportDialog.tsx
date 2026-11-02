@@ -11,7 +11,7 @@ import { trapTab } from "./focus";
 import { josa } from "../lib/format";
 
 const BASIC: DatasetKey[] = ["suppliers", "purchaseOrders", "contracts", "inventory", "items", "bom"];
-const MARKET: DatasetKey[] = ["materialPrices", "fxRates", "laborWages", "competitorSupply", "industryNews"];
+const MARKET: DatasetKey[] = ["materialPrices", "fxRates", "laborWages", "industryNews"];
 
 export function ImportDialog() {
   const { state, dispatch } = useStore();
@@ -223,7 +223,7 @@ export function ImportDialog() {
               </tbody>
             </table>
             <p className="small muted">
-              한 행을 구분하는 열: {pkFields(SCHEMAS[dataset]).map((k) => SCHEMAS[dataset].fields.find((f) => f.key === k)?.label ?? k).join(" + ")} · 협력사는 업체ID, 품목은 품목코드로 다른 표와 연결됩니다.
+              한 행을 구분하는 열: {pkFields(SCHEMAS[dataset]).map((k) => SCHEMAS[dataset].fields.find((f) => f.key === k)?.label ?? k).join(" + ")} · 협력업체는 업체ID, 품목은 품목코드로 다른 표와 연결됩니다.
             </p>
           </details>
         </div>

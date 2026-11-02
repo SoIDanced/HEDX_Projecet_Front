@@ -1,4 +1,4 @@
-// 관심 협력사·부품 고정 (별 아이콘) — 사용자별로 이 브라우저에 저장
+// 관심 협력업체·부품 고정 (별 아이콘) — 사용자별로 이 브라우저에 저장
 import { useState } from "react";
 import { LuStar } from "react-icons/lu";
 import { useStore } from "../store/store";
@@ -7,7 +7,7 @@ export function FavStar({ kind, id, name, size = "sm" }: { kind: "suppliers" | "
   const { state, dispatch } = useStore();
   const on = state.favorites[kind].includes(id);
   const [pop, setPop] = useState(false); // 눌러서 켠 때만 starPop (표를 다시 그릴 때는 재생하지 않음)
-  const what = kind === "suppliers" ? "관심 협력사" : "관심 부품";
+  const what = kind === "suppliers" ? "관심 협력업체" : "관심 부품";
   return (
     <button
       type="button"

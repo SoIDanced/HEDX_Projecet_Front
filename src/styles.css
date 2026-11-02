@@ -1,4 +1,4 @@
-/* RAG 기반 협력사 평가 AI 에이전트 v0.4
+/* RAG 기반 협력업체 평가 AI 에이전트 v0.4
    레이아웃: 상단 바 + 요약 지표 + 데이터 관리(65) · AI 에이전트(35) 2분할, 경계선으로 너비 조절. v0.4.0: 챗봇은 오른쪽 고정 패널, 답변은 글만.
    기준 해상도 1920×1080. 글자 단계 13 / 14 / 15 / 17 / 21 (v0.5.6, 예전 12/13/14/16/20) (+ 큰 숫자 24·30).
    밝은 업무 화면(아이보리 바탕·흰 패널)에 평가 카드만 차콜, 강조색은 오렌지 하나. */
@@ -692,7 +692,7 @@ fieldset.import-mode label { display: flex; gap: 6px; align-items: center; }
 .count-badge { min-width: 20px; height: 20px; border-radius: 6px; background: var(--surface-3); color: var(--ink-2); font-size: var(--fs-12); display: inline-grid; place-items: center; padding: 0 6px; font-variant-numeric: tabular-nums; }
 .btn.is-on .count-badge { background: var(--card); color: var(--accent-ink); }
 
-/* ── v0.3: 협력사 상세 — 공급 부품·등급 타임라인 ── */
+/* ── v0.3: 협력업체 상세 — 공급 부품·등급 타임라인 ── */
 .supply-parts ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13); }
 .supply-parts li { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .tl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-13); }

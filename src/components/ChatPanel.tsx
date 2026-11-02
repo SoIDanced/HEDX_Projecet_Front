@@ -17,6 +17,8 @@ import { HistoryPanel } from "./HistoryPanel";
 import { SelectionDetail, useSelectionTitle } from "./SelectionDetail";
 import { Chip, Words } from "./ui";
 
+const docSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
+
 function EngineBadge({ engine }: { engine: string }) {
   if (engine === "rule") return <span className="engine engine-rule">규칙 기반 데모 응답</span>;
   if (engine === "llm") return <span className="engine engine-llm">LLM 해석 · 계산은 코드</span>;
@@ -160,6 +162,7 @@ export function ChatPanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [registering, setRegistering] = useState(false);
+  const [pendingDocs, setPendingDocs] = useState<File[] | null>(null); // 미리보기 후 "벡터 DB에 추가하시겠습니까?" 대기 중인 파일
   const listRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const seenCount = useRef(state.messages.length);
@@ -238,6 +241,10 @@ export function ChatPanel() {
       const err = validateDocumentFile(f);
       if (err) return void dispatch({ type: "toast", text: files.length > 1 ? `${f.name}: ${err}` : err, tone: "warn" });
     }
+    setPendingDocs(files); // 등록 → 미리보기 → 예/아니오 (예일 때만 저장 처리)
+  };
+  const saveDocs = async (files: File[]) => {
+    setPendingDocs(null);
     setRegistering(true);
     try {
       await Promise.all(files.map((f) => registerDocument(f)));
@@ -264,7 +271,7 @@ export function ChatPanel() {
 
   const item = state.selection.itemCode ? derived.itemsByCode.get(state.selection.itemCode) : null;
   const sup = state.selection.supplierId ? derived.suppliersById.get(state.selection.supplierId) : null;
-  // 표에서 고른 행 자체(품목·협력사)는 한 줄 요약에 이미 있으므로 같은 칩은 다시 그리지 않는다
+  // 표에서 고른 행 자체(품목·협력업체)는 한 줄 요약에 이미 있으므로 같은 칩은 다시 그리지 않는다
   const rowTab = state.selection.rowTab;
   const ctxItem = item && rowTab !== "inventory" ? item : null;
   const ctxSup = sup && rowTab !== "suppliers" ? sup : null;
@@ -277,14 +284,14 @@ export function ChatPanel() {
           </Chip>
         )}
         {ctxSup && (
-          <Chip removeLabel="협력사 선택 해제" onRemove={() => dispatch({ type: "clearSelection", what: "supplier" })}>
-            협력사 · {ctxSup.name}
+          <Chip removeLabel="협력업체 선택 해제" onRemove={() => dispatch({ type: "clearSelection", what: "supplier" })}>
+            협력업체 · {ctxSup.name}
           </Chip>
         )}
       </div>
     ) : null;
 
-  // 추천 질문: 기본 + 관심 협력사·부품을 넣은 질문
+  // 추천 질문: 기본 + 관심 협력업체·부품을 넣은 질문
   const suggestions = useMemo(() => {
     const out: string[] = [];
     const fs = state.favorites.suppliers.map((id) => derived.suppliersById.get(id)?.name).filter(Boolean) as string[];
@@ -334,7 +341,7 @@ export function ChatPanel() {
                 aria-expanded={showDetail}
                 aria-controls="selection-detail"
                 aria-label={`${showDetail ? "선택 정보 접기" : "선택 정보 펼치기"}: ${selTitle}`}
-                title={`${showDetail ? "선택 정보 접기" : "선택한 협력사·부품 정보 펼치기"} · ${selTitle}`}
+                title={`${showDetail ? "선택 정보 접기" : "선택한 협력업체·부품 정보 펼치기"} · ${selTitle}`}
               >
                 <LuInfo aria-hidden />
               </button>
@@ -440,6 +447,29 @@ export function ChatPanel() {
         </form>
         <p className="composer-hint">Enter 보내기 · Shift+Enter 줄바꿈</p>
       </div>
+      {pendingDocs && (
+        <ConfirmDialog
+          title="벡터 DB에 추가하시겠습니까?"
+          tone="normal"
+          confirmLabel="예"
+          cancelLabel="아니오"
+          onCancel={() => {
+            setPendingDocs(null);
+            dispatch({ type: "toast", text: "문서를 추가하지 않았습니다.", ms: 2000 });
+          }}
+          onConfirm={() => void saveDocs(pendingDocs)}
+        >
+          <ul className="doc-preview" aria-label="등록할 문서 미리보기">
+            {pendingDocs.map((f, i) => (
+              <li key={`${f.name}-${i}`}>
+                <b className="doc-prev-name">{f.name}</b>
+                <span className="muted">{f.name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"} · {docSize(f.size)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted">파일 내용은 화면에서 읽지 않습니다. 파싱·청킹·임베딩과 벡터 DB 저장은 백엔드가 맡습니다.</p>
+        </ConfirmDialog>
+      )}
       {confirmClear && (
         <ConfirmDialog
           title="대화를 지울까요?"

@@ -104,6 +104,8 @@ export interface AnalysisResult {
   reviewPoints: string[];
   basis: string[];
   notes: string[];
+  /** 항목별 상세 문단(예: 단가 변동 상세) — 답변 글에 그대로 풀어 쓴다. 숫자는 코드가 계산한 값 */
+  detailSections?: { id: string; title: string; items: string[] }[];
   sources: SourceRef[];
   charts: ChartSpec[];
   recommended: TemplateId;

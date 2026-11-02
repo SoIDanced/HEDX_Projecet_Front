@@ -1,18 +1,23 @@
 // 왼쪽 데이터 관리: 4개 데이터 탭(하위 보기 포함) — 표, 검색·빠른 필터·상세 필터(부품 분류), 정렬, 행 상세, 업로드·엑셀
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type CSSProperties } from "react";
-import { LuFileSpreadsheet, LuFileUp, LuPencilLine } from "react-icons/lu";
+import { LuFileSpreadsheet, LuFileUp, LuPackagePlus, LuPencilLine } from "react-icons/lu";
 import { SUB_VIEWS, TAB_LABEL, halfLabel, type TabKey } from "../data/types";
 import { useStore } from "../store/store";
 import { DataTable, type Col } from "./DataTable";
-import { FilterBar } from "./FilterBar";
+import { FilterBar, ScopeRow } from "./FilterBar";
+import { TermsPop } from "./TermsPop";
+import { HoverPop } from "./HoverPop";
+import { PriceChangePop } from "./PriceChangePop";
+import { StockPolicyCell } from "./StockPolicyCell";
+import { deliveryLines } from "../lib/delivery";
 import { FavStar } from "./FavStar";
 import { GradeBadge, StatusPill } from "./ui";
 import { PaymentSchedule } from "./subviews/PaymentSchedule";
 import { MaterialPrices } from "./subviews/MaterialPrices";
 import { LaborWages } from "./subviews/LaborWages";
-import { CompetitorSupply } from "./subviews/CompetitorSupply";
 import { IndustryNews } from "./subviews/IndustryNews";
-import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "../lib/format";
+import { dday, daysBetween, fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, todayStr } from "../lib/format";
+import { normalizeScope, scopeActive, scopeFilter, scopeOptions, EMPTY_SCOPE, type Scope } from "../lib/scope";
 import type { ContractView, InventoryView, POView, SupplierView } from "../lib/metrics";
 import { EVAL_CONFIG } from "../lib/evaluation";
 import { applyFilters, uniqueOptions, type FilterDef, type Option } from "../lib/filters";
@@ -65,6 +70,45 @@ const NameCell = ({ name, code, star, tag }: { name: string; code: string; star?
   </span>
 );
 
+/** 품목·협력업체 한 칸: 윗줄 품목명 + 품목코드, 아랫줄 협력업체(+ 발주·계약 번호) */
+const PairCell = ({ name, code, sup, refNo, star, tag }: { name: string; code: string; sup: string; refNo?: string; star?: ReactNode; tag?: ReactNode }) => (
+  <span className="name-cell-wrap">
+    {star}
+    <span className="name-cell">
+      <span className="name-line">
+        <span className="name">{name}</span>
+        <Code>{code}</Code>
+      </span>
+      <span className="sub-line">
+        {sup}
+        {refNo ? <> · {refNo}</> : null}
+      </span>
+    </span>
+    {tag}
+  </span>
+);
+
+/** 방금 입고 반영으로 바뀐 숫자 옆의 짧은 강조 표시(색 + 문구, 약 3초) */
+const Chg = ({ children }: { children: ReactNode }) => (
+  <span className="chg-tag" data-chg>
+    {children}
+  </span>
+);
+
+/** 납기 팝업 내용: 예정 납기일·데이터 기준일·남은/지연 일수, 실제 입고일과 부분입고 잔량 */
+function DeliveryBody({ p, asOf }: { p: POView; asOf: string }) {
+  return (
+    <dl className="pp-dl" data-due-pop>
+      {deliveryLines(p, asOf).map((l) => (
+        <div key={l.label}>
+          <dt>{l.label}</dt>
+          <dd className={l.tone ? `pp-${l.tone}` : ""}>{l.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 const matches = (q: string, ...fields: (string | number | null | undefined)[]) => {
   if (!q) return true;
   const t = fields.join(" ").toLowerCase().replace(/\s+/g, "");
@@ -77,7 +121,7 @@ const matches = (q: string, ...fields: (string | number | null | undefined)[]) =
 
 const GRADE_OPTS: Option[] = ["A", "B", "C", "D"].map((g) => ({ value: g, label: `${g}등급` }));
 const PO_STATUS: Option[] = ["진행 중", "납기 지연", "지연입고", "입고완료", "취소"].map((v) => ({ value: v, label: v }));
-const INV_STATUS: Option[] = ["정상", "안전재고 미달", "공급 지연", "미달·지연"].map((v) => ({ value: v, label: v }));
+const INV_STATUS: Option[] = ["정상", "적정재고 미달", "공급 지연", "미달·지연"].map((v) => ({ value: v, label: v }));
 
 
 /** 열 정의 → 엑셀 열 (내보낼 값이 있는 열만) */
@@ -85,7 +129,7 @@ function exportCols<T>(cols: Col<T>[]): ExportCol<T>[] {
   return cols
     .filter((c) => c.exp || c.sort)
     .map((c) => ({
-      header: c.label,
+      header: c.expLabel ?? c.label,
       kind: c.expKind ?? (c.date ? "date" : c.num ? "dec" : "text"),
       value: (r: T) => {
         const v = c.exp ? c.exp(r) : c.sort!(r);
@@ -126,6 +170,14 @@ export function DataManagementTabs() {
     return () => clearTimeout(t);
   }, [state.flash, dispatch]);
 
+  // 입고 반영으로 바뀐 숫자의 강조는 잠깐만
+  const recent = state.recent;
+  useEffect(() => {
+    if (!recent) return;
+    const t = setTimeout(() => dispatch({ type: "clearRecent" }), 3200);
+    return () => clearTimeout(t);
+  }, [recent, dispatch]);
+
   // 검색 등으로 선택이 바뀌면 선택 행이 보이도록 스크롤
   useEffect(() => {
     if (!selectedKey) return;
@@ -140,18 +192,25 @@ export function DataManagementTabs() {
     inventory: derived.inventoryViews.length,
   };
 
-  const itemOpts = useMemo(() => [...derived.itemsByCode.values()].map((i) => ({ value: i.itemCode, label: `${i.name} (${i.itemCode})` })), [derived]);
-  const supOpts = useMemo(() => derived.supplierViews.map((s) => ({ value: s.supplierId, label: `${s.name} (${s.supplierId})` })), [derived]);
-
+  // 공통 조회 범위: 엔진모델 → 부품 → 품목 → 협력업체. 모든 탭이 같은 선택을 쓰고, 데이터가 바뀌어 맞지 않게 되면 '전체'로 되돌린다
+  const scope = state.scope;
+  const sOpts = useMemo(() => scopeOptions(derived, scope), [derived, scope]);
+  const sf = useMemo(() => scopeFilter(derived, scope), [derived, scope]);
+  useEffect(() => {
+    const n = normalizeScope(derived, scope);
+    if (n.speed !== scope.speed || n.group !== scope.group || n.item !== scope.item || n.supplier !== scope.supplier) dispatch({ type: "scope", scope: n });
+  }, [derived, scope, dispatch]);
+  const onScope = (key: keyof Scope, value: string) => dispatch({ type: "scope", scope: normalizeScope(derived, { ...scope, [key]: value }) });
+  const today = todayStr();
 
   // 부품 분류(엔진 > 대부품 > 중부품 > 소부품) 필터 — 모든 탭 공통
   const bomDef = useCallback(
     <T,>(itemsOf: (r: T) => string[]): FilterDef<T> => ({
       kind: "cascade",
       key: "bom",
-      label: "부품 분류",
+      label: "분류 경로",
       levels: BOM_LEVELS,
-      hint: "엔진 › 대부품 › 중부품 › 소부품 순서로 고르면 아래 단계가 좁혀집니다",
+      hint: "(샘플 BOM 경로) 엔진 › 대부품 › 중부품 › 소부품 순서로 고르면 아래 단계가 좁혀집니다",
       options: (path, level) => optionsAt(derived.bomIndex, path, level, derived.itemsByCode),
       test: (r, path) => {
         const set = itemsUnder(derived.bomIndex, path);
@@ -164,10 +223,10 @@ export function DataManagementTabs() {
   const view = useMemo(() => {
     if (tab === "suppliers") {
       const defs: FilterDef<SupplierView>[] = [
-        { kind: "quick", key: "fav", label: "★ 관심만", test: (s) => favSup.includes(s.supplierId), hint: "별표로 고정한 관심 협력사" },
+        { kind: "quick", key: "fav", label: "★ 관심만", test: (s) => favSup.includes(s.supplierId), hint: "별표로 고정한 관심 협력업체" },
         { kind: "quick", key: "lowDelivery", label: `납기 ${EVAL_CONFIG.lowDeliveryThreshold}% 미만`, test: QUICK.lowDelivery, hint: "관리 기준(예시) 미만 업체" },
         { kind: "quick", key: "highDefect", label: "불량률 1.5% 이상", test: (s) => (s.defectRate ?? 0) >= 1.5 },
-        { kind: "quick", key: "gradeCD", label: "C·D등급", test: QUICK.gradeCD, hint: "기준 미달 협력사 (평가등급 C·D)" },
+        { kind: "quick", key: "gradeCD", label: "C·D등급", test: QUICK.gradeCD, hint: "기준 미달 협력업체 (평가등급 C·D)" },
         { kind: "quick", key: "missing", label: "평가 데이터 누락", test: (s) => (derived.evaluations.get(s.supplierId)?.missing.length ?? 0) > 0, hint: "평가 항목 입력값이 비어 있는 업체" },
         bomDef<SupplierView>((s) => s.items),
         { kind: "multi", key: "grade", label: "평가 등급", options: GRADE_OPTS, get: (s) => s.evalGrade },
@@ -176,12 +235,11 @@ export function DataManagementTabs() {
         { kind: "range", key: "defect", label: "불량률", unit: "%", get: (s) => s.defectRate ?? null },
         { kind: "select", key: "process", label: "공정", options: uniqueOptions(derived.supplierViews.map((s) => s.process)), test: (s, v) => s.process === v },
         { kind: "select", key: "region", label: "지역", options: uniqueOptions(derived.supplierViews.map((s) => s.region)), test: (s, v) => s.region === v },
-        { kind: "select", key: "item", label: "공급 품목", options: itemOpts, test: (s, v) => s.items.includes(v) },
       ];
-      const base = derived.supplierViews.filter((s) => matches(q, s.name, s.supplierId, s.process, s.region, s.items.map(itemName).join(" "), s.items.join(" ")));
+      const base = derived.supplierViews.filter((s) => sf.supplier(s.supplierId) && matches(q, s.name, s.supplierId, s.process, s.region, s.items.map(itemName).join(" "), s.items.join(" ")));
       const rows = applyFilters(base, defs, fv);
       const cols: Col<SupplierView>[] = [
-        { key: "name", label: "협력사", render: (s) => <NameCell name={s.name} code={s.supplierId} star={<FavStar kind="suppliers" id={s.supplierId} name={s.name} />} />, sort: (s) => s.name, sticky: true, exp: (s) => `${s.name} (${s.supplierId})` },
+        { key: "name", label: "협력업체", render: (s) => <NameCell name={s.name} code={s.supplierId} star={<FavStar kind="suppliers" id={s.supplierId} name={s.name} />} />, sort: (s) => s.name, sticky: true, exp: (s) => `${s.name} (${s.supplierId})` },
         { key: "grade", label: "평가등급", hint: `종합 점수로 산정한 등급 (${EVAL_CONFIG.name})`, render: (s) => <GradeBadge grade={s.evalGrade} />, sort: (s) => s.evalGrade ?? "Z", exp: (s) => s.evalGrade },
         { key: "ontime", label: "납기 준수율", hint: "기한 내 입고 건 ÷ 마감된 발주 건 (납기 경과 미입고는 지연)", render: (s) => fmtPct(s.onTimeRate), sort: (s) => s.onTimeRate, num: true, expKind: "pct" },
         { key: "quality", label: "품질 점수", hint: "협력업체 시트의 품질 평가 점수(입고검사 기반, 100점)", render: (s) => fmtNum(s.qualityScore ?? null, 0), sort: (s) => s.qualityScore ?? null, num: true, expKind: "int" },
@@ -190,11 +248,11 @@ export function DataManagementTabs() {
         { key: "items", label: "공급 가능 품목", render: (s) => <span className="clip">{s.items.map(itemName).join(", ") || "–"}</span>, sort: (s) => s.items.length, exp: (s) => s.items.map(itemName).join(", ") },
         { key: "hist", label: "평가 이력", hint: "최근 평가 3회 (상=상반기, 하=하반기)", render: (s) => (s.evalHistory.length ? s.evalHistory.slice(-3).map((h) => `${halfLabel(h, true)} ${h.grade}`).join(" · ") : "–"), exp: (s) => s.evalHistory.map((h) => `${halfLabel(h)} ${h.grade}(${h.score})`).join(" → ") },
       ];
-      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "협력사명·업체ID·공정·품목으로 찾기", key: (s: SupplierView) => s.supplierId, pin: (s: SupplierView) => favSup.includes(s.supplierId), hasFav: favSup.length > 0 } as const;
+      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "협력업체명·업체ID·공정·품목으로 찾기", key: (s: SupplierView) => s.supplierId, pin: (s: SupplierView) => favSup.includes(s.supplierId), hasFav: favSup.length > 0 } as const;
     }
     if (tab === "purchaseOrders") {
       const defs: FilterDef<POView>[] = [
-        { kind: "quick", key: "fav", label: "★ 관심만", test: (p) => favSup.includes(p.supplierId) || favItem.includes(p.itemCode), hint: "관심 협력사 또는 관심 부품의 발주" },
+        { kind: "quick", key: "fav", label: "★ 관심만", test: (p) => favSup.includes(p.supplierId) || favItem.includes(p.itemCode), hint: "관심 협력업체 또는 관심 부품의 발주" },
         { kind: "quick", key: "overdue", label: "납기 지연(미입고)", test: QUICK.overdue },
         { kind: "quick", key: "open", label: "진행 중만", test: (p) => p.status === "진행 중" },
         { kind: "quick", key: "thisMonth", label: `이번 달 납기 (${Number(month.slice(5))}월)`, test: (p) => p.dueDate.startsWith(month), hint: `데이터 기준일 ${asOf}의 달` },
@@ -203,27 +261,87 @@ export function DataManagementTabs() {
         { kind: "multi", key: "status", label: "상태", options: PO_STATUS, get: (p) => p.status },
         { kind: "dateRange", key: "order", label: "발주일", get: (p) => p.orderDate },
         { kind: "dateRange", key: "due", label: "납기일", get: (p) => p.dueDate },
-        { kind: "select", key: "sup", label: "발주 업체", options: supOpts, test: (p, v) => p.supplierId === v },
-        { kind: "select", key: "item", label: "품목", options: itemOpts, test: (p, v) => p.itemCode === v },
       ];
-      const base = derived.poViews.filter((p) => matches(q, p.poNo, p.itemName, p.itemCode, p.supplierName, p.supplierId, p.status));
+      const base = derived.poViews.filter((p) => sf.item(p.itemCode) && (!scope.supplier || p.supplierId === scope.supplier) && matches(q, p.poNo, p.itemName, p.itemCode, p.supplierName, p.supplierId, p.status));
       const rows = applyFilters(base, defs, fv);
       const cols: Col<POView>[] = [
-        { key: "po", label: "발주번호", render: (p) => <Code>{p.poNo}</Code>, sort: (p) => p.poNo, sticky: true },
-        { key: "item", label: "품목", render: (p) => <NameCell name={p.itemName} code={p.itemCode} tag={<ManualPill row={p} />} />, sort: (p) => p.itemName, exp: (p) => `${p.itemName} (${p.itemCode})` },
-        { key: "sup", label: "발주 업체", render: (p) => p.supplierName, sort: (p) => p.supplierName },
-        { key: "status", label: "상태", hint: "납기 지연 = 납기가 지났는데 입고되지 않음", render: (p) => <StatusPill value={p.status} />, sort: (p) => p.status },
-        { key: "due", label: "납기 예정일", render: (p) => p.dueDate, sort: (p) => p.dueDate, date: true },
-        { key: "recv", label: "실제 입고일", render: (p) => fmtDate(p.receivedDate), sort: (p) => p.receivedDate, date: true },
-        { key: "qty", label: "수량", render: (p) => fmtInt(p.qty), sort: (p) => p.qty, num: true, expKind: "int" },
-        { key: "order", label: "발주 일자", render: (p) => p.orderDate, sort: (p) => p.orderDate, date: true },
+        { key: "item", label: "품목·협력업체", expLabel: "품목", render: (p) => <PairCell name={p.itemName} code={p.itemCode} sup={p.supplierName} refNo={p.poNo} tag={<ManualPill row={p} />} />, sort: (p) => p.itemName, sticky: true, exp: (p) => p.itemName },
+        { key: "qty", label: "발주수량", render: (p) => fmtInt(p.qty), sort: (p) => p.qty, num: true, expKind: "int" },
+        {
+          key: "rcv",
+          label: "누적 입고수량",
+          hint: "이 발주번호에 지금까지 입고된 수량(입고 기록의 합). 입고수량 기록 없이 입고일만 있는 기존 자료는 입고일 기준 전량으로 봅니다",
+          render: (p) => (
+            <span className="safe-cell rcv-cell">
+              <span>
+                {fmtInt(p.rcvQty)}
+                {recent?.poNo === p.poNo && <Chg>+{fmtInt(recent.qty)} 입고 반영</Chg>}
+              </span>
+              {p.rcvAssumed && <small className="muted">입고일 기준 전량</small>}
+              {p.partial && <small className="warn-text">부분입고</small>}
+              {p.status !== "취소" && (p.remainQty ?? 0) > 0 && (
+                <button type="button" className="btn btn-quiet stock-btn" data-po-receipt={p.poNo} aria-label={`${p.poNo} 입고 기록`} title="이 발주번호에 이번 입고수량을 기록합니다 (부분입고 가능)" onClick={() => dispatch({ type: "receiptOpen", open: true, poNo: p.poNo })}>
+                  <LuPackagePlus aria-hidden /> 입고 기록
+                </button>
+              )}
+            </span>
+          ),
+          sort: (p) => p.rcvQty,
+          num: true,
+          exp: (p) => p.rcvQty,
+        },
+        {
+          key: "rem",
+          label: "발주잔량",
+          hint: "발주수량 − 누적 입고수량(0 아래로 내려가지 않음). 부분입고면 남은 수량, 전량 입고면 0",
+          render: (p) => (
+            <span className="safe-cell">
+              <span className={p.partial ? "warn-text" : ""}>
+                {fmtInt(p.remainQty)}
+                {recent?.poNo === p.poNo && <Chg>잔량 갱신</Chg>}
+              </span>
+            </span>
+          ),
+          sort: (p) => p.remainQty,
+          num: true,
+          exp: (p) => p.remainQty,
+        },
+        {
+          key: "due",
+          label: "납기",
+          sub: "예정",
+          expLabel: "납기(예정)",
+          hint: "납기 예정일. 마우스를 올리거나 눌러 기준일·남은 일수를 확인합니다. 지났는데 입고되지 않으면 ‘납기 지연’, 실제 입고일은 아래 작은 글씨",
+          render: (p) => (
+            <span className="due-cell">
+              <HoverPop label={`납기 예정 ${p.dueDate} 상세 보기`} data="due" trigger={<span>{p.dueDate}</span>}>
+                <DeliveryBody p={p} asOf={asOf} />
+              </HoverPop>
+              <StatusPill value={p.status} />
+              {p.partial ? <small className="warn-text">부분입고 · 잔량 {fmtInt(p.remainQty)}{p.lastReceivedDate ? ` · 마지막 입고 ${p.lastReceivedDate}` : ""}</small> : p.receivedDate && <small className="muted">입고 {p.receivedDate}</small>}
+            </span>
+          ),
+          sort: (p) => p.dueDate,
+          date: true,
+          exp: (p) => p.dueDate,
+        },
       ];
-      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "발주번호·품목·업체로 찾기", key: (p: POView) => p.poNo, initialSort: { key: "order", dir: "desc" as const }, pin: (p: POView) => favSup.includes(p.supplierId) || favItem.includes(p.itemCode), hasFav: favSup.length + favItem.length > 0 } as const;
+      const expExtra: ExportCol<POView>[] = [
+        { header: "품목코드", kind: "text", value: (p) => p.itemCode },
+        { header: "협력업체", kind: "text", value: (p) => p.supplierName },
+        { header: "협력업체 ID", kind: "text", value: (p) => p.supplierId },
+        { header: "발주번호", kind: "text", value: (p) => p.poNo },
+        { header: "상태", kind: "text", value: (p) => p.status },
+        { header: "실제 입고일", kind: "date", value: (p) => p.receivedDate ?? p.lastReceivedDate ?? null },
+        { header: "입고 상태", kind: "text", value: (p) => (p.status === "취소" ? "취소" : p.partial ? "부분입고" : p.receivedDate ? (p.rcvAssumed ? "입고완료(입고일 기준 전량)" : "입고완료") : "미입고") },
+        { header: "발주일", kind: "date", value: (p) => p.orderDate },
+      ];
+      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "발주번호·품목·업체로 찾기", key: (p: POView) => p.poNo, expExtra: expExtra as ExportCol<unknown>[], pin: (p: POView) => favSup.includes(p.supplierId) || favItem.includes(p.itemCode), hasFav: favSup.length + favItem.length > 0 } as const;
     }
     if (tab === "contracts") {
       const th = EVAL_CONFIG.priceIncreaseThreshold;
       const defs: FilterDef<ContractView>[] = [
-        { kind: "quick", key: "fav", label: "★ 관심만", test: (c) => favSup.includes(c.supplierId) || favItem.includes(c.itemCode), hint: "관심 협력사 또는 관심 부품의 계약" },
+        { kind: "quick", key: "fav", label: "★ 관심만", test: (c) => favSup.includes(c.supplierId) || favItem.includes(c.itemCode), hint: "관심 협력업체 또는 관심 부품의 계약" },
         { kind: "quick", key: "up", label: `${th}% 이상 상승`, test: QUICK.priceUp },
         { kind: "quick", key: "expiring", label: "60일 안에 종료", test: (c) => c.expiresInDays !== null && c.expiresInDays >= 0 && c.expiresInDays <= 60 },
         { kind: "quick", key: "foreign", label: "외화 계약", test: (c) => c.currency !== "KRW" },
@@ -231,54 +349,141 @@ export function DataManagementTabs() {
         { kind: "range", key: "chg", label: "단가 변동률", unit: "%", get: (c) => c.changeRate },
         { kind: "within", key: "exp", label: "계약 종료", unit: "일", get: (c) => c.expiresInDays },
         { kind: "select", key: "cur", label: "통화", options: uniqueOptions(derived.contractViews.map((c) => c.currency)), test: (c, v) => c.currency === v },
-        { kind: "select", key: "sup", label: "거래 협력사", options: supOpts, test: (c, v) => c.supplierId === v },
-        { kind: "select", key: "item", label: "품목", options: itemOpts, test: (c, v) => c.itemCode === v },
       ];
-      const base = derived.contractViews.filter((c) => matches(q, c.contractId, c.itemName, c.itemCode, c.supplierName, c.supplierId, c.deliveryTerms, c.paymentTerms, c.currency));
+      const base = derived.contractViews.filter((c) => sf.item(c.itemCode) && (!scope.supplier || c.supplierId === scope.supplier) && matches(q, c.contractId, c.itemName, c.itemCode, c.supplierName, c.supplierId, c.deliveryTerms, c.paymentTerms, c.currency));
       const rows = applyFilters(base, defs, fv);
       const cols: Col<ContractView>[] = [
-        { key: "item", label: "품목", render: (c) => <NameCell name={c.itemName} code={c.itemCode} tag={<ManualPill row={c} />} />, sort: (c) => c.itemName, sticky: true, exp: (c) => `${c.itemName} (${c.itemCode})` },
-        { key: "sup", label: "거래 협력사", render: (c) => c.supplierName, sort: (c) => c.supplierName },
-        { key: "price", label: "최근 단가", render: (c) => fmtMoney(c.unitPrice, c.currency), sort: (c) => c.unitPrice, num: true, expKind: "dec" },
-        { key: "prev", label: "과거 단가", hint: "직전 계약 단가", render: (c) => fmtMoney(c.prevUnitPrice ?? null, c.currency), sort: (c) => c.prevUnitPrice ?? null, num: true, expKind: "dec" },
+        { key: "item", label: "품목·협력업체", expLabel: "품목", render: (c) => <PairCell name={c.itemName} code={c.itemCode} sup={c.supplierName} refNo={c.contractId} tag={<ManualPill row={c} />} />, sort: (c) => c.itemName, sticky: true, exp: (c) => c.itemName },
+        { key: "prev", label: "이전 단가", hint: "직전 계약 단가", render: (c) => fmtMoney(c.prevUnitPrice ?? null, c.currency), sort: (c) => c.prevUnitPrice ?? null, num: true, expKind: "dec" },
+        {
+          key: "price",
+          label: "현재 확정단가",
+          hint: "확정된 계약의 최근 단가. 견적 단가는 확정이 아니라서 ‘견적’으로 따로 표시합니다",
+          render: (c) => (c.docType === "견적" ? <span className="muted">견적 {fmtMoney(c.unitPrice, c.currency)}</span> : fmtMoney(c.unitPrice, c.currency)),
+          sort: (c) => c.unitPrice,
+          num: true,
+          exp: (c) => (c.docType === "견적" ? null : c.unitPrice),
+          expKind: "dec",
+        },
         {
           key: "chg",
           label: "변동률",
-          hint: "(최근 단가 ÷ 과거 단가 − 1) × 100",
-          render: (c) => <span className={(c.changeRate ?? 0) >= th ? "delta-up" : ""}>{fmtSignedPct(c.changeRate)}</span>,
+          hint: "(현재 확정단가 − 이전 단가) ÷ 이전 단가 × 100. 이전 단가가 없거나 0이면 계산하지 않고 ‘–’. 마우스를 올리거나 눌러 원자재·인건비 동향과 사유를 확인합니다",
+          render: (c) => <PriceChangePop c={c} up={(c.changeRate ?? 0) >= th} />,
           sort: (c) => c.changeRate,
           num: true,
           expKind: "pct",
         },
-        { key: "term", label: "계약 기간", render: (c) => `${c.startDate ?? "–"} ~ ${c.endDate ?? "–"}`, sort: (c) => c.endDate, date: true, exp: (c) => `${c.startDate ?? ""} ~ ${c.endDate ?? ""}` },
-        { key: "cond", label: "계약 조건", hint: "인도 조건 · 결제 조건", render: (c) => <span className="clip">{[c.deliveryTerms, c.paymentTerms].filter(Boolean).join(" · ")}</span>, exp: (c) => [c.deliveryTerms, c.paymentTerms].filter(Boolean).join(" · ") },
-        { key: "cur", label: "통화", render: (c) => c.currency, sort: (c) => c.currency },
+        {
+          key: "left",
+          label: "계약 잔여일",
+          hint: `계약 종료일까지 남은 날 (D-12 = 12일 남음, D+3 = 3일 지남). 기준은 오늘 날짜 ${today}`,
+          render: (c) => (c.endDate ? <span title={`계약 종료 ${c.endDate}`}>{dday(c.endDate, today)}</span> : <span className="muted">–</span>),
+          sort: (c) => (c.endDate ? daysBetween(today, c.endDate) : null),
+          num: true,
+          exp: (c) => (c.endDate ? daysBetween(today, c.endDate) : null),
+          expKind: "int",
+        },
+        { key: "terms", label: "계약조건", hint: "‘조건 보기’를 누르면 인도조건과 결제조건을 나눠 보여 줍니다", render: (c) => <TermsPop delivery={c.deliveryTerms} payment={c.paymentTerms} title={`${c.itemName} · ${c.supplierName}`} />, className: "terms-cell" },
       ];
-      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "계약번호·품목·업체·조건으로 찾기", key: (c: ContractView) => c.contractId, pin: (c: ContractView) => favSup.includes(c.supplierId) || favItem.includes(c.itemCode), hasFav: favSup.length + favItem.length > 0 } as const;
+      const expExtra: ExportCol<ContractView>[] = [
+        { header: "품목코드", kind: "text", value: (c) => c.itemCode },
+        { header: "협력업체", kind: "text", value: (c) => c.supplierName },
+        { header: "협력업체 ID", kind: "text", value: (c) => c.supplierId },
+        { header: "계약번호", kind: "text", value: (c) => c.contractId },
+        { header: "구분", kind: "text", value: (c) => (c.docType === "견적" ? "견적" : "계약") },
+        { header: "계약 시작일", kind: "date", value: (c) => c.startDate ?? null },
+        { header: "계약 종료일", kind: "date", value: (c) => c.endDate ?? null },
+        { header: "인도조건", kind: "text", value: (c) => c.deliveryTerms ?? null },
+        { header: "결제조건", kind: "text", value: (c) => c.paymentTerms ?? null },
+        { header: "통화", kind: "text", value: (c) => c.currency },
+      ];
+      return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "계약번호·품목·업체·조건으로 찾기", key: (c: ContractView) => c.contractId, expExtra: expExtra as ExportCol<unknown>[], pin: (c: ContractView) => favSup.includes(c.supplierId) || favItem.includes(c.itemCode), hasFav: favSup.length + favItem.length > 0 } as const;
     }
     const defs: FilterDef<InventoryView>[] = [
       { kind: "quick", key: "fav", label: "★ 관심만", test: (v) => favItem.includes(v.itemCode), hint: "별표로 고정한 관심 부품" },
-      { kind: "quick", key: "below", label: "안전재고 미달", test: QUICK.belowSafety },
+      { kind: "quick", key: "below", label: "적정재고 미달", test: QUICK.belowSafety },
       { kind: "quick", key: "delayed", label: "공급 지연", test: (v) => v.overdueOpen > 0, hint: "납기가 지났는데 입고되지 않은 발주가 있음" },
       { kind: "quick", key: "noOpen", label: "미달인데 발주 잔량 부족", test: (v) => v.shortage > 0 && v.openOrderQty < v.shortage },
       bomDef<InventoryView>((v) => [v.itemCode]),
       { kind: "multi", key: "status", label: "상태", options: INV_STATUS, get: (v) => v.status },
-      { kind: "select", key: "sup", label: "공급 업체", options: supOpts, test: (v, x) => v.mainSupplierId === x },
     ];
-    const base = derived.inventoryViews.filter((v) => matches(q, v.itemCode, v.itemName, v.supplierName, v.location, v.status));
+    const base = derived.inventoryViews.filter((v) => sf.item(v.itemCode) && sf.supplierHasItem(v.itemCode) && matches(q, v.itemCode, v.itemName, v.supplierName, v.location, v.status));
     const rows = applyFilters(base, defs, fv);
     const cols: Col<InventoryView>[] = [
-      { key: "name", label: "자재명", render: (v) => <NameCell name={v.itemName} code={v.itemCode} star={<FavStar kind="items" id={v.itemCode} name={v.itemName} />} />, sort: (v) => v.itemName, sticky: true, exp: (v) => `${v.itemName} (${v.itemCode})` },
-      { key: "status", label: "공급 상태", hint: "안전재고 미달 = 현재 재고 < 안전재고 · 공급 지연 = 납기 지난 미입고 발주 있음", render: (v) => <StatusPill value={v.status} />, sort: (v) => v.status },
-      { key: "stock", label: "현재 재고", render: (v) => fmtInt(v.stockQty), sort: (v) => v.stockQty, num: true, expKind: "int" },
-      { key: "safe", label: "안전재고", render: (v) => fmtInt(v.safetyStock), sort: (v) => v.safetyStock, num: true, expKind: "int" },
-      { key: "open", label: "발주 잔량", hint: "진행 중·납기 지연 발주 수량 합계", render: (v) => fmtInt(v.openOrderQty), sort: (v) => v.openOrderQty, num: true, expKind: "int" },
-      { key: "exp", label: "예상 입고일", hint: "가장 빠른 미입고 발주의 납기 예정일", render: (v) => fmtDate(v.expectedDate), sort: (v) => v.expectedDate, date: true },
-      { key: "sup", label: "공급 업체", render: (v) => v.supplierName, sort: (v) => v.supplierName },
-      { key: "loc", label: "보관 위치", render: (v) => v.location ?? "–", sort: (v) => v.location ?? "" },
+      { key: "name", label: "품목·협력업체", expLabel: "품목", render: (v) => <PairCell name={v.itemName} code={v.itemCode} sup={v.supplierName} star={<FavStar kind="items" id={v.itemCode} name={v.itemName} />} tag={<StatusPill value={v.status} />} />, sort: (v) => v.itemName, sticky: true, exp: (v) => v.itemName },
+      {
+        key: "stock",
+        label: "현재재고",
+        hint: "원자료 재고 + 입고 기록으로 받은 수량. 입고·출고에 따라 계속 바뀌며 적정재고를 고정해도 계속 갱신됩니다",
+        render: (v) => (
+          <span className="safe-cell">
+            <span>
+              {fmtInt(v.stockQty)}
+              {recent?.itemCode === v.itemCode && <Chg>+{fmtInt(recent.qty)} 입고 반영</Chg>}
+            </span>
+            {!!v.stockAdj && <small className="muted">입고 기록 +{fmtInt(v.stockAdj)} 포함</small>}
+          </span>
+        ),
+        sort: (v) => v.stockQty,
+        num: true,
+        expKind: "int",
+      },
+      {
+        key: "safe",
+        label: "적정재고",
+        sub: "고정 상태",
+        expLabel: "적정재고",
+        hint: "목표 재고 수량(적용값). 고정하면 계획이 바뀌어도 유지하고, 해제하면 최신 계획 기준을 적용합니다(계획이 없으면 현재 설정값 유지). 품목별로 저장되어 정렬·필터·새로고침 후에도 유지됩니다",
+        render: (v) => <StockPolicyCell v={v} />,
+        sort: (v) => v.safetyStock,
+        num: true,
+        expKind: "int",
+        exp: (v) => v.safetyStock,
+      },
+      {
+        key: "short",
+        label: "부족수량",
+        hint: "부족수량 = max(적용 적정재고 − 현재재고, 0). 0보다 크면 강조",
+        render: (v) => (
+          <span className="safe-cell">
+            {v.shortage > 0 ? <span className="short-cell short-alert" data-short>{fmtInt(v.shortage)} 부족</span> : <span className="muted">0</span>}
+            {recent?.itemCode === v.itemCode && <Chg>부족수량 갱신</Chg>}
+          </span>
+        ),
+        sort: (v) => v.shortage,
+        num: true,
+        expKind: "int",
+        exp: (v) => v.shortage,
+      },
+      {
+        key: "incoming",
+        label: "입고예정수량",
+        hint: "진행 중·납기 지연 발주의 남은 수량 합계. 아래 작은 글씨는 가장 빠른 납기 예정일",
+        render: (v) => (
+          <span className="safe-cell">
+            <span>{fmtInt(v.openOrderQty)}</span>
+            {v.expectedDate && <small className="muted">예정 {v.expectedDate}</small>}
+          </span>
+        ),
+        sort: (v) => v.openOrderQty,
+        num: true,
+        expKind: "int",
+        exp: (v) => v.openOrderQty,
+      },
     ];
-    return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "품목코드·자재명·업체로 찾기", key: (v: InventoryView) => v.itemCode, pin: (v: InventoryView) => favItem.includes(v.itemCode), hasFav: favItem.length > 0 } as const;
-  }, [tab, derived, q, fv, itemOpts, supOpts, month, asOf, favSup, favItem, bomDef]); // eslint-disable-line react-hooks/exhaustive-deps
+    const expExtra: ExportCol<InventoryView>[] = [
+      { header: "품목코드", kind: "text", value: (v) => v.itemCode },
+      { header: "협력업체", kind: "text", value: (v) => v.supplierName },
+      { header: "적정재고 상태", kind: "text", value: (v) => (v.safetyLocked ? "고정" : "자동(계획 없음, 현재 설정값 유지)") },
+      { header: "적정재고 초기값", kind: "int", value: (v) => v.safetyInitial ?? v.safetyStock },
+      { header: "공급 상태", kind: "text", value: (v) => v.status },
+      { header: "예상 입고일", kind: "date", value: (v) => v.expectedDate },
+      { header: "보관 위치", kind: "text", value: (v) => v.location ?? null },
+      { header: "단위", kind: "text", value: (v) => v.unit },
+    ];
+    return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "품목코드·자재명·업체로 찾기", key: (v: InventoryView) => v.itemCode, expExtra: expExtra as ExportCol<unknown>[], pin: (v: InventoryView) => favItem.includes(v.itemCode), hasFav: favItem.length > 0 } as const;
+  }, [tab, derived, q, fv, sf, scope, today, month, asOf, favSup, favItem, bomDef, recent, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSelect = (r: unknown) => {
     if (isNarrow()) dispatch({ type: "toast", text: "상세는 AI 에이전트 탭에서 볼 수 있어요" }); // 탭은 저절로 바꾸지 않는다
@@ -303,10 +508,11 @@ export function DataManagementTabs() {
       tab === "purchaseOrders" || tab === "contracts"
         ? [{ header: "출처", kind: "text", value: (r) => { const x = r as { source?: string; docType?: string }; return x.source === "manual" ? `수기 입력 · ${tab === "purchaseOrders" ? "납기보고서" : x.docType === "견적" ? "견적서" : "계약서"}` : "기존 데이터"; } }]
         : [];
-    const sheet = tableSheet(label, [...exportCols(view.cols as Col<unknown>[]), ...srcCol], view.rows as unknown[]);
+    const sheet = tableSheet(label, [...exportCols(view.cols as Col<unknown>[]), ...(("expExtra" in view && view.expExtra) || []), ...srcCol], view.rows as unknown[]);
     const info = infoSheet([
       ["데이터", label],
       ["조건", q ? `검색: ${q}` : "검색 없음"],
+      ["조회 범위", scopeActive(scope) ? [scope.speed && `엔진모델 ${scope.speed}(시연용 설정)`, scope.group && `부품 ${scope.group}`, scope.item && `품목 ${scope.item}`, scope.supplier && `협력업체 ${scope.supplier}`].filter(Boolean).join(" · ") : "전체"],
       ["행 수", `${view.rows.length} / 전체 ${counts[tab]}`],
       ["데이터 기준일", asOf],
       ["출처", state.meta.sources[tab] ?? "–"],
@@ -321,7 +527,7 @@ export function DataManagementTabs() {
   };
 
   const subviews = SUB_VIEWS[tab];
-  const filtering = !!q || view.defs.some((d) => fv[d.key] !== undefined);
+  const filtering = !!q || scopeActive(scope) || view.defs.some((d) => fv[d.key] !== undefined);
   const pinned = state.pinFav && view.hasFav ? (view.pin as (r: unknown) => boolean) : undefined;
 
   return (
@@ -352,8 +558,6 @@ export function DataManagementTabs() {
         <MaterialPrices />
       ) : sub === "wages" ? (
         <LaborWages />
-      ) : sub === "competitors" ? (
-        <CompetitorSupply />
       ) : sub === "news" ? (
         <IndustryNews />
       ) : (
@@ -369,6 +573,10 @@ export function DataManagementTabs() {
             placeholder={view.placeholder}
             shown={view.rows.length}
             total={counts[tab]}
+            asOf={asOf}
+            scopeRow={<ScopeRow scope={scope} options={sOpts} onChange={onScope} />}
+            scopeCount={scopeActive(scope) ? 1 : 0}
+            onClearScope={() => dispatch({ type: "scope", scope: EMPTY_SCOPE })}
             lead={
               <button type="button" className="btn btn-quiet manual-btn" onClick={() => dispatch({ type: "manualOpen", open: true })} data-manual-open title="견적서·납기보고서·계약서를 직접 입력해 대시보드에 바로 반영합니다">
                 <LuPencilLine aria-hidden /> 수기입력
@@ -376,10 +584,10 @@ export function DataManagementTabs() {
             }
             actions={
               <>
-                <button type="button" className="btn btn-quiet" onClick={() => dispatch({ type: "openImport", dataset: tab })} title={`${TAB_LABEL[tab]} 데이터 파일(CSV·JSON) 불러오기 — 빈 양식도 받을 수 있습니다`}>
-                  <LuFileUp aria-hidden /> 불러오기
+                <button type="button" className="btn btn-quiet" onClick={() => dispatch({ type: "openImport", dataset: tab })} aria-label="불러오기" title={`${TAB_LABEL[tab]} 데이터 파일(CSV·JSON) 불러오기 — 빈 양식도 받을 수 있습니다`}>
+                  <LuFileUp aria-hidden /><span className="hide-xs"> 불러오기</span>
                 </button>
-                <button type="button" className="btn btn-quiet" onClick={exportExcel} disabled={!view.rows.length} title="지금 조건에 맞는 행을 엑셀(.xlsx)로 내보내기" data-export="xlsx">
+                <button type="button" className="btn btn-quiet" onClick={exportExcel} disabled={!view.rows.length} aria-label="엑셀 내보내기" title="지금 조건에 맞는 행을 엑셀(.xlsx)로 내보내기" data-export="xlsx">
                   <LuFileSpreadsheet aria-hidden /> 엑셀<span className="hide-xs"> 내보내기</span>
                 </button>
               </>
@@ -403,7 +611,6 @@ export function DataManagementTabs() {
             onSelect={onSelect}
             pinned={pinned}
             flashKey={state.flash}
-            initialSort={"initialSort" in view ? view.initialSort : undefined}
             empty={filtering ? "조건에 맞는 행이 없습니다. 조건 칩의 ×를 누르거나 ‘전체 초기화’를 눌러 보세요." : "데이터가 없습니다. ‘불러오기’로 파일을 올리거나 오른쪽 위 ‘샘플 데이터로 되돌리기’를 눌러 보세요."}
           />
           <p className="data-source">

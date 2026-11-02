@@ -28,7 +28,7 @@ export function LoginScreen({ onLogin }: { onLogin: (u: User) => void }) {
           <BrandBlock as="div" />
         </div>
         <h1 className="login-title">시작하기</h1>
-        <p className="login-lead">협력사·구매조달·원가·자재 데이터를 한 화면에서 보고, AI에게 질문해 분석 결과를 받습니다.</p>
+        <p className="login-lead">협력업체·구매조달·원가·자재 데이터를 한 화면에서 보고, AI에게 질문해 분석 결과를 받습니다.</p>
         <form className="login-form" onSubmit={submit} noValidate>
           <label className="field">
             <span>

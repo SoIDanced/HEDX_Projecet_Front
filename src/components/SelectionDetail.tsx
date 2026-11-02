@@ -1,15 +1,16 @@
-// 선택 정보: 데이터 관리 표에서 고른 협력사·발주·계약·부품의 상세 — 오른쪽 AI 에이전트 패널 위쪽에 접이식으로 표시
+// 선택 정보: 데이터 관리 표에서 고른 협력업체·발주·계약·부품의 상세 — 오른쪽 AI 에이전트 패널 위쪽에 접이식으로 표시
 // 기본은 한 줄 요약, 펼치면 2열 상세(높이 제한·내부 스크롤). 질문을 보내거나 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
 import { useMemo, type ReactNode } from "react";
-import { LuChevronDown, LuChevronUp, LuMessageSquareText, LuX } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp, LuMessageSquareText, LuPackageCheck, LuPencilLine, LuX } from "react-icons/lu";
 import { TAB_LABEL } from "../data/types";
 import { useStore } from "../store/store";
 import { useAgent } from "../store/agent";
 import { FavStar } from "./FavStar";
 import { GradeTimeline } from "./GradeTimeline";
 import { GradeBadge, StatusPill } from "./ui";
-import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "../lib/format";
+import { condText, fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "../lib/format";
 import { pathText } from "../lib/bom";
+import { PART_NOTE, partGroupText } from "../data/classification";
 import { buildWageTree, jobsForProcess } from "../lib/market";
 
 /** 표에서 고른 행 선택을 풀고 선택 정보도 닫는다 (접힘·펼침 모두 같은 글자·같은 크기: 위치가 달라지면 잘못 누르기 쉽다) */
@@ -151,7 +152,7 @@ export function SelectionDetail() {
                   <li key={c}>
                     <FavStar kind="items" id={c} name={itemName(c)} />
                     <b>{itemName(c)}</b> <span className="code">{c}</span>
-                    <span className="muted"> {pathText(derived.bomIndex, c) ?? "분류 경로 없음"}</span>
+                    <span className="muted"> {partGroupText(c)} · {pathText(derived.bomIndex, c) ?? "분류 경로 없음"}</span>
                   </li>
                 ))}
                 {!s.items.length && <li className="muted">등록된 공급 품목이 없습니다</li>}
@@ -174,16 +175,35 @@ export function SelectionDetail() {
               ["발주 업체", `${p.supplierName} (${p.supplierId})`],
               ["수량 · 단가", `${fmtInt(p.qty)} × ${fmtMoney(p.unitPrice ?? null, p.currency)}`],
               ["발주 → 납기", `${p.orderDate} → ${p.dueDate}`],
-              ["입고", p.receivedDate ? `${p.receivedDate}${p.delayDays ? ` (${p.delayDays}일 지연)` : " (기한 내)"}` : p.status === "납기 지연" ? `미입고 · 납기 후 ${p.delayDays}일 경과` : "미입고 (진행 중)"],
+              ["입고", p.receivedDate ? `${p.receivedDate}${p.delayDays ? ` (${p.delayDays}일 지연)` : " (기한 내)"}` : p.partial ? `부분입고 · 마지막 입고 ${p.lastReceivedDate ?? "–"} · 잔량 ${fmtInt(p.remainQty)} 남음${p.status === "납기 지연" ? ` · 납기 후 ${p.delayDays}일 경과` : ""}` : p.status === "납기 지연" ? `미입고 · 납기 후 ${p.delayDays}일 경과` : "미입고 (진행 중)"],
+              ["누적 입고수량 · 발주잔량", p.status === "취소" ? "–" : `${fmtInt(p.rcvQty)} / ${fmtInt(p.qty)} · 잔량 ${fmtInt(p.remainQty)}${p.rcvAssumed ? " (수량 기록 없이 입고일만 있어 전량으로 봄)" : ""}`],
               ["상태", <StatusPill value={p.status} />],
               ["결제 예정", pay ? (pay.payDate ? `${pay.payDate} · ${pay.status} (${pay.terms})` : `${pay.status} · ${pay.note ?? pay.terms}`) : "과거 결제분 (표시 기간 밖)"],
-              ["부품 분류", pathText(derived.bomIndex, p.itemCode) ?? "–"],
+              ["부품군", <span title={PART_NOTE}>{partGroupText(p.itemCode)} <span className="muted">(프로젝트용 분류)</span></span>],
+              ["부품 분류 경로", pathText(derived.bomIndex, p.itemCode) ?? "–"],
               ...(p.source === "manual" ? ([["출처", "수기 입력 (납기보고서) — SAMPLE 아님, 사용자가 직접 입력한 값"], ...(p.receivedQty ? [["입고 수량", fmtInt(p.receivedQty)]] : []), ...(p.delayReason ? [["지연 사유", p.delayReason]] : []), ...(p.note ? [["비고", p.note]] : [])] as [string, string][]) : []),
             ]}
             actions={
-              <button type="button" className="btn btn-quiet" onClick={() => askItem(p.itemCode)} disabled={state.busy}>
-                <LuMessageSquareText aria-hidden /> 이 품목 후보 업체 비교
-              </button>
+              <>
+                <button type="button" className="btn btn-quiet" onClick={() => askItem(p.itemCode)} disabled={state.busy}>
+                  <LuMessageSquareText aria-hidden /> 이 품목 후보 업체 비교
+                </button>
+                {p.status !== "취소" && (p.remainQty ?? 0) > 0 && (
+                  <button type="button" className="btn btn-quiet" data-po-receipt-detail onClick={() => dispatch({ type: "receiptOpen", open: true, poNo: p.poNo })}>
+                    <LuPackageCheck aria-hidden /> 입고 기록 (부분입고)
+                  </button>
+                )}
+                {p.source === "manual" && p.manualId && (
+                  <>
+                    <button type="button" className="btn btn-quiet" data-po-receive onClick={() => dispatch({ type: "manualOpen", open: true, edit: { id: p.manualId!, focus: "receivedDate" } })}>
+                      <LuPackageCheck aria-hidden /> {p.receivedDate || p.lastReceivedDate ? "입고 내용 수정" : "입고 처리"}
+                    </button>
+                    <button type="button" className="btn btn-quiet" data-po-edit onClick={() => dispatch({ type: "manualOpen", open: true, edit: { id: p.manualId! } })}>
+                      <LuPencilLine aria-hidden /> 수기 입력 수정
+                    </button>
+                  </>
+                )}
+              </>
             }
           />
         );
@@ -196,12 +216,13 @@ export function SelectionDetail() {
             onClose={close}
             summary={[c.supplierName, `단가 ${fmtSignedPct(c.changeRate)}`, c.expiresInDays !== null ? `종료까지 ${c.expiresInDays}일` : "종료일 –"]}
             fields={[
-              ["거래 협력사", `${c.supplierName} (${c.supplierId})`],
+              ["거래 협력업체", `${c.supplierName} (${c.supplierId})`],
               ["규격", c.spec ?? "–"],
               ["단가", `${fmtMoney(c.prevUnitPrice ?? null, c.currency)} → ${fmtMoney(c.unitPrice, c.currency)} (${fmtSignedPct(c.changeRate)})`],
               ["계약 기간", `${c.startDate ?? "–"} ~ ${c.endDate ?? "–"}${c.expiresInDays !== null ? ` · 종료까지 ${c.expiresInDays}일` : ""}`],
-              ["인도 · 결제 조건", `${c.deliveryTerms ?? "–"} · ${c.paymentTerms ?? "–"}`],
+              ["계약 조건", condText(c) || "–"],
               ["주요 소재", derived.itemsByCode.get(c.itemCode)?.materials?.join(", ") || "–"],
+              ["부품군", <span title={PART_NOTE}>{partGroupText(c.itemCode)} <span className="muted">(프로젝트용 분류)</span></span>],
               ...(c.source === "manual" ? ([["출처", `수기 입력 (${c.docType === "견적" ? "견적서 — 확정된 계약이 아닌 견적 단가, 원가 점수·결제 일정에는 쓰지 않음" : "계약서"}) — SAMPLE 아님, 사용자가 직접 입력한 값`], ...(c.qty ? [["수량 · 금액", `${fmtInt(c.qty)} ${c.unit ?? ""} · ${fmtMoney(c.amount ?? null, c.currency)}`]] : []), ...(c.desiredDueDate ? [["희망 납기", c.desiredDueDate]] : []), ...(c.note ? [["비고", c.note]] : [])] as [string, string][]) : []),
             ]}
             actions={
@@ -226,20 +247,20 @@ export function SelectionDetail() {
             summary={[`재고 ${fmtInt(v.stockQty)}/${fmtInt(v.safetyStock)} ${v.unit}`, v.shortage ? `부족 ${v.shortage}` : "충분", v.supplierName]}
             star={<FavStar kind="items" id={v.itemCode} name={v.itemName} size="md" />}
             fields={[
-              ["재고 / 안전재고", `${fmtInt(v.stockQty)} / ${fmtInt(v.safetyStock)} ${v.unit}${v.shortage ? ` (부족 ${v.shortage})` : ""}`],
+              ["재고 / 적정재고", `${fmtInt(v.stockQty)} / ${fmtInt(v.safetyStock)} ${v.unit}${v.shortage ? ` (부족 ${v.shortage})` : ""}`],
+              ["적정재고 상태", v.safetyLocked ? `고정 ${fmtInt(v.safetyStock)} (초기값 ${fmtInt(v.safetyInitial ?? null)}) — 계획이 바뀌어도 유지` : `자동 · 연결된 계획 데이터가 없어 현재 설정값 ${fmtInt(v.safetyStock)} 유지`],
+              ...(v.stockAdj ? ([["입고 기록 반영", `현재재고에 +${fmtInt(v.stockAdj)} 포함 (수기 입력·입고 기록)`]] as [string, string][]) : []),
               ["발주 잔량", `${fmtInt(v.openOrderQty)} ${v.unit}${v.overdueOpen ? ` · 납기 경과 ${v.overdueOpen}건` : ""}`],
               ["예상 입고일", fmtDate(v.expectedDate)],
               ["주 공급업체", v.supplierName],
               ["보관 위치", v.location ?? "–"],
-              ["부품 분류", pathText(derived.bomIndex, v.itemCode) ?? "–"],
+              ["부품군", <span title={PART_NOTE}>{partGroupText(v.itemCode)} <span className="muted">(프로젝트용 분류)</span></span>],
+              ["부품 분류 경로", pathText(derived.bomIndex, v.itemCode) ?? "–"],
             ]}
             actions={
               <>
                 <button type="button" className="btn btn-quiet" onClick={() => askItem(v.itemCode)} disabled={state.busy}>
                   <LuMessageSquareText aria-hidden /> 이 품목 후보 업체 비교
-                </button>
-                <button type="button" className="btn btn-quiet" onClick={() => goSub("inventory", "competitors")}>
-                  경쟁사 공급 동향 보기
                 </button>
               </>
             }

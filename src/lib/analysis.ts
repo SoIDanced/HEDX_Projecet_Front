@@ -3,15 +3,17 @@ import type { DataMeta, DataSet, Grade } from "../data/types";
 import type { AnalysisParams, AnalysisResult, ChartSpec, IntentKind, PriorityMode, ResultColumn, ResultRow, SourceRef, TemplateId } from "./analysisTypes";
 import { EVAL_CONFIG, qualityScore } from "./evaluation";
 import { addMonths, fmtMoney, fmtNum, fmtPct, fmtSignedPct, josa, quarterOf, quarterSortKey, round } from "./format";
+import { SAMPLE_DOCS } from "../data/sample/documents";
+import { explainPriceChange, priceChangeLines, NO_REASON, type PriceChangeCtx } from "./priceChange";
 import { deliveryByQuarter, deliveryStats, priceByQuarter, type ContractView, type Derived, type POView } from "./metrics";
 
 export const KIND_LABEL: Record<IntentKind, string> = {
   item_candidates: "품목별 후보 업체 비교",
-  low_delivery: "납기 준수율 저조 협력사",
+  low_delivery: "납기 준수율 저조 협력업체",
   price_increase: "단가 상승 품목",
   grade_quality: "등급별 품질 실적",
-  supplier_profile: "협력사 평가 근거",
-  supplier_compare: "협력사 비교",
+  supplier_profile: "협력업체 평가 근거",
+  supplier_compare: "협력업체 비교",
   stock_risk: "재고·공급 위험 품목",
 };
 
@@ -394,12 +396,12 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     return { keys: s.map((k) => k[0]), labels: s.map((k) => k[1]) };
   })();
   const res = base(ctx, params, {
-    title: `납기 준수율 ${threshold}% 미만 협력사`,
-    purpose: `납기 준수율이 관리 기준(${threshold}%)보다 낮은 협력사를 찾아 관리 우선순위를 정합니다.`,
+    title: `납기 준수율 ${threshold}% 미만 협력업체`,
+    purpose: `납기 준수율이 관리 기준(${threshold}%)보다 낮은 협력업체를 찾아 관리 우선순위를 정합니다.`,
     scope: [
       { label: "기준", value: `납기 준수율 ${threshold}% 미만${params.threshold ? "" : " (예시 기준)"}` },
       { label: "기간", value: period.label },
-      { label: "대상", value: `협력사 ${all.filter((x) => x.st.evaluated).length}곳` },
+      { label: "대상", value: `협력업체 ${all.filter((x) => x.st.evaluated).length}곳` },
     ],
     columns: [
       { key: "onTimeRate", label: "납기 준수율", kind: "percent", higherIsBetter: true, primary: true },
@@ -421,7 +423,7 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
       : [],
     summary: rows.length
       ? [
-          `${period.label} 기준 납기 준수율이 ${threshold}% 미만인 협력사는 ${rows.length}곳입니다.`,
+          `${period.label} 기준 납기 준수율이 ${threshold}% 미만인 협력업체는 ${rows.length}곳입니다.`,
           `가장 낮은 곳은 ${rows[0].label}(${fmtPct(Number(rows[0].values.onTimeRate))}, 지연 ${rows[0].values.late}건)입니다.`,
           rows.some((r) => Number(r.values.overdue) > 0) ? `납기가 지났는데 아직 입고되지 않은 발주가 ${rows.reduce((a, r) => a + Number(r.values.overdue || 0), 0)}건 있습니다.` : "",
         ].filter(Boolean)
@@ -445,7 +447,7 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     charts: [
       {
         id: "ontime-all",
-        title: "협력사별 납기 준수율",
+        title: "협력업체별 납기 준수율",
         type: "hbar",
         unit: "%",
         yLabel: "납기 준수율 (%)",
@@ -474,13 +476,13 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     recommended: "chart",
     templates: ["chart", "table", "cards", "report"],
     templateHints: {
-      chart: "전체 협력사 납기 준수율과 기준선",
+      chart: "전체 협력업체 납기 준수율과 기준선",
       table: "지연 건수·평균 지연일까지 비교",
       cards: "업체별 위험 요소 정리",
       report: "관리 우선순위와 검토 의견",
     },
   });
-  if (!rows.length) res.empty = `${period.label} 동안 납기 준수율이 ${threshold}% 미만인 협력사가 없습니다.`;
+  if (!rows.length) res.empty = `${period.label} 동안 납기 준수율이 ${threshold}% 미만인 협력업체가 없습니다.`;
   return res;
 }
 
@@ -523,6 +525,9 @@ function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
       evidence: [`계약 ${c.contractId} (${c.startDate ?? "–"} ~ ${c.endDate ?? "–"})`, `${c.deliveryTerms ?? ""} · ${c.paymentTerms ?? ""}`],
     };
   });
+  // 변동률 팝업과 같은 함수·같은 비교기간·같은 출처 — 숫자는 explainPriceChange 가 계산하고 여기서는 글로 옮기기만 한다
+  const pcx: PriceChangeCtx = { asOf: ctx.meta.asOf, items: ctx.data.items, suppliers: ctx.data.suppliers, contracts: ctx.data.contracts, materialPrices: ctx.data.materialPrices, fxRates: ctx.data.fxRates, laborWages: ctx.data.laborWages, docs: SAMPLE_DOCS, isSample: ctx.meta.isSample };
+  const explains = list.slice(0, 5).map((c) => ({ c, ex: explainPriceChange(c, pcx) }));
   const pairsPos = list.slice(0, 4).map((c) => ({ c, pos: d.poViews.filter((p) => p.itemCode === c.itemCode && p.supplierId === c.supplierId && p.status !== "취소") }));
   const qa = quarterAxis(pairsPos.flatMap((x) => x.pos));
   const res = base(ctx, params, {
@@ -555,8 +560,9 @@ function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
         ].filter(Boolean)
       : [],
     risks: rows.map((r) => `${r.label}: ${r.risks[0]}${r.values.peer !== null ? ` (타 업체 평균 ${fmtSignedPct(Number(r.values.peer))})` : ""}`),
+    detailSections: explains.map(({ c, ex }) => ({ id: `pc-${c.contractId}`, title: `단가 변동 상세 · ${c.itemName} · ${c.supplierName} (${c.contractId})`, items: priceChangeLines(ex) })),
     reviewPoints: [
-      rows.length ? "인상 사유(원자재 시세·환율·사양 변경)는 계약 데이터에 없으므로 협력사 견적 근거를 확인하세요." : "",
+      rows.length ? (explains.every((x) => x.ex.confirmedReasons.length) ? "문서에 적힌 인상 사유와 협력업체 견적 근거가 일치하는지 확인하세요." : `${NO_REASON}한 계약은 협력업체 견적 근거(원자재 시세·환율·사양 변경)를 확인하세요. 원자재·인건비 동향은 참고 지표이며 원인으로 단정할 수 없습니다.`) : "",
       ...rows.filter((r) => r.risks.some((x) => x.includes("계약 종료"))).map((r) => `${r.label}: 계약 종료가 가까워 재계약 협상 일정에 반영하세요.`),
     ].filter(Boolean),
     basis: ["변동률 = (최근 계약 단가 ÷ 직전 계약 단가 − 1) × 100", "단가 추이 차트는 발주 단가의 분기 평균을 첫 분기=100으로 환산한 지수", `기준 ${threshold}%는 ${params.threshold ? "질문에서 지정" : `${EVAL_CONFIG.name}의 예시값`}`],
@@ -628,11 +634,11 @@ function gradeQuality(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     .sort((a, b) => Number(b.values.quality ?? 0) - Number(a.values.quality ?? 0))
     .map((r, i) => ({ ...r, rank: i + 1 }));
   const res = base(ctx, params, {
-    title: `${grade}등급 협력사 품질 실적`,
-    purpose: `산정 등급이 ${grade}인 협력사의 품질 실적을 정리합니다.`,
+    title: `${grade}등급 협력업체 품질 실적`,
+    purpose: `산정 등급이 ${grade}인 협력업체의 품질 실적을 정리합니다.`,
     scope: [
       { label: "등급", value: `${grade}등급 (산정 등급, ${EVAL_CONFIG.name})` },
-      { label: "대상", value: `협력사 ${rows.length}곳` },
+      { label: "대상", value: `협력업체 ${rows.length}곳` },
       { label: "기준일", value: ctx.meta.asOf },
     ],
     columns: [
@@ -649,7 +655,7 @@ function gradeQuality(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     highlights: rows.length ? [{ label: "품질 점수 최고", value: `${rows[0].label} · ${fmtNum(Number(rows[0].values.quality))}점`, rowId: rows[0].id }, { label: "대상 업체", value: `${rows.length}곳` }] : [],
     summary: rows.length
       ? [
-          `${grade}등급 협력사는 ${rows.length}곳이며 품질 점수 평균은 ${fmtNum(rows.reduce((a, r) => a + Number(r.values.quality ?? 0), 0) / rows.length)}점입니다.`,
+          `${grade}등급 협력업체는 ${rows.length}곳이며 품질 점수 평균은 ${fmtNum(rows.reduce((a, r) => a + Number(r.values.quality ?? 0), 0) / rows.length)}점입니다.`,
           `품질 점수가 가장 높은 곳은 ${rows[0].label}(${fmtNum(Number(rows[0].values.quality))}점), 가장 낮은 곳은 ${rows[rows.length - 1].label}(${fmtNum(Number(rows[rows.length - 1].values.quality))}점)입니다.`,
           rows.some((r) => r.risks.some((x) => x.includes("심사 등급"))) ? `심사 등급과 산정 등급이 다른 업체: ${rows.filter((r) => r.risks.some((x) => x.includes("심사 등급"))).map((r) => r.label).join(", ")}` : "",
         ].filter(Boolean)
@@ -669,11 +675,11 @@ function gradeQuality(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     templates: ["cards", "table", "chart", "report"],
     templateHints: { cards: "업체별 강점·위험 요소 카드", table: "품질·납기·종합 점수 비교", chart: "품질 점수와 불량률", report: "품질 실적 요약 보고" },
   });
-  if (!rows.length) res.empty = `산정 등급이 ${grade}인 협력사가 없습니다.`;
+  if (!rows.length) res.empty = `산정 등급이 ${grade}인 협력업체가 없습니다.`;
   return res;
 }
 
-// ─────────────────────────────── 협력사 평가 근거
+// ─────────────────────────────── 협력업체 평가 근거
 function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   const { d } = ctx;
   const sid = params.supplierIds?.[0] || "";
@@ -699,7 +705,7 @@ function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     title: `${s.name} 평가 근거`,
     purpose: `${s.name}(${sid})의 평가 점수와 항목별 계산 근거를 확인합니다.`,
     scope: [
-      { label: "협력사", value: `${s.name} (${sid})` },
+      { label: "협력업체", value: `${s.name} (${sid})` },
       { label: "종합", value: ev.total !== null ? `${ev.grade}등급 · ${fmtNum(ev.total)}점` : "계산 불가" },
       { label: "기준", value: EVAL_CONFIG.name },
       { label: "기간", value: `${d.windowFrom} ~ ${ctx.meta.asOf}` },
@@ -747,11 +753,11 @@ function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   });
 }
 
-// ─────────────────────────────── 협력사 비교
+// ─────────────────────────────── 협력업체 비교
 function supplierCompare(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   const { d } = ctx;
   const ids = (params.supplierIds || []).filter((id) => d.suppliersById.has(id));
-  if (ids.length < 2) throw new AnalysisError("비교할 협력사를 두 곳 이상 지정해 주세요.");
+  if (ids.length < 2) throw new AnalysisError("비교할 협력업체를 두 곳 이상 지정해 주세요.");
   const crit = EVAL_CONFIG.criteria;
   const rows: ResultRow[] = ids.map((id) => {
     const s = d.supplierViews.find((x) => x.supplierId === id)!;
@@ -775,9 +781,9 @@ function supplierCompare(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   rows.sort((a, b) => Number(b.values.total ?? 0) - Number(a.values.total ?? 0)).forEach((r, i) => (r.rank = i + 1));
   return base(ctx, params, {
     title: `${rows.map((r) => r.label).join(" · ")} 비교`,
-    purpose: "지정한 협력사의 평가 항목별 점수를 나란히 비교합니다.",
+    purpose: "지정한 협력업체의 평가 항목별 점수를 나란히 비교합니다.",
     scope: [
-      { label: "협력사", value: rows.map((r) => r.label).join(", ") },
+      { label: "협력업체", value: rows.map((r) => r.label).join(", ") },
       { label: "기준", value: EVAL_CONFIG.name },
     ],
     columns: [
@@ -791,7 +797,7 @@ function supplierCompare(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     cardMetrics: ["total", "quality", "delivery", "cost"],
     highlights: [{ label: "종합 점수 최고", value: `${rows[0].label} · ${fmtNum(Number(rows[0].values.total))}점`, rowId: rows[0].id }],
     summary: [
-      `${rows.length}개 협력사를 ${EVAL_CONFIG.name}로 비교했습니다.`,
+      `${rows.length}개 협력업체를 ${EVAL_CONFIG.name}로 비교했습니다.`,
       ...crit.map((c) => {
         const best = [...rows].filter((r) => r.values[c.key] !== null).sort((a, b) => Number(b.values[c.key]) - Number(a.values[c.key]))[0];
         return best ? `${c.label}: ${best.label} ${fmtNum(Number(best.values[c.key]))}점이 가장 높습니다.` : "";
@@ -822,7 +828,7 @@ function supplierCompare(ctx: Ctx, params: AnalysisParams): AnalysisResult {
 // ─────────────────────────────── 재고·공급 위험
 function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   const { d } = ctx;
-  const order = { "미달·지연": 0, "안전재고 미달": 1, "공급 지연": 2, 정상: 3 } as const;
+  const order = { "미달·지연": 0, "적정재고 미달": 1, "공급 지연": 2, 정상: 3 } as const;
   const list = d.inventoryViews.filter((v) => v.status !== "정상").sort((a, b) => order[a.status] - order[b.status] || b.shortage - a.shortage);
   const rows: ResultRow[] = list.map((v, i) => ({
     id: v.itemCode,
@@ -834,7 +840,7 @@ function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     values: { status: v.status, stock: v.stockQty, safety: v.safetyStock, shortage: v.shortage, open: v.openOrderQty, expected: v.expectedDate, supplier: v.supplierName },
     strengths: v.openOrderQty >= v.shortage && v.shortage > 0 ? [`발주 잔량 ${v.openOrderQty}${v.unit}으로 부족분 충당 가능`] : [],
     risks: [
-      v.shortage > 0 ? `안전재고보다 ${v.shortage}${v.unit} 부족` : "",
+      v.shortage > 0 ? `적정재고보다 ${v.shortage}${v.unit} 부족` : "",
       v.overdueOpen ? `납기 경과 미입고 발주 ${v.overdueOpen}건 (${v.supplierName})` : "",
       v.openOrderQty < v.shortage ? `발주 잔량(${v.openOrderQty}${v.unit})이 부족분보다 적음` : "",
     ].filter(Boolean),
@@ -842,16 +848,16 @@ function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   }));
   const res = base(ctx, params, {
     title: "재고·공급 위험 품목",
-    purpose: "안전재고에 못 미치거나 공급이 지연된 품목을 찾아 조달 조치를 정합니다.",
+    purpose: "적정재고에 못 미치거나 공급이 지연된 품목을 찾아 조달 조치를 정합니다.",
     scope: [
-      { label: "기준", value: "현재 재고 < 안전재고, 또는 납기 경과 미입고 발주" },
+      { label: "기준", value: "현재 재고 < 적정재고, 또는 납기 경과 미입고 발주" },
       { label: "대상", value: `품목 ${d.inventoryViews.length}개` },
       { label: "기준일", value: ctx.meta.asOf },
     ],
     columns: [
       { key: "status", label: "상태", kind: "status", primary: true },
       { key: "stock", label: "현재 재고", kind: "int", primary: true },
-      { key: "safety", label: "안전재고", kind: "int", primary: true },
+      { key: "safety", label: "적정재고", kind: "int", primary: true },
       { key: "shortage", label: "부족 수량", kind: "int", higherIsBetter: false, primary: true },
       { key: "open", label: "발주 잔량", kind: "int" },
       { key: "expected", label: "예상 입고일", kind: "date" },
@@ -861,10 +867,10 @@ function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     rankLabel: "위험 순",
     cardMetrics: ["stock", "safety", "shortage", "open"],
     highlights: rows.length ? [{ label: "위험 품목", value: `${rows.length}개` }, { label: "가장 시급", value: `${rows[0].label} · ${rows[0].values.status}`, rowId: rows[0].id }] : [],
-    summary: rows.length ? [`안전재고 미달 또는 공급 지연 품목은 ${rows.length}개입니다.`, `가장 시급한 품목은 ${rows[0].label}(${rows[0].values.status})입니다.`] : [],
+    summary: rows.length ? [`적정재고 미달 또는 공급 지연 품목은 ${rows.length}개입니다.`, `가장 시급한 품목은 ${rows[0].label}(${rows[0].values.status})입니다.`] : [],
     risks: rows.flatMap((r) => r.risks.slice(0, 1).map((x) => `${r.label}: ${x}`)),
     reviewPoints: rows.length ? ["부족 품목의 생산 투입 일정을 생산관리와 확인하세요.", "납기 경과 미입고 발주는 공급업체에 입고 일정을 요청하세요."] : [],
-    basis: ["부족 수량 = 안전재고 − 현재 재고", "발주 잔량 = 진행 중·납기 지연 발주 수량 합계", "예상 입고일 = 미입고 발주 중 가장 빠른 납기 예정일"],
+    basis: ["부족 수량 = 적정재고 − 현재 재고", "발주 잔량 = 진행 중·납기 지연 발주 수량 합계", "예상 입고일 = 미입고 발주 중 가장 빠른 납기 예정일"],
     sources: [
       { table: "inventory", label: "자재-공급관리(재고)", ids: list.map((v) => v.itemCode) },
       { table: "purchaseOrders", label: "구매조달 발주", ids: d.poViews.filter((p) => list.some((v) => v.itemCode === p.itemCode) && (p.status === "진행 중" || p.status === "납기 지연")).map((p) => p.poNo) },
@@ -872,23 +878,23 @@ function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     charts: [
       {
         id: "cover",
-        title: "안전재고 대비 현재 재고",
+        title: "적정재고 대비 현재 재고",
         type: "hbar",
         unit: "%",
-        yLabel: "현재 재고 ÷ 안전재고 (%)",
+        yLabel: "현재 재고 ÷ 적정재고 (%)",
         categories: d.inventoryViews.map((v) => v.itemName),
         series: [{ key: "c", label: "충족률", values: d.inventoryViews.map((v) => (v.safetyStock ? round((v.stockQty / v.safetyStock) * 100, 0) : null)) }],
-        refLine: { value: 100, label: "안전재고 100%" },
+        refLine: { value: 100, label: "적정재고 100%" },
         statusOf: d.inventoryViews.map((v) => (v.stockQty < v.safetyStock ? "critical" : null)),
-        statusLabel: "안전재고 미달",
+        statusLabel: "적정재고 미달",
         digits: 0,
       },
     ],
     recommended: "table",
     templates: ["table", "chart", "cards", "report"],
-    templateHints: { table: "재고·부족 수량·입고 예정", chart: "안전재고 충족률", cards: "품목별 위험 요소", report: "조달 조치 검토" },
+    templateHints: { table: "재고·부족 수량·입고 예정", chart: "적정재고 충족률", cards: "품목별 위험 요소", report: "조달 조치 검토" },
   });
-  if (!rows.length) res.empty = "안전재고 미달이나 공급 지연 품목이 없습니다.";
+  if (!rows.length) res.empty = "적정재고 미달이나 공급 지연 품목이 없습니다.";
   return res;
 }
 

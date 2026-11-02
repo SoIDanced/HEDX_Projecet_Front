@@ -23,6 +23,18 @@ export const fmtDate = (s: string | null | undefined) => (s ? s : "–");
 const DAY = 86400000;
 export const daysBetween = (a: string, b: string) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / DAY);
 
+/** 오늘(브라우저 현지 날짜) YYYY-MM-DD */
+export const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/** D-day: 기한이 남았으면 D-12, 오늘이면 D-day, 지났으면 D+3 */
+export function dday(date: string | null | undefined, today = todayStr()): string {
+  if (!date) return "–";
+  const n = daysBetween(today, date);
+  return n === 0 ? "D-day" : n > 0 ? `D-${n}` : `D+${-n}`;
+}
+
 export function addMonths(date: string, months: number): string {
   const d = new Date(date + "T00:00:00Z");
   d.setUTCMonth(d.getUTCMonth() + months);
@@ -53,3 +65,7 @@ export function josa(word: string, pair: "이/가" | "은/는" | "을/를" | "�
   const [a, b] = pair.split("/");
   return hasBatchim(word) ? a : b;
 }
+
+// 계약 조건 칸: '창원 공장 도착도'는 모든 계약 공통이라 뺀다. 남는 기한은 계약 종료일 기준 D-day
+export const condText = (c: { endDate?: string | null; deliveryTerms?: string; paymentTerms?: string }) =>
+  [c.endDate ? `종료 ${dday(c.endDate)}` : "", c.deliveryTerms?.replace(/^창원 공장 도착도\s*/, ""), c.paymentTerms].filter(Boolean).join(" · ");

@@ -9,29 +9,13 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { ACCENTS, setAccent, setMotion, setTheme, useAccent, useMotion, useTheme } from "../platform/theme";
 
 function AiStatus() {
-  const { state, dispatch } = useStore();
+  const { state } = useStore();
   const { provider, providerChecked } = useAgent();
   const llmOn = state.aiMode === "llm" && !!provider;
   return (
     <div className="ai-status">
       <span className={`dot ${llmOn ? "dot-on" : provider ? "dot-ready" : "dot-off"}`} aria-hidden />
       <span className="ai-status-text" title="LLM 응답 모드에서는 질문을 외부 LLM API에 보내고, 응답을 채팅에 표시합니다. 실제 연결 여부는 질문을 보낼 때 확인됩니다.">{!providerChecked ? "LLM API 준비 중" : llmOn ? `LLM API 설정됨 · ${provider!.label}` : provider ? "LLM API 설정됨 · 꺼짐" : "LLM 미설정 · 규칙 기반"}</span>
-      <div className="mode" role="radiogroup" aria-label="응답 방식" style={{ "--i": state.aiMode === "llm" ? 1 : 0 } as CSSProperties}>
-        <button type="button" role="radio" aria-checked={state.aiMode === "rule"} className={state.aiMode === "rule" ? "is-on" : ""} onClick={() => dispatch({ type: "aiMode", mode: "rule" })} title="데이터를 규칙 기반으로 분석합니다 (항상 사용 가능)">
-          규칙 기반
-        </button>
-        <button
-          type="button"
-          role="radio"
-          aria-checked={state.aiMode === "llm"}
-          className={state.aiMode === "llm" ? "is-on" : ""}
-          disabled={!provider}
-          title={provider ? "질문을 LLM API에 보내고 자연어 답변을 채팅에 표시합니다." : "LLM API가 설정되지 않았습니다."}
-          onClick={() => dispatch({ type: "aiMode", mode: "llm" })}
-        >
-          LLM 응답
-        </button>
-      </div>
     </div>
   );
 }
@@ -96,7 +80,7 @@ function DataStatus() {
         </span>
       )}
       <span className="ds-counts">
-        협력사 {derived.supplierViews.length} · 발주 {derived.poViews.length} · 계약 {derived.contractViews.length} · 품목 {derived.itemsByCode.size}
+        협력업체 {derived.supplierViews.length} · 발주 {derived.poViews.length} · 계약 {derived.contractViews.length} · 품목 {derived.itemsByCode.size}
       </span>
       <span className="muted ds-asof">기준일 {state.meta.asOf}</span>
       {showSaved && (
@@ -168,7 +152,7 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
           <p className="user-note">시연용 간이 로그인 · 대화·분석 이력·관심 목록·업로드 데이터가 이 브라우저에 사용자별로 저장됩니다.</p>
           <div className="fav-section">
             <p className="menu-label">
-              <LuStar aria-hidden /> 관심 협력사 ({favS.length})
+              <LuStar aria-hidden /> 관심 협력업체 ({favS.length})
             </p>
             {favS.length ? (
               favS.map((s) => (
@@ -191,7 +175,7 @@ function UserMenu({ onLogout, onDeleteUpload }: { onLogout: (wipe: boolean) => v
                 </span>
               ))
             ) : (
-              <span className="muted small">협력사 표의 ☆를 눌러 고정하세요</span>
+              <span className="muted small">협력업체 표의 ☆를 눌러 고정하세요</span>
             )}
             <p className="menu-label">
               <LuStar aria-hidden /> 관심 부품 ({favI.length})

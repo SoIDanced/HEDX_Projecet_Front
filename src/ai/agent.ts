@@ -39,10 +39,10 @@ export interface AgentContext {
 }
 
 export const SUGGESTIONS = [
-  "해당 품목의 과거 거래 협력사를 비교해 줘.",
-  "납기 준수율이 낮은 협력사를 찾아줘.",
+  "해당 품목의 과거 거래 협력업체를 비교해 줘.",
+  "납기 준수율이 낮은 협력업체를 찾아줘.",
   "최근 단가가 상승한 품목을 보여줘.",
-  "A등급 협력사의 품질 실적을 정리해 줘.",
+  "A등급 협력업체의 품질 실적을 정리해 줘.",
   "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘",
   "업체 C 납기 지연 보고서 찾아줘",
   "실린더 커버 가스켓 견적서 보여줘",
@@ -178,9 +178,9 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
       let id = parsed.supplierIds[0];
       if (!id && sel.supplierId) {
         id = sel.supplierId;
-        usedSelection = `데이터 관리에서 선택한 협력사(${ctx.derived.suppliersById.get(id)?.name ?? id})를 기준으로 정리했습니다.`;
+        usedSelection = `데이터 관리에서 선택한 협력업체(${ctx.derived.suppliersById.get(id)?.name ?? id})를 기준으로 정리했습니다.`;
       }
-      if (!id) return clarify("supplier", "어느 협력사의 평가를 볼까요?");
+      if (!id) return clarify("supplier", "어느 협력업체의 평가를 볼까요?");
       params = { kind: "supplier_profile", supplierIds: [id] };
       break;
     }
@@ -209,7 +209,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
       return {
         type: "message",
         text: [
-          "협력사·발주·계약·재고 데이터로 다음을 분석할 수 있습니다: 품목별 후보 업체 비교, 납기 준수율 저조 협력사, 단가 상승 품목, 등급별 품질 실적, 협력사 평가 근거, 재고·공급 위험.",
+          "협력업체·발주·계약·재고 데이터로 다음을 분석할 수 있습니다: 품목별 후보 업체 비교, 납기 준수율 저조 협력업체, 단가 상승 품목, 등급별 품질 실적, 협력업체 평가 근거, 재고·공급 위험.",
           "질문하면 데이터로 계산한 결과를 글로 정리해 이 대화에 바로 답하고, 근거 표는 엑셀·CSV로 내보낼 수 있습니다.",
         ],
         suggestions: SUGGESTIONS,
@@ -221,7 +221,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
         type: "message",
         text: [
           "질문에서 분석할 대상을 찾지 못했습니다. 데이터에 없는 내용은 추측해서 답하지 않습니다.",
-          "품목명·협력사명·등급을 넣어 다시 질문하거나 아래 예시를 눌러 보세요.",
+          "품목명·협력업체명·등급을 넣어 다시 질문하거나 아래 예시를 눌러 보세요.",
         ],
         suggestions: SUGGESTIONS,
         engine,

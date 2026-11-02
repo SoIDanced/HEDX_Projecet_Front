@@ -14,6 +14,8 @@ export interface Col<T> {
   date?: boolean;
   sticky?: boolean;
   hint?: string; // 열 제목에 마우스를 올리면 보이는 용어 설명
+  sub?: string; // 열 제목 아래 작은 보조 문구 (예: 납기 아래 '예정')
+  expLabel?: string; // 엑셀 열 이름 (없으면 label)
   exp?: (r: T) => XValue; // 엑셀로 내보낼 값 (없으면 정렬 값)
   expKind?: ColumnKind;
   className?: string;
@@ -129,6 +131,7 @@ export function DataTable<T>({
         <table className="data-table" aria-label={label} id={id}>
           <thead>
             <tr>
+              <th className="sticky-col no-col" data-col="no" scope="col">순번</th>
               {cols.map((c) => {
                 const active = sort?.key === c.key;
                 return (
@@ -147,13 +150,14 @@ export function DataTable<T>({
                     ) : (
                       c.label
                     )}
+                    {c.sub && <small className="th-sub">{c.sub}</small>}
                   </th>
                 );
               })}
             </tr>
           </thead>
           <tbody>
-            {shown.map((r) => {
+            {shown.map((r, idx) => {
               const k = rowKey(r);
               const sel = k === selectedKey;
               return (
@@ -174,6 +178,7 @@ export function DataTable<T>({
                   tabIndex={onSelect ? 0 : undefined}
                   aria-selected={onSelect ? sel : undefined}
                 >
+                  <td className="sticky-col no-col" data-col="no">{cur * pageSize + idx + 1}</td>
                   {cols.map((c) => (
                     <td key={c.key} className={`${c.num ? "num" : ""} ${c.sticky ? "sticky-col" : ""} ${c.className ?? ""}`}>
                       {c.render(r)}

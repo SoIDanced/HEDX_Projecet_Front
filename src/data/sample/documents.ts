@@ -7,11 +7,14 @@ export interface SampleDoc {
   id: string; // 원본 문서 ID
   date: string; // 작성일 (YYYY-MM-DD)
   type: DocType;
-  supplier: string; // 샘플 협력사 이름 (src/data/sample/suppliers.json)
+  supplier: string; // 샘플 협력업체 이름 (src/data/sample/suppliers.json)
   item: string; // 샘플 품목 이름 (src/data/sample/items.json)
   title: string;
   body: string;
   tags: string[];
+  /** 단가 조정 요청서 등에 인상·인하 사유가 명시된 문서만 채운다(현재 샘플 문서에는 없음 → 변동률 팝업은 '직접적인 사유 미확인') */
+  priceReason?: string;
+  priceDirection?: "인상" | "인하";
 }
 
 export const SAMPLE_DOCS: SampleDoc[] = [
@@ -36,7 +39,7 @@ export const SAMPLE_DOCS: SampleDoc[] = [
   {
     id: "DOC-2026-0903-001", date: "2026-09-03", type: "납기보고서", supplier: "업체 C", item: "실린더 커버 가스켓",
     title: "실린더 커버 가스켓 납기 지연 보고",
-    body: "업체 C의 실린더 커버 가스켓 120개가 약정 납기보다 11일 늦게 입고되었습니다. 지연 원인은 원자재(특수 시트) 수급 차질로 확인되었고, 이로 인해 조립 일정 2일이 밀렸습니다. 업체 C는 다음 발주분부터 안전 재고를 두어 지연을 줄이겠다고 회신했습니다.",
+    body: "업체 C의 실린더 커버 가스켓 120개가 약정 납기보다 11일 늦게 입고되었습니다. 지연 원인은 원자재(특수 시트) 수급 차질로 확인되었고, 이로 인해 조립 일정 2일이 밀렸습니다. 업체 C는 다음 발주분부터 적정 재고를 두어 지연을 줄이겠다고 회신했습니다.",
     tags: ["납기", "지연", "원자재", "일정", "납기지연"],
   },
   {

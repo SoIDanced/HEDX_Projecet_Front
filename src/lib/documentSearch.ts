@@ -33,7 +33,7 @@ const SYN: string[][] = [
 const groupOf = (tok: string) => SYN.find((g) => g.some((m) => tok.includes(m)));
 
 const PARTICLES = ["에서", "으로", "에게", "까지", "부터", "이랑", "에는", "의", "를", "을", "은", "는", "이", "가", "에", "로", "와", "과", "도", "자", "만"];
-const STOP = /^(찾|검색|조회|보여|알려|열어|확인|문서|자료|내용|원본|관련|해당|있|좀|줘|주세요|업체|협력사|공급사|품목|민원|클레임|불만|견적서|견적|계약서|성적서|보고서|검사)/;
+const STOP = /^(찾|검색|조회|보여|알려|열어|확인|문서|자료|내용|원본|관련|해당|있|좀|줘|주세요|업체|협력업체|협력사|공급사|품목|민원|클레임|불만|견적서|견적|계약서|성적서|보고서|검사)/;
 
 export function stripParticle(tok: string): string {
   for (const p of PARTICLES) if (tok.length > p.length + 1 && tok.endsWith(p)) return tok.slice(0, -p.length);

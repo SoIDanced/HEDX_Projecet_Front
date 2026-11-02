@@ -53,8 +53,8 @@ export const DETAIL_FIELDS: Record<ManualDocType, DetailField[]> = {
     { key: "docNo", label: "발주번호", kind: "text", required: true },
     { key: "docDate", label: "발주일", kind: "date", required: true },
     { key: "dueDate", label: "납기 예정일", kind: "date", required: true },
-    { key: "receivedDate", label: "실제 입고일", kind: "date", hint: "비우면 아직 입고되지 않은 발주(진행 중·납기 지연)로 계산합니다" },
-    { key: "receivedQty", label: "입고 수량", kind: "num" },
+    { key: "receivedDate", label: "실제 입고일", kind: "date", hint: "비우면 아직 입고되지 않은 발주(진행 중·납기 지연)로 계산합니다. 나눠서 입고되면 표의 ‘입고 기록’으로 이어서 넣으세요" },
+    { key: "receivedQty", label: "입고 수량", kind: "num", hint: "발주 수량보다 적으면 부분입고(잔량 남음)로 계산합니다. 비우면 입고일에 전량 입고" },
     { key: "delayReason", label: "지연 사유", kind: "text" },
     { key: "note", label: "비고", kind: "text" },
   ],
@@ -200,6 +200,7 @@ export function validateManual(f: ManualForm, ctx: ManualCtx): Partial<Record<Fi
       const rq = parseNum(f.receivedQty);
       if (Number.isNaN(rq) || rq <= 0) e.receivedQty = "입고 수량은 0보다 큰 숫자로 입력하세요.";
       else if (rq > MAX.qty) e.receivedQty = `입고 수량이 너무 큽니다. ${MAX.qty.toLocaleString("ko-KR")} 이하로 입력하세요.`;
+      else if (!Number.isNaN(q) && rq > q) e.receivedQty = `입고 수량은 발주 수량(${q.toLocaleString("ko-KR")})보다 많을 수 없습니다.`;
       else if (!f.receivedDate) e.receivedQty = "입고 수량을 넣으려면 실제 입고일도 입력하세요. (입고 전이면 수량을 비워 두세요)";
     }
     if (f.delayReason.length > MAX.note) e.delayReason = `지연 사유는 ${MAX.note}자 이내로 입력하세요.`;
@@ -218,8 +219,36 @@ export function validateManual(f: ManualForm, ctx: ManualCtx): Partial<Record<Fi
 const pad3 = (n: number) => String(n).padStart(3, "0");
 const maxSeq = (codes: string[], re: RegExp) => codes.reduce((m, c) => Math.max(m, Number(re.exec(c)?.[1] ?? 0)), 0);
 
+/** 저장된 수기 입력 → 수정용 입력 칸 값 (v0.8.0 수정·입고 처리가 같은 폼을 쓴다) */
+export function entryToForm(e: ManualEntry): ManualForm {
+  const t = (v?: string | number | null) => (v === undefined || v === null ? "" : String(v));
+  return {
+    docType: e.docType,
+    supplierId: e.supplierId,
+    itemSel: e.newItem ? DIRECT : e.itemCode,
+    itemName: e.newItem ? e.itemName : "",
+    spec: t(e.spec),
+    unit: e.unit,
+    qty: String(e.qty),
+    unitPrice: String(e.unitPrice),
+    amount: String(e.amount),
+    amountTouched: autoAmount(String(e.qty), String(e.unitPrice)) !== e.amount,
+    currency: e.currency,
+    docNo: e.docType === "견적서" ? "" : e.docNo,
+    docDate: t(e.docDate),
+    validUntil: t(e.validUntil),
+    dueDate: t(e.dueDate),
+    receivedDate: t(e.receivedDate),
+    receivedQty: t(e.receivedQty),
+    delayReason: t(e.delayReason),
+    deliveryTerms: t(e.deliveryTerms),
+    paymentTerms: t(e.paymentTerms),
+    note: t(e.note),
+  };
+}
+
 /** 검사를 통과한 입력 → 저장할 ManualEntry. 새 품목은 MANUAL-001…을 자동 부여(같은 이름이면 같은 코드 재사용), 견적번호도 자동 */
-export function buildEntry(f: ManualForm, ctx: { id: string; now: string; items: Map<string, Pick<Item, "itemCode" | "name">>; manual: ManualEntry[] }): ManualEntry {
+export function buildEntry(f: ManualForm, ctx: { id: string; now: string; items: Map<string, Pick<Item, "itemCode" | "name">>; manual: ManualEntry[]; edit?: ManualEntry }): ManualEntry {
   let itemCode = f.itemSel;
   let itemName = ctx.items.get(f.itemSel)?.name ?? "";
   let newItem = false;
@@ -229,12 +258,12 @@ export function buildEntry(f: ManualForm, ctx: { id: string; now: string; items:
     const same = ctx.manual.find((m) => m.newItem && m.itemName.toLowerCase() === itemName.toLowerCase());
     itemCode = same ? same.itemCode : `MANUAL-${pad3(maxSeq(ctx.manual.map((m) => m.itemCode), /^MANUAL-(\d+)$/) + 1)}`;
   }
-  const docNo = f.docType === "견적서" ? `QT-M${pad3(maxSeq(ctx.manual.map((m) => m.docNo), /^QT-M(\d+)$/) + 1)}` : f.docNo.trim();
+  const docNo = ctx.edit && f.docType === "견적서" ? ctx.edit.docNo : f.docType === "견적서" ? `QT-M${pad3(maxSeq(ctx.manual.map((m) => m.docNo), /^QT-M(\d+)$/) + 1)}` : f.docNo.trim();
   const opt = (s: string) => (s.trim() ? s.trim() : undefined);
   const e: ManualEntry = {
     id: ctx.id,
     docType: f.docType,
-    createdAt: ctx.now,
+    createdAt: ctx.edit?.createdAt ?? ctx.now,
     supplierId: f.supplierId,
     itemCode,
     itemName,
@@ -298,6 +327,16 @@ export function entryRow(e: ManualEntry): { po?: PurchaseOrder; contract?: Contr
   };
 }
 
+/** 수기 계약서의 '이전 확정단가': 같은 협력업체·품목·통화의 직전 확정 계약(견적 제외, 시작일이 더 이른 것 중 가장 늦은 것)의 단가.
+ *  없으면 그대로 둔다(변동률 계산 안 함). 어느 계약에서 가져왔는지는 prevContractId 로 남긴다(변동률 팝업에 출처로 표시) */
+export function withPrevPrice(c: Contract, existing: Contract[]): Contract {
+  if (c.prevUnitPrice) return c;
+  const prev = existing
+    .filter((x) => x.docType !== "견적" && x.supplierId === c.supplierId && x.itemCode === c.itemCode && x.currency === c.currency && x.unitPrice > 0 && x.startDate && c.startDate && x.startDate < c.startDate)
+    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))[0];
+  return prev ? { ...c, prevUnitPrice: prev.unitPrice, prevContractId: prev.contractId } : c;
+}
+
 /** 기본 데이터(샘플·업로드) + 수기 입력 → 화면에 쓰는 데이터. 번호가 겹치는 수기 행은 기존 행을 지키기 위해 건너뛴다 */
 export function mergeManual(base: DataSet, manual: ManualEntry[]): DataSet {
   if (!manual.length) return base;
@@ -319,7 +358,7 @@ export function mergeManual(base: DataSet, manual: ManualEntry[]): DataSet {
     }
     if (contract && !cIds.has(contract.contractId)) {
       cIds.add(contract.contractId);
-      contracts.push(contract);
+      contracts.push(contract.docType === "계약" ? withPrevPrice(contract, contracts) : contract); // 견적은 확정단가가 아니므로 변동률 대상 아님
     }
   }
   return { ...base, items, purchaseOrders: pos, contracts };

@@ -1,8 +1,8 @@
 // v0.7.0 수기입력 창: 견적서·납기보고서·계약서를 직접 입력해 대시보드에 바로 반영한다.
 // 입력 규칙·변환·합치기는 src/lib/manual.ts(순수 함수), 이 파일은 화면만 맡는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { LuCircleAlert, LuPencilLine, LuTrash2, LuX } from "react-icons/lu";
-import { DOC_TAB, DOC_TARGET, DOC_TYPES, DETAIL_FIELDS, DIRECT, MAX, UNITS, AMOUNT_WARN_PCT, amountGapPct, autoAmount, buildEntry, emptyForm, manualCounts, parseNum, syncAmount, validateManual, type FieldKey, type ManualForm } from "../lib/manual";
+import { LuCircleAlert, LuPackageCheck, LuPencilLine, LuTrash2, LuX } from "react-icons/lu";
+import { DOC_TAB, DOC_TARGET, DOC_TYPES, DETAIL_FIELDS, DIRECT, MAX, UNITS, AMOUNT_WARN_PCT, amountGapPct, autoAmount, buildEntry, emptyForm, entryToForm, manualCounts, parseNum, syncAmount, validateManual, type FieldKey, type ManualForm } from "../lib/manual";
 import type { ManualDocType } from "../data/types";
 import { fmtInt, fmtMoney } from "../lib/format";
 import { useStore } from "../store/store";
@@ -47,7 +47,13 @@ function Dialog() {
   const boxRef = useRef<HTMLDivElement>(null);
   useReturnFocus();
 
-  const [form, setForm] = useState<ManualForm>(() => emptyForm("견적서", asOf));
+  // v0.8.0: 이미 저장한 수기 입력을 같은 폼으로 고친다(수정·입고 처리). editId 가 있으면 수정 모드
+  const [editId, setEditId] = useState<string | null>(state.manualEdit?.id ?? null);
+  const editing = editId ? state.manual.find((m) => m.id === editId) ?? null : null;
+  const [form, setForm] = useState<ManualForm>(() => {
+    const e0 = state.manualEdit ? state.manual.find((m) => m.id === state.manualEdit!.id) : undefined;
+    return e0 ? entryToForm(e0) : emptyForm("견적서", asOf);
+  });
   const [initial, setInitial] = useState(() => JSON.stringify(form));
   const [shown, setShown] = useState<Set<string>>(new Set()); // 한 번 벗어난 칸
   const [submitted, setSubmitted] = useState(false);
@@ -65,8 +71,15 @@ function Dialog() {
     return [...set];
   }, [data.contracts, data.purchaseOrders]);
   const ctx = useMemo(
-    () => ({ asOf, items: catMap, supplierIds: new Set(data.suppliers.map((s) => s.supplierId)), currencies, poNos: new Set(data.purchaseOrders.map((p) => p.poNo)), contractIds: new Set(data.contracts.map((c) => c.contractId)) }),
-    [asOf, catMap, data, currencies],
+    () => ({
+      asOf,
+      items: catMap,
+      supplierIds: new Set(data.suppliers.map((s) => s.supplierId)),
+      currencies,
+      poNos: new Set(data.purchaseOrders.map((p) => p.poNo).filter((n) => n !== editing?.docNo)), // 수정 중인 자기 번호는 중복이 아니다
+      contractIds: new Set(data.contracts.map((c) => c.contractId).filter((n) => n !== editing?.docNo)),
+    }),
+    [asOf, catMap, data, currencies, editing],
   );
   const errors = validateManual(form, ctx);
   const dirty = JSON.stringify(form) !== initial;
@@ -75,10 +88,25 @@ function Dialog() {
   const blur = (k: FieldKey) => setShown((s) => new Set(s).add(k));
   const inv = (k: FieldKey) => ({ id: `mf-${k}`, "aria-invalid": err(k) ? true : undefined, "aria-describedby": err(k) ? `mf-${k}-err` : undefined, onBlur: () => blur(k) });
 
-  // 처음 초점: 첫 칸(문서 종류)
+  // 처음 초점: 입고 처리면 입고일 칸, 수정이면 공급사 칸, 새 입력이면 문서 종류
   useEffect(() => {
-    boxRef.current?.querySelector<HTMLElement>('input[name="mf-doc"]:checked')?.focus();
+    const f = state.manualEdit?.focus;
+    const q = f ? `#mf-${f}` : state.manualEdit ? "#mf-supplierId" : 'input[name="mf-doc"]:checked';
+    boxRef.current?.querySelector<HTMLElement>(q)?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const startEdit = (id: string, focus?: string) => {
+    const m = state.manual.find((x) => x.id === id);
+    if (!m) return;
+    const f = entryToForm(m);
+    setEditId(id);
+    setForm(f);
+    setInitial(JSON.stringify(f));
+    setShown(new Set());
+    setSubmitted(false);
+    setTimeout(() => boxRef.current?.querySelector<HTMLElement>(focus ? `#mf-${focus}` : "#mf-supplierId")?.focus(), 0);
+  };
 
   const tryClose = () => (dirty ? setConfirmClose(true) : dispatch({ type: "manualOpen", open: false }));
 
@@ -104,9 +132,14 @@ function Dialog() {
       setTimeout(() => boxRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 30);
       return;
     }
-    const entry = buildEntry(form, { id: rid(), now: new Date().toISOString(), items: catMap, manual: state.manual });
+    const entry = buildEntry(form, { id: editing?.id ?? rid(), now: new Date().toISOString(), items: catMap, manual: state.manual, edit: editing ?? undefined });
     const tab = DOC_TAB[entry.docType];
     const supName = derived.suppliersById.get(entry.supplierId)?.name ?? entry.supplierId;
+    if (editing) {
+      dispatch({ type: "updateManual", entry, toastText: `${entry.docType} 1건을 수정했습니다 (${supName} · ${entry.itemName}). 대시보드에 반영했습니다.` });
+      dispatch({ type: "manualOpen", open: false });
+      return;
+    }
     dispatch({
       type: "addManual",
       entry,
@@ -158,7 +191,7 @@ function Dialog() {
       >
         <div className="modal-head">
           <h2 id="manual-title">
-            <LuPencilLine aria-hidden /> 수기 입력
+            <LuPencilLine aria-hidden /> {editing ? `수기 입력 수정 · ${editing.docNo}` : "수기 입력"}
           </h2>
           <button type="button" className="icon-btn" onClick={tryClose} aria-label="닫기">
             <LuX aria-hidden />
@@ -184,7 +217,7 @@ function Dialog() {
               <div className="mf-seg">
                 {DOC_TYPES.map((t) => (
                   <label key={t} className={`mf-seg-opt ${form.docType === t ? "is-on" : ""}`}>
-                    <input type="radio" name="mf-doc" value={t} checked={form.docType === t} onChange={() => pickDocType(t)} data-doc={t} />
+                    <input type="radio" name="mf-doc" value={t} checked={form.docType === t} onChange={() => pickDocType(t)} data-doc={t} disabled={!!editing && form.docType !== t} />
                     <span>{t}</span>
                   </label>
                 ))}
@@ -307,6 +340,14 @@ function Dialog() {
                       <span className="mf-list-text">
                         {supName(m.supplierId)} · {m.itemName} · {m.docDate ?? "–"} · <span className="code">{m.docNo}</span>
                       </span>
+                      {m.docType === "납기보고서" && !m.receivedDate && (
+                        <button type="button" className="icon-btn" aria-label={`${m.docNo} 입고 처리`} title="입고 처리" data-receive onClick={() => startEdit(m.id, "receivedDate")}>
+                          <LuPackageCheck aria-hidden />
+                        </button>
+                      )}
+                      <button type="button" className="icon-btn" aria-label={`${m.docNo} 수정`} title="수정" data-edit onClick={() => startEdit(m.id)}>
+                        <LuPencilLine aria-hidden />
+                      </button>
                       <button type="button" className="icon-btn" aria-label={`${m.docNo} 삭제`} onClick={() => setDelId(m.id)}>
                         <LuTrash2 aria-hidden />
                       </button>
@@ -314,7 +355,7 @@ function Dialog() {
                   ))}
                 </ul>
               )}
-              <p className="small muted">지우면 대시보드가 바로 원래 값으로 돌아옵니다. 고치려면 지우고 다시 입력하세요(수정 기능은 없음).</p>
+              <p className="small muted">지우면 대시보드가 바로 원래 값으로 돌아옵니다. 연필 버튼으로 내용을 고치고, 납기보고서는 입고 버튼으로 입고일·입고 수량을 넣을 수 있습니다.</p>
             </details>
             <p className="sr-only" role="status" aria-live="polite">
               {live}
@@ -326,11 +367,13 @@ function Dialog() {
             <button type="button" className="btn btn-quiet" onClick={tryClose} data-manual-cancel>
               취소
             </button>
-            <button type="button" className="btn btn-quiet" onClick={() => save(true)} data-manual-continue>
-              저장 후 계속 입력
-            </button>
+            {!editing && (
+              <button type="button" className="btn btn-quiet" onClick={() => save(true)} data-manual-continue>
+                저장 후 계속 입력
+              </button>
+            )}
             <button type="submit" className="btn btn-primary" data-manual-save>
-              저장
+              {editing ? "수정 저장" : "저장"}
             </button>
           </div>
         </form>

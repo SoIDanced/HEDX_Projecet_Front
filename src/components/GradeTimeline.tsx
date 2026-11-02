@@ -1,4 +1,4 @@
-// 협력사 등급 변동 이력 타임라인: 평가 시점별 등급·점수, 이전 대비 상승·하락, 변동 사유, 마지막은 현재 시스템 계산값
+// 협력업체 등급 변동 이력 타임라인: 평가 시점별 등급·점수, 이전 대비 상승·하락, 변동 사유, 마지막은 현재 시스템 계산값
 import { LuArrowDownRight, LuArrowRight, LuArrowUpRight } from "react-icons/lu";
 import { halfLabel, type EvalHistoryEntry } from "../data/types";
 import { fmtNum } from "../lib/format";

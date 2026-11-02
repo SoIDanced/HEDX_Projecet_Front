@@ -16,7 +16,7 @@ const STATUS_TONE: Record<string, "ok" | "warn" | "bad" | "info" | "muted"> = {
   "진행 중": "info",
   취소: "muted",
   정상: "ok",
-  "안전재고 미달": "warn",
+  "적정재고 미달": "warn",
   "공급 지연": "warn",
   "미달·지연": "bad",
   확인: "ok",

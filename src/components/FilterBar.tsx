@@ -1,7 +1,9 @@
 // 데이터 탭 필터: 검색 + 빠른 필터 + 상세 필터(부품 분류 포함) + 적용 중인 조건 칩
 import { useState, type ReactNode } from "react";
-import { LuChevronDown, LuChevronUp, LuListFilter, LuSearch, LuX } from "react-icons/lu";
-import { chipText, isActive, type DateRange, type FilterDef, type FilterValues, type Range } from "../lib/filters";
+import { LuChevronDown, LuChevronUp, LuListFilter, LuSearch, LuX, LuZap } from "react-icons/lu";
+import { chipText, isActive, type DateRange, type FilterDef, type FilterValues, type Option, type Range } from "../lib/filters";
+import { PART_NOTE, SPEED_NOTE } from "../data/classification";
+import type { Scope, ScopeOptions } from "../lib/scope";
 
 export function FilterBar<T>({
   id,
@@ -16,6 +18,10 @@ export function FilterBar<T>({
   lead,
   actions,
   extra,
+  scopeRow,
+  asOf,
+  scopeCount,
+  onClearScope,
 }: {
   id: string;
   defs: FilterDef<T>[];
@@ -29,36 +35,49 @@ export function FilterBar<T>({
   lead?: ReactNode; // 상세 필터 버튼 바로 오른쪽에 놓는 버튼(수기입력)
   actions?: ReactNode;
   extra?: ReactNode;
+  scopeRow?: ReactNode; // 첫째 줄: 엔진모델 → 부품 → 품목 → 협력업체
+  asOf?: string; // 셋째 줄에 보일 데이터 기준일
+  scopeCount?: number; // 공통 범위(첫째 줄)가 걸려 있으면 1 이상 — '전체 초기화'를 보이게 한다
+  onClearScope?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [qOpen, setQOpen] = useState(false);
   const quick = defs.filter((d) => d.kind === "quick");
   const detail = defs.filter((d) => d.kind !== "quick");
   const active = defs.filter((d) => isActive(d, values[d.key]));
   const detailActive = active.filter((d) => d.kind !== "quick").length;
+  const quickActive = active.length - detailActive;
   const set = (key: string, v: unknown) => onChange({ ...values, [key]: v });
   const clearAll = () => {
     onChange({});
     onQuery("");
+    onClearScope?.();
   };
 
   return (
     <div className="filters">
+      {scopeRow}
       <div className="filter-row">
-        <label className="search-field">
-          <LuSearch aria-hidden />
-          <span className="sr-only">검색</span>
-          <input id={`filter-q-${id}`} type="search" placeholder={placeholder} value={query} onChange={(e) => onQuery(e.target.value)} />
-        </label>
+        {quick.length > 0 && (
+          <button type="button" className={`btn btn-quiet quick-toggle ${qOpen || quickActive ? "is-on" : ""}`} onClick={() => setQOpen(!qOpen)} aria-expanded={qOpen} aria-controls={`filter-quick-${id}`} data-quick-toggle>
+            <LuZap aria-hidden /> 빠른 필터{quickActive ? ` ${quickActive}` : ""}
+            {qOpen ? <LuChevronUp aria-hidden /> : <LuChevronDown aria-hidden />}
+          </button>
+        )}
         <button type="button" className={`btn btn-quiet filter-toggle ${open || detailActive ? "is-on" : ""}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`filter-detail-${id}`}>
           <LuListFilter aria-hidden /> 상세 필터{detailActive ? ` ${detailActive}` : ""}
           {open ? <LuChevronUp aria-hidden /> : <LuChevronDown aria-hidden />}
         </button>
         {lead}
+        <label className="search-field">
+          <LuSearch aria-hidden />
+          <span className="sr-only">검색</span>
+          <input id={`filter-q-${id}`} type="search" placeholder={placeholder} value={query} onChange={(e) => onQuery(e.target.value)} />
+        </label>
         {actions}
       </div>
-      {quick.length > 0 && (
-        <div className="quick-row" role="group" aria-label="빠른 필터">
-          <span className="quick-label">빠른 필터</span>
+      {qOpen && quick.length > 0 && (
+        <div className="quick-row quick-panel" id={`filter-quick-${id}`} role="group" aria-label="빠른 필터">
           {quick.map((d) => {
             const on = values[d.key] === true;
             return (
@@ -84,9 +103,9 @@ export function FilterBar<T>({
       )}
       <div className="filter-status">
         <span className="filter-count" aria-live="polite">
-          조건에 맞는 행 <b>{shown.toLocaleString()}</b> / 전체 {total.toLocaleString()}
+          조회 <b>{shown.toLocaleString()}</b>건 · 전체 {total.toLocaleString()}건{asOf ? ` · 데이터 기준일 ${asOf}` : ""}
         </span>
-        {(active.length > 0 || query) && (
+        {(active.length > 0 || query || !!scopeCount) && (
           <div className="active-chips">
             {query && (
               <span className="fchip">
@@ -210,4 +229,47 @@ function FieldControl<T>({ def, id, value, onChange }: { def: FilterDef<T>; id: 
     default:
       return null;
   }
+}
+
+/** 첫째 줄: 엔진모델 → 부품 → 품목 → 협력업체 드롭다운(기본 '전체'). 공통 선택이라 탭을 바꿔도 유지된다 */
+export function ScopeRow({ scope, options, onChange }: { scope: Scope; options: ScopeOptions; onChange: (key: keyof Scope, value: string) => void }) {
+  const fields: { key: keyof Scope; label: string; opts: Option[]; tip?: string }[] = [
+    { key: "speed", label: "엔진모델", opts: options.speed, tip: SPEED_NOTE },
+    { key: "group", label: "부품", opts: options.group, tip: PART_NOTE },
+    { key: "item", label: "품목", opts: options.item },
+    { key: "supplier", label: "협력업체", opts: options.supplier },
+  ];
+  return (
+    <div className="scope-wrap">
+      <div className="scope-row" role="group" aria-label="조회 대상 선택: 엔진모델, 부품, 품목, 협력업체 순서로 좁힙니다">
+        {fields.map((f) => (
+          <label key={f.key} className="scope-field" title={f.tip}>
+            <span className="scope-label">
+              {f.label}
+              {f.key === "speed" && <em className="scope-sample">시연용</em>}
+            </span>
+            <select id={`scope-${f.key}`} value={scope[f.key]} onChange={(e) => onChange(f.key, e.target.value)} aria-describedby={f.tip ? `scope-note-${f.key}` : undefined} data-scope={f.key}>
+              <option value="">전체</option>
+              {f.opts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {f.tip && (
+              <span id={`scope-note-${f.key}`} className="sr-only">
+                {f.tip}
+              </span>
+            )}
+          </label>
+        ))}
+      </div>
+      {(scope.speed || scope.group) && (
+        <p className="scope-note">
+          {scope.speed && `${SPEED_NOTE} `}
+          {scope.group && PART_NOTE}
+        </p>
+      )}
+    </div>
+  );
 }
