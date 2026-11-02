@@ -46,6 +46,7 @@ export function answerSections(result: AnalysisResult): AnswerSection[] {
   const all: AnswerSection[] = [
     { id: "highlights", title: "핵심 지표", items: result.highlights.map((h) => `${h.label}: ${h.value}`) },
     { id: "rows", title: `${result.rankLabel ? `비교 결과 (${result.rankLabel} 순)` : "비교 결과"}`, items: rows },
+    ...(result.detailSections ?? []),
     { id: "risks", title: "추가 검토가 필요한 위험 요소", items: result.risks.slice(0, 8) },
     { id: "review", title: "검토할 사항", items: result.reviewPoints },
     { id: "basis", title: "비교에 사용된 데이터와 평가 근거", items: [...result.basis, ...result.notes.map((n) => `참고: ${n}`)] },

@@ -1,4 +1,4 @@
-// 헤더 브랜드: [공식 한화엔진 로고(SVG, 흰 판 위)] │ RAG 기반 협력사 평가 AI 에이전트
+// 헤더 브랜드: [공식 한화엔진 로고(SVG, 흰 판 위)] │ RAG 기반 협력업체 평가 AI 에이전트
 // 원본 SVG는 한글 상호가 검정이라 라이트에선 흰 판 위에 쓴다. 어두운 테마에서는 판 없이(투명) 글자만 #F2F2F2 로 바꾼 파생 파일(-dark.svg)을 쓴다(사용자 승인, 원본 해시 유지).
 import { BRAND } from "../brand";
 import { useTheme } from "../platform/theme";

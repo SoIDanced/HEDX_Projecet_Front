@@ -120,7 +120,7 @@ export function LaborWages() {
 
   return (
     <section className="subview" aria-label="인건비 동향">
-      <SubViewHead title="인건비 동향 (직종 대·중·소 분류)" desc="협력사 가공비·인건비 인상 요청을 검토할 때 관련 직종의 임금 흐름을 함께 봅니다." datasets={["laborWages"]} asOf={months[months.length - 1]}>
+      <SubViewHead title="인건비 동향 (직종 대·중·소 분류)" desc="협력업체 가공비·인건비 인상 요청을 검토할 때 관련 직종의 임금 흐름을 함께 봅니다." datasets={["laborWages"]} asOf={months[months.length - 1]}>
         <span>단위 원/월</span>
       </SubViewHead>
       <div className="wage-layout">
@@ -167,7 +167,7 @@ export function LaborWages() {
           {spec && <Chart spec={spec} valueLabels={false} morph />}
           {sel?.level === 2 && (
             <p className="small muted">
-              관련 협력사(공정 기준):{" "}
+              관련 협력업체(공정 기준):{" "}
               {relatedSuppliers(sel.name)
                 .map((s) => s.name)
                 .join(", ") || "없음"}
@@ -177,7 +177,7 @@ export function LaborWages() {
       </div>
       <div className="sv-notes">
         <p>
-          <LuInfo aria-hidden /> 대분류 이름은 한국표준직업분류(제8차) 대분류를 참고했고, 중·소분류는 엔진 부품 협력사 공정에 맞춰 시연용으로 구성했습니다. 협력사 공정(주조·단조·가공 등)과 소분류의 연결은 협력업체 상세에서 볼 수 있습니다.
+          <LuInfo aria-hidden /> 대분류 이름은 한국표준직업분류(제8차) 대분류를 참고했고, 중·소분류는 엔진 부품 협력업체 공정에 맞춰 시연용으로 구성했습니다. 협력업체 공정(주조·단조·가공 등)과 소분류의 연결은 협력업체 상세에서 볼 수 있습니다.
         </p>
       </div>
     </section>

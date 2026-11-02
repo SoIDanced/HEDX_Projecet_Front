@@ -1,7 +1,8 @@
 // v0.7.0 수기 입력 로직 검사: npx tsx tests/logic-manual.ts
 import { loadSample } from "../src/data/sampleData";
 import { derive } from "../src/lib/metrics";
-import { DIRECT, amountGapPct, autoAmount, buildEntry, emptyForm, entryRow, manualSig, mergeManual, parseNum, sanitizeManual, syncAmount, validateManual, type ManualForm } from "../src/lib/manual";
+import { DIRECT, amountGapPct, autoAmount, buildEntry, emptyForm, entryRow, entryToForm, manualSig, mergeManual, parseNum, sanitizeManual, syncAmount, validateManual, type ManualForm } from "../src/lib/manual";
+import { condText, dday } from "../src/lib/format";
 import { validateRows } from "../src/lib/validate";
 import { runAnalysis } from "../src/lib/analysis";
 
@@ -69,7 +70,7 @@ const expectRate = Math.round((del0.onTime / (del0.evaluated + 1)) * 1000) / 10;
 check("합친 데이터: 발주 +1, 원본 data 불변", merged.purchaseOrders.length === data.purchaseOrders.length + 1 && data.purchaseOrders.every((p) => p.source !== "manual"));
 check(`마감 ${del0.evaluated}→${del0.evaluated + 1}건, 기한 내 ${del0.onTime}건 그대로`, del1.evaluated === del0.evaluated + 1 && del1.onTime === del0.onTime);
 check(`납기 준수율 ${del0.rate}% → ${expectRate}% (= ${del0.onTime}/${del0.evaluated + 1})`, del1.rate === expectRate && del1.rate !== del0.rate, String(del1.rate));
-check("협력사 표의 납기 준수율도 같은 값", d1.supplierViews.find((s) => s.supplierId === SUP)!.onTimeRate === expectRate);
+check("협력업체 표의 납기 준수율도 같은 값", d1.supplierViews.find((s) => s.supplierId === SUP)!.onTimeRate === expectRate);
 const ev0 = base.evaluations.get(SUP)!.total;
 const ev1 = d1.evaluations.get(SUP)!.total;
 check("종합 점수 재계산(준수율 하락 → 점수 하락)", ev0 !== null && ev1 !== null && ev1 < ev0, `${ev0} → ${ev1}`);
@@ -91,13 +92,34 @@ check("새 품목 행의 품목명 표시", derive(nm, asOf).contractViews.find(
 // ── 분석(챗) 엔진 ──
 const res = runAnalysis({ kind: "item_candidates", itemCode: ITEM, priority: "balanced" }, merged, d1, meta, "후보 업체 비교");
 check("품목 후보 분석 근거에 수기 발주번호 포함", JSON.stringify(res.sources).includes("PO-M-LATE"));
-const low = runAnalysis({ kind: "low_delivery", threshold: 99 }, merged, d1, meta, "납기 준수율 낮은 협력사");
+const low = runAnalysis({ kind: "low_delivery", threshold: 99 }, merged, d1, meta, "납기 준수율 낮은 협력업체");
 check("납기 저조 분석이 새 준수율을 사용", JSON.stringify(low.rows).includes(String(expectRate)), String(expectRate));
 
 // ── 업로드 · 저장본 ──
 check("업로드 검증은 그대로(발주 행)", validateRows("purchaseOrders", [{ poNo: "PO-X", itemCode: ITEM, supplierId: SUP, qty: 1, orderDate: "2026-01-01", dueDate: "2026-02-01" }], data).rows.length === 1);
 check("저장본 검사: 깨진 항목은 버림", sanitizeManual([late, { id: 1 }, null, "x"]).length === 1 && sanitizeManual("x").length === 0);
 check("분석 식별값: 수기 있으면 달라짐", manualSig([late]) !== manualSig([]) && manualSig([]) === "");
+
+// ── v0.8.0 수정·입고 처리: 같은 폼으로 고치고(entryToForm → buildEntry edit), 점수에 반영 ──
+const open0 = mk(fill({ docNo: "PO-M-OPEN", docDate: "2026-08-01", dueDate: "2026-09-01" }), "M-20");
+const rt = entryToForm(open0);
+check("수정 폼 왕복: 입력 칸 값이 저장본과 같고 검사 통과", buildEntry(rt, { id: "M-20", now: "t2", items, manual: [open0], edit: open0 }).docNo === "PO-M-OPEN" && Object.keys(validateManual(rt, ctx)).length === 0, JSON.stringify(validateManual(rt, ctx)));
+const recv = buildEntry({ ...rt, receivedDate: "2026-09-10", receivedQty: "10" }, { id: "M-20", now: "t2", items, manual: [open0], edit: open0 });
+check("입고 처리: 같은 id·생성시각 유지, 입고일·입고수량 추가", recv.id === "M-20" && recv.createdAt === open0.createdAt && recv.receivedDate === "2026-09-10" && recv.receivedQty === 10 && recv.docNo === open0.docNo);
+const dOpen = derive(mergeManual(data, [open0]), asOf);
+const dRecv = derive(mergeManual(data, [recv]), asOf);
+const poRow = (d: ReturnType<typeof derive>) => d.poViews.find((p) => p.poNo === "PO-M-OPEN")!;
+check("입고 전 = 납기 지연(미입고), 입고 후 = 입고일·수량 표시, 9일 지연 입고", poRow(dOpen).status === "납기 지연" && poRow(dRecv).receivedDate === "2026-09-10" && poRow(dRecv).delayDays === 9 && poRow(dRecv).receivedQty === 10, JSON.stringify([poRow(dOpen).status, poRow(dRecv).delayDays]));
+const rate = (d: ReturnType<typeof derive>) => d.supplierDelivery.get(SUP)!;
+check("지연 입고 처리: 미입고 지연 1건 해소(overdueOpen 감소)·평균 지연일 변동 / 기한 내 입고면 준수율 상승", rate(dOpen).overdueOpen === rate(dRecv).overdueOpen + 1 && rate(dOpen).avgDelay !== rate(dRecv).avgDelay && (derive(mergeManual(data, [{ ...recv, receivedDate: "2026-08-30" }]), asOf).supplierDelivery.get(SUP)!.rate ?? 0) > (rate(dRecv).rate ?? 0), JSON.stringify([rate(dOpen), rate(dRecv)]));
+const qEdit = mk(fill({ docType: "견적서", docDate: "2026-09-01", validUntil: "2026-10-01" }), "M-21", []);
+const qEd = buildEntry({ ...entryToForm(qEdit), unitPrice: "1200" }, { id: "M-21", now: "t3", items, manual: [qEdit], edit: qEdit });
+check("견적서 수정: 자동 견적번호 유지, 단가만 변경", qEd.docNo === qEdit.docNo && qEd.unitPrice === 1200);
+
+// ── v0.8.0 계약 조건: 창원 공장 도착도 제외 + D-day ──
+check("D-day: 남음 D-12 / 오늘 D-day / 지남 D+3", dday("2026-11-14", "2026-11-02") === "D-12" && dday("2026-11-02", "2026-11-02") === "D-day" && dday("2026-10-30", "2026-11-02") === "D+3" && dday(null) === "–");
+const c1 = condText({ endDate: "2026-11-14", deliveryTerms: "창원 공장 도착도", paymentTerms: "입고 후 30일" });
+check("계약 조건: '창원 공장 도착도' 제거, 종료 D-day + 결제 조건만 · FOB 등 다른 인도 조건은 유지", !c1.includes("창원") && c1.startsWith("종료 D") && c1.endsWith("입고 후 30일") && condText({ endDate: null, deliveryTerms: "FOB 해외 선적항", paymentTerms: "T/T" }) === "FOB 해외 선적항 · T/T", c1);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

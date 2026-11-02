@@ -4,6 +4,7 @@ import { addMonths, avg, daysBetween, quarterOf, quarterSortKey, round } from ".
 import { EVAL_CONFIG, comparableKey, evaluateSupplier, type SupplierEvaluation } from "./evaluation";
 import { buildBomIndex, type BomIndex } from "./bom";
 import { buildPayments, type PaymentSchedule } from "./payments";
+import { poQty } from "./qty";
 
 export type POStatus = "입고완료" | "지연입고" | "납기 지연" | "진행 중" | "취소";
 
@@ -14,6 +15,10 @@ export interface POView extends PurchaseOrder {
   onTime: boolean | null;
   itemName: string;
   supplierName: string;
+  rcvQty: number | null; // 누적 입고수량 (취소 = null)
+  remainQty: number | null; // 발주잔량 = max(발주수량 − 누적 입고수량, 0)
+  partial: boolean; // 일부 입고·잔량 남음
+  rcvAssumed: boolean; // 입고일만 있고 수량 기록이 없어 '전량 입고'로 본 값
 }
 
 export interface DeliveryStats {
@@ -45,7 +50,7 @@ export interface InventoryView extends InventoryRecord {
   overdueOpen: number;
   shortage: number;
   delayed: boolean;
-  status: "정상" | "안전재고 미달" | "공급 지연" | "미달·지연";
+  status: "정상" | "적정재고 미달" | "공급 지연" | "미달·지연";
 }
 
 export interface SupplierView extends Supplier {
@@ -113,12 +118,11 @@ export function derive(data: DataSet, asOf: string): Derived {
   const itemName = (c: string) => itemsByCode.get(c)?.name ?? c;
   const supName = (id: string) => suppliersById.get(id)?.name ?? id;
 
-  const poViews: POView[] = data.purchaseOrders.map((po) => ({
-    ...po,
-    ...poStatus(po, asOf),
-    itemName: itemName(po.itemCode),
-    supplierName: supName(po.supplierId),
-  }));
+  const poViews: POView[] = data.purchaseOrders.map((po) => {
+    const st = poStatus(po, asOf);
+    const q = poQty({ status: st.status, qty: po.qty, receivedQty: po.receivedQty, receivedDate: po.receivedDate });
+    return { ...po, ...st, itemName: itemName(po.itemCode), supplierName: supName(po.supplierId), rcvQty: q.received, remainQty: q.remain, partial: q.partial, rcvAssumed: q.assumed };
+  });
   const inWindow = poViews.filter((p) => p.orderDate >= windowFrom);
 
   const bySupplier = new Map<string, POView[]>();
@@ -156,12 +160,12 @@ export function derive(data: DataSet, asOf: string): Derived {
       itemName: itemName(inv.itemCode),
       unit: itemsByCode.get(inv.itemCode)?.unit ?? "",
       supplierName: sid ? supName(sid) : "–",
-      openOrderQty: open.reduce((a, p) => a + p.qty, 0),
+      openOrderQty: open.reduce((a, p) => a + (p.remainQty ?? p.qty), 0), // 진행 중·납기 지연 발주의 남은 수량(부분입고분은 뺀다)
       expectedDate: dueDates.length ? dueDates[0] : null,
       overdueOpen: overdue,
       shortage,
       delayed: overdue > 0,
-      status: below && overdue ? "미달·지연" : below ? "안전재고 미달" : overdue ? "공급 지연" : "정상",
+      status: below && overdue ? "미달·지연" : below ? "적정재고 미달" : overdue ? "공급 지연" : "정상",
     };
   });
 

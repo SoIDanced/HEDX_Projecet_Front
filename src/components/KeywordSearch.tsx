@@ -40,7 +40,7 @@ export function KeywordSearch() {
           role="combobox"
           aria-expanded={open && !!q}
           aria-controls="kw-results"
-          placeholder="키워드 검색 · 협력사, 품목, 발주번호, 계약"
+          placeholder="키워드 검색 · 협력업체, 품목, 발주번호, 계약"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);

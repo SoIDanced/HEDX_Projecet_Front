@@ -10,6 +10,6 @@ export const BRAND: Brand = {
   company: "한화엔진",
   wordmark,
   wordmarkDark,
-  product: "RAG 기반 협력사 평가 AI 에이전트",
-  docTitle: "한화엔진 RAG 기반 협력사 평가 AI 에이전트",
+  product: "RAG 기반 협력업체 평가 AI 에이전트",
+  docTitle: "한화엔진 RAG 기반 협력업체 평가 AI 에이전트",
 };

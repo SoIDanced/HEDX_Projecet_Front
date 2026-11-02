@@ -158,7 +158,7 @@ export function findNode(roots: WageNode[], path: string[]): WageNode | null {
   return found;
 }
 
-/** 협력사 공정 → 관련 직종(소분류). 공정 이름에 들어 있는 낱말로 연결한다. */
+/** 협력업체 공정 → 관련 직종(소분류). 공정 이름에 들어 있는 낱말로 연결한다. */
 export const PROCESS_TO_JOBS: [string, string[]][] = [
   ["주조", ["주조원"]],
   ["단조", ["단조원", "열처리 조작원"]],

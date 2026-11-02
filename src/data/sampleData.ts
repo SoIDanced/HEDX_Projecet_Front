@@ -1,7 +1,6 @@
 // SAMPLE 데이터 로더 — src/data/sample/*.json (scripts/generate-sample.mjs로 생성)
 import type {
   BomRow,
-  CompetitorSupply,
   Contract,
   DataMeta,
   DataSet,
@@ -24,7 +23,6 @@ import bom from "./sample/bom.json";
 import materialPrices from "./sample/materialPrices.json";
 import fxRates from "./sample/fxRates.json";
 import laborWages from "./sample/laborWages.json";
-import competitorSupply from "./sample/competitorSupply.json";
 import industryNews from "./sample/industryNews.json";
 
 export function loadSample(): { data: DataSet; meta: DataMeta } {
@@ -39,7 +37,6 @@ export function loadSample(): { data: DataSet; meta: DataMeta } {
       materialPrices: structuredClone(materialPrices) as MaterialPrice[],
       fxRates: structuredClone(fxRates) as FxRate[],
       laborWages: structuredClone(laborWages) as LaborWage[],
-      competitorSupply: structuredClone(competitorSupply) as CompetitorSupply[],
       industryNews: structuredClone(industryNews) as IndustryNews[],
     },
     meta: {
@@ -56,7 +53,6 @@ export function loadSample(): { data: DataSet; meta: DataMeta } {
         materialPrices: "sample/materialPrices.json",
         fxRates: "sample/fxRates.json",
         laborWages: "sample/laborWages.json",
-        competitorSupply: "sample/competitorSupply.json",
         industryNews: "sample/industryNews.json",
       },
       version: 1,

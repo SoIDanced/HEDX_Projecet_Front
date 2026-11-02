@@ -10,6 +10,7 @@ import { readStore, writeStore } from "./platform/storage";
 import { currentUser, logout, type User } from "./platform/users";
 import { ImportDialog } from "./components/ImportDialog";
 import { ManualEntryDialog } from "./components/ManualEntryDialog";
+import { ReceiptDialog } from "./components/ReceiptDialog";
 import { Topbar } from "./components/Topbar";
 import { Onboarding } from "./components/Onboarding";
 import { KeywordSearch } from "./components/KeywordSearch";
@@ -184,7 +185,7 @@ function Workspace() {
           <div className="panel-head">
             <div className="panel-title-row">
               <Words as="h2" className="panel-title" text="데이터 관리" />
-              <span className="panel-sub">협력사 평가 요약 · 협력업체·구매조달·원가-계약·자재-공급 데이터</span>
+              <span className="panel-sub">협력업체 평가 요약 · 협력업체·구매조달·원가-계약·자재-공급 데이터</span>
               <KeywordSearch />
             </div>
           </div>
@@ -244,6 +245,7 @@ export function App() {
           <Workspace />
           <ImportDialog />
           <ManualEntryDialog />
+          <ReceiptDialog />
           <Onboarding />
           <Toast />
         </div>

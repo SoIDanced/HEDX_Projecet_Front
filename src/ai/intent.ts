@@ -105,15 +105,15 @@ export function parseQuestion(text: string, catalog: Catalog, asOf: string): Par
   const pctM = text.match(/(\d+(?:\.\d+)?)\s*%/);
   const threshold = pctM ? Number(pctM[1]) : null;
   const refersToSelection = /(해당|이|그|선택(한|된)|현재|지금)\s*(품목|자재|부품)/.test(text) || /품목별/.test(text);
-  const refersSupplier = /(해당|이|그|선택(한|된)|현재)\s*(협력사|업체|공급사)/.test(text);
+  const refersSupplier = /(해당|이|그|선택(한|된)|현재)\s*(협력업체|협력사|업체|공급사)/.test(text);
 
   const has = (re: RegExp) => re.test(text);
   const priceWord = has(/(단가|가격|원가)/);
   const upWord = has(/(상승|올랐|오른|오르|인상|급등|증가|뛴|올라)/);
   const deliveryWord = has(/납기/);
   const lowWord = has(/(낮|저조|미흡|부진|나쁜|나쁘|떨어|미달|미만|이하|아래|안\s*좋|지연이?\s*(많|잦|반복))/);
-  const stockWord = has(/(재고|안전재고|결품|품절|부족|입고\s*예정|공급\s*지연|수급)/);
-  const candWord = has(/(업체|협력사|공급사|후보|거래|공급|비교|추천|어디|누가)/);
+  const stockWord = has(/(재고|적정재고|안전재고|결품|품절|부족|입고\s*예정|공급\s*지연|수급)/);
+  const candWord = has(/(업체|협력업체|협력사|공급사|후보|거래|공급|비교|추천|어디|누가)/);
   const profileWord = has(/(평가|점수|등급|근거|실적|어때|현황|정보|프로필|요약|정리|분석)/);
 
   // 문서 찾기: 문서 종류 낱말 + 찾기 동사 (예: "…스크래치 민원 찾아줘", "…견적서 보여줘")
@@ -124,7 +124,7 @@ export function parseQuestion(text: string, catalog: Catalog, asOf: string): Par
   else if (priceWord && upWord) kind = "price_increase";
   else if (deliveryWord && lowWord) kind = "low_delivery";
   else if (stockWord) kind = "stock_risk";
-  else if (grade && has(/(품질|실적|정리|현황|목록|어디|업체|협력사|보여)/)) kind = "grade_quality";
+  else if (grade && has(/(품질|실적|정리|현황|목록|어디|업체|협력업체|협력사|보여)/)) kind = "grade_quality";
   else if (supplierIds.length >= 2) kind = "supplier_compare";
   else if ((itemCode || refersToSelection || codeMention) && candWord) kind = "item_candidates";
   else if (priority) kind = "priority_followup";

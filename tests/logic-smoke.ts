@@ -21,7 +21,7 @@ const qs = [
   console.table(r.result.rows.map((x: any) => ({ 업체: x.label, 등급: x.values.grade, 납기: x.values.onTimeRate, 단가: x.values.price, 건수: x.values.trades, 점수: x.values.score, 순위: x.rank, 제외: x.excludedReason ?? "" })));
   r = await answer("여기서 단가보다 납기를 우선하면 어떤 업체가 적합해?", ctx, null);
   console.log("[Q2]", r.type, r.text);
-  for (const q of ["납기 준수율이 낮은 협력사를 찾아줘.", "최근 단가가 상승한 품목을 보여줘.", "A등급 협력사의 품질 실적을 정리해 줘.", "업체 D 평가 근거 알려줘", "업체 A랑 업체 C 비교해줘", "재고 부족한 품목 있어?", "노즐 후보 업체 비교", "터보차저 노즐링 거래 업체", "ITM-9999 후보 업체", "오늘 날씨 어때", "최근 6개월 납기 준수율 85% 미만 업체"]) {
+  for (const q of ["납기 준수율이 낮은 협력업체를 찾아줘.", "최근 단가가 상승한 품목을 보여줘.", "A등급 협력업체의 품질 실적을 정리해 줘.", "업체 D 평가 근거 알려줘", "업체 A랑 업체 C 비교해줘", "재고 부족한 품목 있어?", "노즐 후보 업체 비교", "터보차저 노즐링 거래 업체", "ITM-9999 후보 업체", "오늘 날씨 어때", "최근 6개월 납기 준수율 85% 미만 업체"]) {
     const x: any = await answer(q, { ...ctx, lastResult: null }, null);
     console.log(`\n[${q}] → ${x.type} ${x.result?.kind ?? ""} rows=${x.result?.rows.length ?? "-"}\n  ${x.text.join("\n  ")}`);
   }

@@ -143,6 +143,9 @@
 .modal { animation: modalIn 420ms var(--spring) both; }
 .modal-backdrop { animation: fadeIn 250ms ease both; }
 .toast { animation: toastIn 450ms var(--spring) both; }
+/* 협력업체를 처음 고를 때: 빈 안내 → 채점 카드 (v0.8.0, 약 500ms = 1000ms × --k) */
+@keyframes evalReveal { from { opacity: 0; transform: translateY(14px); } }
+.eval-body.is-reveal { animation: evalReveal calc(1000ms * var(--k)) var(--ease) both; }
 .toast.is-leaving { animation: toastOut 280ms var(--ease) both; pointer-events: none; }
 .acc { display: grid; grid-template-rows: 1fr; }
 .acc > ul { min-height: 0; }

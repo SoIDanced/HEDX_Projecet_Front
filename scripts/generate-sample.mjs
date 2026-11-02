@@ -302,17 +302,6 @@ for (const [major, mid, minor, base, yoy] of WAGE_TREE) {
   });
 }
 
-// 경쟁사 부품 수요·공급처 (SAMPLE) — 회사명은 모두 가상이며 실제 회사가 아니다.
-const competitorSupply = [
-  { competitor: "가온중공업 엔진사업부(가상)", itemCode: "ITM-1001", supplierName: "업체 B", supplierId: "SUP-002", demand: "2026년 하반기 2행정 엔진 수주 증가로 라이너 발주 확대 예상", period: "2026년 하반기", date: "2026-09-18" },
-  { competitor: "가온중공업 엔진사업부(가상)", itemCode: "ITM-1004", supplierName: "업체 F", supplierId: "SUP-006", demand: "이중연료 엔진용 노즐 신규 승인 진행", period: "2026년 4분기", date: "2026-09-30" },
-  { competitor: "가온중공업 엔진사업부(가상)", itemCode: "ITM-1002", supplierName: "세광링텍(가상)", supplierId: null, demand: "피스톤 링 연간 단가 계약 갱신", period: "2027년", date: "2026-08-27" },
-  { competitor: "서진마린엔진(가상)", itemCode: "ITM-1010", supplierName: "한빛정밀(가상)", supplierId: null, demand: "과급기 노즐링 장기 공급 계약 체결", period: "2026~2028년", date: "2026-07-14" },
-  { competitor: "서진마린엔진(가상)", itemCode: "ITM-1003", supplierName: "업체 L", supplierId: "SUP-012", demand: "배기밸브 스핀들 물량 30% 증량 요청", period: "2026년 하반기", date: "2026-09-05" },
-  { competitor: "동해파워텍(가상)", itemCode: "ITM-1009", supplierName: "업체 J", supplierId: "SUP-010", demand: "고압 연료관 긴급 발주 (납기 단축 요청)", period: "2026년 4분기", date: "2026-10-02" },
-  { competitor: "동해파워텍(가상)", itemCode: "ITM-1005", supplierName: "대륙베어링(가상)", supplierId: null, demand: "메인 베어링 쉘 국산화 시험 발주", period: "2027년 상반기", date: "2026-08-11" },
-].map((r) => ({ ...r, source: "SAMPLE (가상 자료)", sourceUrl: null }));
-
 // 업계 동향 (SAMPLE 기사) — 실제 기사가 아니다.
 const industryNews = [
   { date: "2026-10-08", title: "니켈 강세 지속… 내열합금 부품 원가 부담 커져", summary: "니켈 국제 시세가 1년 전보다 크게 오른 수준을 유지하며 배기밸브 스핀들·노즐링 등 니켈계 내열합금 부품의 원가 상승 요인이 커지고 있다.", items: ["ITM-1003", "ITM-1010", "ITM-1009"], materials: ["니켈"] },
@@ -343,7 +332,6 @@ write("bom.json", bom);
 write("materialPrices.json", materialPrices);
 write("fxRates.json", fxRates);
 write("laborWages.json", laborWages);
-write("competitorSupply.json", competitorSupply);
 write("industryNews.json", industryNews);
 console.log(`items ${itemRows.length}, suppliers ${supplierRows.length}, POs ${purchaseOrders.length}, contracts ${contracts.length}, inventory ${inventory.length}`);
-console.log(`bom ${bom.length}, materialPrices ${materialPrices.length}, fxRates ${fxRates.length}, laborWages ${laborWages.length}, competitorSupply ${competitorSupply.length}, industryNews ${industryNews.length}`);
+console.log(`bom ${bom.length}, materialPrices ${materialPrices.length}, fxRates ${fxRates.length}, laborWages ${laborWages.length}, industryNews ${industryNews.length}`);

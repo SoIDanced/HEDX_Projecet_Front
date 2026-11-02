@@ -1,5 +1,5 @@
 // 데이터 계층: 플랫폼이 다루는 데이터와 공통 식별자
-// 연결 키 — supplierId(협력사), itemCode(품목), poNo(발주), contractId(계약)
+// 연결 키 — supplierId(협력업체), itemCode(품목), poNo(발주), contractId(계약)
 
 export type Grade = "A" | "B" | "C" | "D";
 
@@ -58,6 +58,17 @@ export interface PurchaseOrder {
   receivedQty?: number | null;
   delayReason?: string | null;
   note?: string | null;
+  // v0.9 2단계: 입고 기록(src/lib/receipts.ts mergeReceipts)이 합쳐진 뒤에만 채워짐 — 업로드·샘플 원본에는 없음
+  lastReceivedDate?: string | null; // 가장 최근 입고일(부분입고여도 채워짐). receivedDate 는 전량 입고가 끝났을 때만
+  receiptLog?: ReceiptLogItem[];
+}
+
+/** 발주 한 건에 반영된 입고 한 줄(표시·상세용) */
+export interface ReceiptLogItem {
+  id: string;
+  date: string;
+  qty: number;
+  source: "기존 자료" | "수기 발주" | "입고 기록";
 }
 
 export interface Contract {
@@ -82,6 +93,7 @@ export interface Contract {
   unit?: string;
   amount?: number | null;
   note?: string | null;
+  prevContractId?: string | null; // v0.9 2단계: 수기 계약서의 '이전 확정단가'를 같은 업체·품목의 직전 확정 계약에서 가져왔을 때 그 계약번호
 }
 
 /** 수기 입력 문서 종류 → 저장되는 데이터 종류: 견적서·계약서 = 원가-계약 행, 납기보고서 = 구매조달(발주) 행 */
@@ -120,6 +132,29 @@ export interface InventoryRecord {
   safetyStock: number;
   mainSupplierId?: string | null;
   location?: string;
+  // v0.9 2단계: 적정재고 정책·입고 반영이 합쳐진 뒤에만 채워짐 (safetyStock = 적용 적정재고)
+  safetyInitial?: number; // 원자료의 값(초기값)
+  safetyLocked?: boolean;
+  safetySource?: "초기값" | "고정" | "계획" | "설정값";
+  stockAdj?: number; // 수기 입고로 더해진 현재재고 수량
+}
+
+/** 입고 기록 한 건: 기존 발주번호(FK)에 이번 입고수량을 연결. id 가 같으면 같은 입고(중복 반영 방지) */
+export interface Receipt {
+  id: string;
+  poNo: string;
+  date: string;
+  qty: number;
+  createdAt: string;
+  note?: string;
+}
+
+/** 품목(재고 고유 ID = itemCode)별 적정재고 설정: 적용값과 고정 여부를 따로 */
+export interface StockPolicyEntry {
+  value: number; // 적용값(고정이면 사용자가 정한 수량, 해제 후 계획이 없으면 그때 값을 유지)
+  locked: boolean;
+  base: number; // 이 항목을 만들 때 원자료 적정재고 — 업로드로 원자료가 바뀌면 유지값은 버림
+  at: string;
 }
 
 /** 부품 분류 경로: 엔진 모델 > 대부품 > 중부품 > 소부품(품목) */
@@ -160,19 +195,6 @@ export interface LaborWage {
   source?: string | null;
 }
 
-/** 경쟁사의 부품 수요와 공급처 (공개 자료 기준) */
-export interface CompetitorSupply {
-  competitor: string;
-  itemCode: string;
-  supplierName: string;
-  supplierId?: string | null; // 우리 협력사이면 업체ID
-  demand?: string | null;
-  period?: string | null;
-  date?: string | null;
-  source?: string | null;
-  sourceUrl?: string | null;
-}
-
 /** 업계 동향 기사·자료 */
 export interface IndustryNews {
   date: string;
@@ -194,7 +216,6 @@ export type DatasetKey =
   | "materialPrices"
   | "fxRates"
   | "laborWages"
-  | "competitorSupply"
   | "industryNews";
 
 export interface DataSet {
@@ -207,7 +228,6 @@ export interface DataSet {
   materialPrices: MaterialPrice[];
   fxRates: FxRate[];
   laborWages: LaborWage[];
-  competitorSupply: CompetitorSupply[];
   industryNews: IndustryNews[];
 }
 
@@ -231,7 +251,6 @@ export const DATASET_LABEL: Record<DatasetKey, string> = {
   materialPrices: "원자재 시세",
   fxRates: "환율",
   laborWages: "인건비(임금)",
-  competitorSupply: "경쟁사 공급 동향",
   industryNews: "업계 동향",
 };
 
@@ -245,7 +264,6 @@ export const DATASET_ORDER: DatasetKey[] = [
   "materialPrices",
   "fxRates",
   "laborWages",
-  "competitorSupply",
   "industryNews",
 ];
 
@@ -260,7 +278,7 @@ export const TAB_LABEL: Record<TabKey, string> = {
 
 /** 탭 안의 하위 보기 (기본은 첫 번째 = 목록) */
 export const SUB_VIEWS: Record<TabKey, { id: string; label: string; dataset: DatasetKey }[]> = {
-  suppliers: [{ id: "list", label: "협력사 목록", dataset: "suppliers" }],
+  suppliers: [{ id: "list", label: "협력업체 목록", dataset: "suppliers" }],
   purchaseOrders: [
     { id: "list", label: "발주 목록", dataset: "purchaseOrders" },
     { id: "payments", label: "대금 결제 일정", dataset: "contracts" },
@@ -272,7 +290,6 @@ export const SUB_VIEWS: Record<TabKey, { id: string; label: string; dataset: Dat
   ],
   inventory: [
     { id: "list", label: "재고·공급", dataset: "inventory" },
-    { id: "competitors", label: "경쟁사 공급 동향", dataset: "competitorSupply" },
     { id: "news", label: "업계 동향", dataset: "industryNews" },
   ],
 };

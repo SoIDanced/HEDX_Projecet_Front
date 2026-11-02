@@ -73,9 +73,9 @@ const catalog = { items: data.items.map((i) => ({ itemCode: i.itemCode, name: i.
 
   // ── 기존 질문은 그대로 ──
   const old: [string, string][] = [
-    ["납기 준수율이 낮은 협력사를 찾아줘.", "low_delivery"],
+    ["납기 준수율이 낮은 협력업체를 찾아줘.", "low_delivery"],
     ["최근 단가가 상승한 품목을 보여줘.", "price_increase"],
-    ["A등급 협력사의 품질 실적을 정리해 줘.", "grade_quality"],
+    ["A등급 협력업체의 품질 실적을 정리해 줘.", "grade_quality"],
     ["업체 D 평가 근거 알려줘", "supplier_profile"],
     ["업체 A랑 업체 C 비교해줘", "supplier_compare"],
     ["재고 부족한 품목 있어?", "stock_risk"],

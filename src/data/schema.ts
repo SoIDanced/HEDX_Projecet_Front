@@ -43,8 +43,8 @@ export const SCHEMAS: Record<DatasetKey, DatasetSchema> = {
     label: "협력업체",
     primaryKey: "supplierId",
     fields: [
-      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력사id", "업체코드", "협력사코드", "vendorid", "vendor_id", "id"] },
-      { key: "name", label: "협력사명", type: "string", required: true, aliases: ["업체명", "회사명", "vendor", "vendorname"] },
+      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력업체id", "협력사id", "업체코드", "협력업체코드", "협력사코드", "vendorid", "vendor_id", "id"] },
+      { key: "name", label: "협력업체명", type: "string", required: true, aliases: ["협력사명", "업체명", "회사명", "vendor", "vendorname"] },
       { key: "process", label: "공정 구분", type: "string", aliases: ["공정", "업종"] },
       { key: "region", label: "지역", type: "string", aliases: ["소재지"] },
       { key: "items", label: "공급 가능 품목", type: "list", aliases: ["공급품목", "품목코드", "품목"], hint: "품목코드를 ; 로 구분" },
@@ -80,7 +80,7 @@ export const SCHEMAS: Record<DatasetKey, DatasetSchema> = {
     fields: [
       { key: "poNo", label: "발주번호", type: "string", required: true, aliases: ["po", "po번호", "발주no"] },
       { key: "itemCode", label: "품목코드", type: "string", required: true, aliases: ["품번", "자재코드"] },
-      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력사id", "발주업체", "업체코드"] },
+      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력업체id", "협력사id", "발주업체", "업체코드"] },
       { key: "qty", label: "발주 수량", type: "number", required: true, min: 0, aliases: ["수량", "발주수량"] },
       { key: "unitPrice", label: "발주 단가", type: "number", min: 0, aliases: ["단가"] },
       { key: "currency", label: "통화", type: "string", defaultValue: "KRW", aliases: ["거래통화"] },
@@ -97,7 +97,7 @@ export const SCHEMAS: Record<DatasetKey, DatasetSchema> = {
     fields: [
       { key: "contractId", label: "계약번호", type: "string", required: true, aliases: ["계약id", "계약no"] },
       { key: "itemCode", label: "품목코드", type: "string", required: true, aliases: ["품번"] },
-      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력사id", "거래협력사"] },
+      { key: "supplierId", label: "업체ID", type: "string", required: true, aliases: ["협력업체id", "협력사id", "거래협력업체", "거래협력사"] },
       { key: "spec", label: "규격", type: "string" },
       { key: "unitPrice", label: "최근 단가", type: "number", required: true, min: 0, aliases: ["단가", "계약단가"] },
       { key: "prevUnitPrice", label: "과거 단가", type: "number", min: 0, aliases: ["직전단가", "이전단가"] },
@@ -115,7 +115,7 @@ export const SCHEMAS: Record<DatasetKey, DatasetSchema> = {
     fields: [
       { key: "itemCode", label: "품목코드", type: "string", required: true, aliases: ["품번", "자재코드"] },
       { key: "stockQty", label: "현재 재고량", type: "number", required: true, min: 0, aliases: ["재고", "재고량", "현재고"] },
-      { key: "safetyStock", label: "안전재고 기준", type: "number", required: true, min: 0, aliases: ["안전재고"] },
+      { key: "safetyStock", label: "적정재고 기준", type: "number", required: true, min: 0, aliases: ["안전재고", "적정재고"] },
       { key: "mainSupplierId", label: "주 공급업체ID", type: "string", aliases: ["공급업체", "공급업체id"] },
       { key: "location", label: "보관 위치", type: "string", aliases: ["위치", "창고"] },
     ],
@@ -168,22 +168,6 @@ export const SCHEMAS: Record<DatasetKey, DatasetSchema> = {
       { key: "minor", label: "소분류", type: "string", required: true, aliases: ["직종"] },
       { key: "wage", label: "월평균 임금(원)", type: "number", required: true, min: 0, aliases: ["임금", "평균임금", "월임금"] },
       { key: "source", label: "출처", type: "string" },
-    ],
-  },
-  competitorSupply: {
-    key: "competitorSupply",
-    label: "경쟁사 공급 동향",
-    primaryKey: ["competitor", "itemCode", "supplierName"],
-    fields: [
-      { key: "competitor", label: "경쟁사", type: "string", required: true, aliases: ["경쟁업체"] },
-      { key: "itemCode", label: "품목코드", type: "string", required: true, aliases: ["관련품목", "품번"] },
-      { key: "supplierName", label: "공급처", type: "string", required: true, aliases: ["공급업체", "공급사", "협력사"] },
-      { key: "supplierId", label: "공급처 업체ID", type: "string", aliases: ["업체id"], hint: "우리 협력사이면 업체ID" },
-      { key: "demand", label: "수요 내용", type: "string", aliases: ["수요", "내용"] },
-      { key: "period", label: "시기", type: "string" },
-      { key: "date", label: "확인일", type: "date", aliases: ["일자"] },
-      { key: "source", label: "출처", type: "string" },
-      { key: "sourceUrl", label: "출처 링크", type: "string", aliases: ["url", "링크"] },
     ],
   },
   industryNews: {

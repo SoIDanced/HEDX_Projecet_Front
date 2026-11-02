@@ -1,13 +1,16 @@
 // 화면 상태 — 선택 대상, 대화, 분석 결과·이력, 표시 템플릿, 보기 설정, 필터, 관심 목록, 데이터 버전
 // 사용자별로 이 브라우저에 저장한다: 대화·분석 이력·보기 설정·관심 목록(localStorage), 업로드 데이터(IndexedDB)
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
-import type { DataMeta, DataSet, DatasetKey, ManualEntry, TabKey } from "../data/types";
+import type { DataMeta, DataSet, DatasetKey, ManualEntry, Receipt, TabKey } from "../data/types";
 import { manualSig, mergeManual, sanitizeManual } from "../lib/manual";
+import { mergeReceipts, sanitizeReceipts, upsertReceipt } from "../lib/receipts";
+import { NO_PLANS, applyStockPolicy, lockStock, sanitizeStockPolicy, unlockStock, type StockPolicyMap } from "../lib/stockPolicy";
 import { SCHEMAS, pkOf } from "../data/schema";
 import { loadSample } from "../data/sampleData";
 import type { AnalysisResult } from "../lib/analysisTypes";
 import { derive, type Derived } from "../lib/metrics";
 import type { FilterValues } from "../lib/filters";
+import { EMPTY_SCOPE, type Scope } from "../lib/scope";
 import type { ClarifyOption, Engine, PendingClarify } from "../ai/agent";
 import { readStore, removeStore, userKey, writeStore } from "../platform/storage";
 import { idbDel, idbGet, idbSet } from "../platform/idb";
@@ -52,6 +55,7 @@ export interface State {
   subView: Record<TabKey, string>;
   filters: Record<TabKey, FilterValues>;
   queries: Record<TabKey, string>;
+  scope: Scope; // v0.9 공통 조회 범위(엔진모델·부품·품목·협력업체) — 탭을 바꿔도 유지
   focusTick: number; // 알림·관심 목록 등에서 데이터 관리로 스크롤
   selection: { supplierId: string | null; itemCode: string | null; rowKey: string | null; rowTab: TabKey | null };
   messages: ChatMessage[];
@@ -70,10 +74,15 @@ export interface State {
   payChecked: string[];
   importFor: DatasetKey | null;
   onboarding: boolean; // 첫 사용 안내 열림
-  detailOpen: boolean; // AI 에이전트 패널 위쪽의 선택 정보(협력사·부품 상세) 펼침
+  detailOpen: boolean; // AI 에이전트 패널 위쪽의 선택 정보(협력업체·부품 상세) 펼침
   toast: { id: number; text: string; tone: "ok" | "warn"; action?: ToastAction; ms?: number } | null;
   manual: ManualEntry[]; // v0.7.0 수기 입력 원본 목록 (화면 데이터 = data + manual → 스토어의 data)
   manualOpen: boolean;
+  manualEdit: { id: string; focus?: string } | null; // v0.8.0 수기 입력 수정·입고 처리 대상
+  receipts: Receipt[]; // v0.9 2단계: 입고 기록(발주번호 FK + 입고 ID). 화면 데이터에는 mergeReceipts 로 합친다
+  receiptOpen: { poNo: string; editId?: string } | null; // 입고 기록 창
+  stockPolicy: StockPolicyMap; // v0.9 2단계: 품목(재고 고유 ID = itemCode)별 적정재고 적용값·고정 여부
+  recent: { tick: number; poNo: string; itemCode: string; qty: number } | null; // 방금 입고 반영으로 바뀐 숫자(잠시 강조)
   flash: string | null; // 방금 저장한 행(표에서 잠깐 강조)
 }
 
@@ -91,9 +100,10 @@ export type Action =
   | { type: "subView"; tab: TabKey; view: string }
   | { type: "filters"; tab: TabKey; values: FilterValues }
   | { type: "query"; tab: TabKey; q: string }
+  | { type: "scope"; scope: Scope }
   | { type: "kpi"; tab: TabKey; filterKey: string; on: boolean }
   | { type: "goPayments" }
-  | { type: "focusData" } // 데이터 관리 탭 영역으로 화면을 옮긴다 (다른 곳에서 협력사·부품으로 이동할 때)
+  | { type: "focusData" } // 데이터 관리 탭 영역으로 화면을 옮긴다 (다른 곳에서 협력업체·부품으로 이동할 때)
   | { type: "selectRow"; tab: TabKey; rowKey: string; supplierId?: string | null; itemCode?: string | null }
   | { type: "selectSupplier"; supplierId: string }
   | { type: "clearSelection"; what: "item" | "supplier" | "row" }
@@ -124,17 +134,24 @@ export type Action =
   | { type: "toast"; text: string; tone?: "ok" | "warn"; ms?: number } /* ms: 보이는 시간(기본 3600, 문서 등록 성공은 2000) */
   | { type: "clearToast" }
   | { type: "clearChat" }
-  | { type: "manualOpen"; open: boolean }
+  | { type: "manualOpen"; open: boolean; edit?: { id: string; focus?: string } }
+  | { type: "updateManual"; entry: ManualEntry; toastText: string }
   | { type: "addManual"; entry: ManualEntry; toastText: string; select: ToastAction; here: boolean }
   | { type: "deleteManual"; id: string }
+  | { type: "receiptOpen"; open: boolean; poNo?: string; editId?: string }
+  | { type: "saveReceipt"; receipt: Receipt; toastText: string; itemCode: string }
+  | { type: "deleteReceipt"; id: string; toastText: string }
+  | { type: "stockLock"; itemCode: string; qty: number; base: number; name: string }
+  | { type: "stockUnlock"; itemCode: string; base: number; name: string }
+  | { type: "clearRecent" }
   | { type: "viewRow"; action: ToastAction }
   | { type: "clearFlash" };
 
 const now = () => new Date().toISOString();
 
 export const SUGGESTED = [
-  "해당 품목의 과거 거래 협력사를 비교해 줘.",
-  "납기 준수율이 낮은 협력사를 찾아줘.",
+  "해당 품목의 과거 거래 협력업체를 비교해 줘.",
+  "납기 준수율이 낮은 협력업체를 찾아줘.",
   "최근 단가가 상승한 품목을 보여줘.",
   "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘",
   "실린더 커버 가스켓 견적서 보여줘",
@@ -146,15 +163,15 @@ export const WELCOME: ChatMessage = {
   at: now(),
   engine: "system",
   text: [
-    "안녕하세요. 구매·협력사 데이터 분석 도우미입니다. 협력사 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요.",
-    "입력창 위의 추천 질문을 누르거나, 왼쪽 데이터 관리에서 품목·협력사를 고른 뒤 질문하면 그 대상을 기준으로 분석합니다.",
+    "안녕하세요. 구매·협력업체 데이터 분석 도우미입니다. 협력업체 평가, 과거 거래 이력, 단가 비교, 납기 실적 등을 질문해 주세요.",
+    "입력창 위의 추천 질문을 누르거나, 왼쪽 데이터 관리에서 품목·협력업체를 고른 뒤 질문하면 그 대상을 기준으로 분석합니다.",
   ],
 };
 
 /** 휴대폰(≤640px) 환영 말풍선: 같은 두 문단의 짧은 변형 — 대화 영역에 스크롤 없이 다 보이게(넓은 화면은 위 WELCOME 그대로). '왼쪽'은 탭 구조라 '데이터 관리 탭'으로 */
 export const WELCOME_SHORT = [
-  "안녕하세요. 구매·협력사 데이터 분석 도우미입니다. 협력사 평가, 거래 이력, 단가, 납기를 질문해 주세요.",
-  "아래 추천 질문을 누르거나, 데이터 관리 탭에서 품목·협력사를 고른 뒤 질문하면 그 대상 기준으로 분석합니다.",
+  "안녕하세요. 구매·협력업체 데이터 분석 도우미입니다. 협력업체 평가, 거래 이력, 단가, 납기를 질문해 주세요.",
+  "아래 추천 질문을 누르거나, 데이터 관리 탭에서 품목·협력업체를 고른 뒤 질문하면 그 대상 기준으로 분석합니다.",
 ];
 
 // ── 브라우저 저장 (사용자별) ──
@@ -163,6 +180,8 @@ const MAX_MESSAGES = 80;
 const SESSION = "session.v3";
 const PREFS = "prefs.v1";
 export const MANUAL = "manual.v1";
+export const RECEIPTS = "receipts.v1";
+export const STOCKPOLICY = "stockpolicy.v1";
 export const UPLOADS = "uploads";
 export const ONBOARDED = "onboarded.v1";
 
@@ -235,6 +254,7 @@ function initial(user: User): State {
     subView: EMPTY_TABS(() => "list"),
     filters: EMPTY_TABS(() => ({})),
     queries: EMPTY_TABS(() => ""),
+    scope: EMPTY_SCOPE,
     focusTick: 0,
     selection: { supplierId: null, itemCode: null, rowKey: null, rowTab: null },
     messages: saved?.messages?.length ? saved.messages : [WELCOME],
@@ -257,6 +277,11 @@ function initial(user: User): State {
     toast: null,
     manual: sanitizeManual(readStore<unknown>(userKey(user.id, MANUAL))),
     manualOpen: false,
+    manualEdit: null,
+    receipts: sanitizeReceipts(readStore<unknown>(userKey(user.id, RECEIPTS))),
+    receiptOpen: null,
+    stockPolicy: sanitizeStockPolicy(readStore<unknown>(userKey(user.id, STOCKPOLICY))),
+    recent: null,
     flash: null,
   };
 }
@@ -275,6 +300,8 @@ function reducer(s: State, a: Action): State {
       return { ...s, filters: { ...s.filters, [a.tab]: a.values } };
     case "query":
       return { ...s, queries: { ...s.queries, [a.tab]: a.q } };
+    case "scope":
+      return { ...s, scope: a.scope };
     case "kpi":
       return {
         ...s,
@@ -282,6 +309,7 @@ function reducer(s: State, a: Action): State {
         subView: { ...s.subView, [a.tab]: "list" },
         filters: { ...s.filters, [a.tab]: a.on ? { [a.filterKey]: true } : {} },
         queries: { ...s.queries, [a.tab]: "" },
+        scope: EMPTY_SCOPE, // KPI 건수와 표 건수가 같도록 공통 범위도 '전체'로
         panel: "A",
         focusTick: s.focusTick + 1,
       };
@@ -416,23 +444,43 @@ function reducer(s: State, a: Action): State {
         savedAt: null,
         saveError: null,
         manual: [], // 샘플로 되돌리면 수기 입력도 함께 지운다
+        receipts: [], // 입고 기록·적정재고 고정도 함께 원래대로
+        stockPolicy: {},
+        recent: null,
         flash: null,
         selection: { supplierId: null, itemCode: null, rowKey: null, rowTab: null },
       };
     }
     case "manualOpen":
-      return { ...s, manualOpen: a.open };
+      return { ...s, manualOpen: a.open, manualEdit: a.open ? a.edit ?? null : null };
+    case "updateManual":
+      return { ...s, manual: s.manual.map((m) => (m.id === a.entry.id ? a.entry : m)), flash: a.entry.docNo, toast: toast(a.toastText) };
     case "addManual": {
       const manual = [...s.manual, a.entry];
       const sel = a.select;
       // 지금 보는 탭에 들어가는 문서면 그 행을 바로 고르고(표가 그 쪽으로 이동), 아니면 토스트의 '보기'로 안내한다
       const here = a.here
-        ? { detailOpen: true, flash: sel.rowKey, selection: { rowKey: sel.rowKey, rowTab: sel.tab, supplierId: sel.supplierId ?? s.selection.supplierId, itemCode: sel.itemCode ?? s.selection.itemCode } }
+        ? { detailOpen: true, scope: EMPTY_SCOPE, flash: sel.rowKey, selection: { rowKey: sel.rowKey, rowTab: sel.tab, supplierId: sel.supplierId ?? s.selection.supplierId, itemCode: sel.itemCode ?? s.selection.itemCode } }
         : { flash: null };
       return { ...s, manual, ...here, toast: toast(a.toastText, "ok", a.here ? undefined : sel) };
     }
     case "deleteManual":
       return { ...s, manual: s.manual.filter((m) => m.id !== a.id), flash: null, toast: toast("수기 입력 1건을 지웠습니다. 대시보드가 원래 값으로 돌아왔습니다.") };
+    case "receiptOpen":
+      return { ...s, receiptOpen: a.open && a.poNo ? { poNo: a.poNo, editId: a.editId } : null };
+    case "saveReceipt":
+      // 같은 입고 ID는 덮어쓴다(upsert) — 같은 폼을 다시 제출해도 두 번 더해지지 않는다
+      return { ...s, receipts: upsertReceipt(s.receipts, a.receipt), receiptOpen: null, recent: { tick: Date.now(), poNo: a.receipt.poNo, itemCode: a.itemCode, qty: a.receipt.qty }, flash: a.receipt.poNo, toast: toast(a.toastText) };
+    case "deleteReceipt":
+      return { ...s, receipts: s.receipts.filter((r) => r.id !== a.id), recent: null, toast: toast(a.toastText) };
+    case "stockLock":
+      return { ...s, stockPolicy: lockStock(s.stockPolicy, a.itemCode, a.qty, a.base, now()), recent: null, toast: toast(`${a.name}의 적정재고를 ${a.qty.toLocaleString("ko-KR")}(으)로 고정했습니다. 계획이 바뀌어도 유지되고, 현재재고·부족수량은 계속 갱신됩니다.`) };
+    case "stockUnlock": {
+      const r = unlockStock(s.stockPolicy, a.itemCode, a.base, NO_PLANS, now());
+      return { ...s, stockPolicy: r.policy, toast: toast(`${a.name}: ${r.message}`) };
+    }
+    case "clearRecent":
+      return { ...s, recent: null };
     case "viewRow": {
       const x = a.action;
       return {
@@ -441,6 +489,7 @@ function reducer(s: State, a: Action): State {
         subView: { ...s.subView, [x.tab]: "list" },
         filters: { ...s.filters, [x.tab]: {} },
         queries: { ...s.queries, [x.tab]: "" },
+        scope: EMPTY_SCOPE, // 보려는 행이 범위 밖에 가려지지 않게
         panel: "A",
         focusTick: s.focusTick + 1,
         detailOpen: true,
@@ -474,8 +523,15 @@ const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ user, children }: { user: User; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, user, initial);
-  const data = useMemo(() => mergeManual(state.data, state.manual), [state.data, state.manual]);
-  const meta = useMemo<DataMeta>(() => (state.manual.length ? { ...state.meta, label: `${state.meta.label} + 수기 입력 ${state.manual.length}건`, dataId: state.meta.dataId + manualSig(state.manual) } : state.meta), [state.meta, state.manual]);
+  // 화면 데이터 = 기본 데이터 + 수기 입력 → 입고 기록(발주 누적·잔량·현재재고) → 적정재고 정책(적용값·고정). 계산·질문 답변은 모두 이 데이터를 쓴다
+  const data = useMemo(() => {
+    const m = mergeReceipts(mergeManual(state.data, state.manual), state.receipts);
+    return { ...m, inventory: applyStockPolicy(m.inventory, state.stockPolicy, NO_PLANS) };
+  }, [state.data, state.manual, state.receipts, state.stockPolicy]);
+  const meta = useMemo<DataMeta>(() => {
+    const sig = manualSig(state.manual) + (state.receipts.length ? `+r:${state.receipts.map((r) => r.id).join(",")}` : "") + (Object.keys(state.stockPolicy).length ? `+s:${JSON.stringify(state.stockPolicy)}` : "");
+    return state.manual.length || sig ? { ...state.meta, label: state.manual.length ? `${state.meta.label} + 수기 입력 ${state.manual.length}건` : state.meta.label, dataId: state.meta.dataId + sig } : state.meta;
+  }, [state.meta, state.manual, state.receipts, state.stockPolicy]);
   const derived = useMemo(() => derive(data, state.meta.asOf), [data, state.meta.asOf]);
   const value = useMemo(() => ({ state, dispatch, derived, data, meta }), [state, derived, data, meta]);
   const uid = user.id;
@@ -556,6 +612,18 @@ export function StoreProvider({ user, children }: { user: User; children: ReactN
       dispatch({ type: "toast", text: "수기 입력을 이 브라우저에 저장하지 못했습니다(저장 공간 부족 또는 사생활 보호 모드). 지금 화면에서는 보이지만 새로고침하면 사라집니다.", tone: "warn" });
     }
   }, [uid, state.dataReady, state.manual]);
+
+  // 입고 기록·적정재고 고정도 이 브라우저에 저장(기존 사용자별 키 체계 userKey 그대로) — 실패해도 화면은 동작
+  useEffect(() => {
+    if (!state.dataReady) return;
+    if (!state.receipts.length) return removeStore(userKey(uid, RECEIPTS));
+    writeStore(userKey(uid, RECEIPTS), state.receipts);
+  }, [uid, state.dataReady, state.receipts]);
+  useEffect(() => {
+    if (!state.dataReady) return;
+    if (!Object.keys(state.stockPolicy).length) return removeStore(userKey(uid, STOCKPOLICY));
+    writeStore(userKey(uid, STOCKPOLICY), state.stockPolicy);
+  }, [uid, state.dataReady, state.stockPolicy]);
 
   useEffect(() => {
     writeStore(userKey(uid, PREFS), { favorites: state.favorites, pinFav: state.pinFav, payChecked: state.payChecked } satisfies SavedPrefs);

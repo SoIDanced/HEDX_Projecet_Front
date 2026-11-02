@@ -1,4 +1,4 @@
-// 데이터 관리 상단: 선택한 협력사의 평가 요약 카드 (다크 테마)
+// 데이터 관리 상단: 선택한 협력업체의 평가 요약 카드 (다크 테마)
 // 평가 근거는 카드 오른쪽 위 '근거' 버튼 → 팝오버로 전체 내용을 보여 준다
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -230,7 +230,7 @@ function SupplierOptions() {
   return (
     <>
       {favList.length > 0 && (
-        <optgroup label="★ 관심 협력사">
+        <optgroup label="★ 관심 협력업체">
           {favList.map((s) => (
             <option key={`f-${s.supplierId}`} value={s.supplierId}>
               ★ {s.name} ({s.supplierId})
@@ -238,7 +238,7 @@ function SupplierOptions() {
           ))}
         </optgroup>
       )}
-      <optgroup label="전체 협력사">
+      <optgroup label="전체 협력업체">
         {derived.supplierViews
           .filter((s) => !fav.includes(s.supplierId))
           .map((s) => (
@@ -331,6 +331,14 @@ export function SupplierEvaluationCard() {
   const sup = sid ? derived.suppliersById.get(sid) : undefined;
   const ev = sid ? derived.evaluations.get(sid) : undefined;
   const docked = useDocked(cardRef, !!(sup && ev));
+  // 선택 없음 → 선택 전환 때만 채점 카드가 부드럽게 나타난다(첫 로드에 이미 선택돼 있으면 재생 안 함)
+  const prevSid = useRef(sid);
+  const [reveal, setReveal] = useState(false);
+  useEffect(() => {
+    if (!prevSid.current && sid) setReveal(true);
+    else if (!sid) setReveal(false);
+    prevSid.current = sid;
+  }, [sid]);
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     if (restoreFocus) btnRef.current?.focus();
@@ -344,7 +352,7 @@ export function SupplierEvaluationCard() {
         <div>
           <p className="eval-eyebrow">AI Scoring Agent</p>
           <Words as="h2" id="eval-title" text="AI 에이전트 자동 채점·평가" />
-          <p className="eval-sub">ISO 9001 관련 품질관리 원칙을 참고한 협력사 평가 항목 및 근거 분석</p>
+          <p className="eval-sub">ISO 9001 관련 품질관리 원칙을 참고한 협력업체 평가 항목 및 근거 분석</p>
         </div>
         <div className="eval-head-side">
           <div className="eval-head-tools">
@@ -365,7 +373,7 @@ export function SupplierEvaluationCard() {
       <div className="eval-picker">
         <label htmlFor="eval-supplier">평가 대상</label>
         <select id="eval-supplier" value={sid ?? ""} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
-          {!sid && <option value="" disabled>협력사를 선택하세요</option>}
+          {!sid && <option value="" disabled>협력업체를 선택하세요</option>}
           <SupplierOptions />
         </select>
         {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
@@ -375,7 +383,7 @@ export function SupplierEvaluationCard() {
         <p className="eval-empty">{!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}</p>
       ) : (
         <>
-          <div className="eval-body" data-tween>
+          <div className={`eval-body${reveal || (!prevSid.current && !!sid) ? " is-reveal" : ""}`} data-tween onAnimationEnd={(e) => e.target === e.currentTarget && setReveal(false)}>
             <Donut value={ev.total} grade={ev.grade} />
             <ul className="eval-bars">
               {ev.criteria.map((c) => (

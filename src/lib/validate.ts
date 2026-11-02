@@ -254,7 +254,7 @@ export function validateRows(
     if (ok && itemSet && "itemCode" in out && dataset !== "items" && out.itemCode && !itemSet.has(String(out.itemCode))) {
       warnings.push({ row: rowNo, field: "품목코드", message: `품목 마스터에 없는 품목코드입니다 (${String(out.itemCode)})` });
     }
-    if (ok && supSet && dataset !== "suppliers" && dataset !== "competitorSupply") {
+    if (ok && supSet && dataset !== "suppliers") {
       const sid = out.supplierId ?? out.mainSupplierId;
       if (sid && !supSet.has(String(sid))) {
         warnings.push({ row: rowNo, field: "업체ID", message: `협력업체 목록에 없는 업체ID입니다 (${String(sid)})` });
