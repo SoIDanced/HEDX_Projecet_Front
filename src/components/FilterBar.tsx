@@ -1,5 +1,7 @@
 // 데이터 탭 필터: 검색 + 빠른 필터 + 상세 필터(부품 분류 포함) + 적용 중인 조건 칩
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CountUp } from "./ui";
+import { fmtInt } from "../lib/format";
 import { LuChevronDown, LuChevronUp, LuListFilter, LuSearch, LuX, LuZap } from "react-icons/lu";
 import { chipText, isActive, type DateRange, type FilterDef, type FilterValues, type Option, type Range } from "../lib/filters";
 import { PART_NOTE, SPEED_NOTE } from "../data/classification";
@@ -42,6 +44,12 @@ export function FilterBar<T>({
 }) {
   const [open, setOpen] = useState(false);
   const [qOpen, setQOpen] = useState(false);
+  // 전체 건수가 바뀌었을 때(문서·수기 입력·입고 반영 등 데이터 변화)만 건수가 세어 올라간다. 필터·검색으로 바뀔 때는 바로 최종 값
+  const prevTotal = useRef(total);
+  const dataChanged = prevTotal.current !== total;
+  useEffect(() => {
+    prevTotal.current = total;
+  }, [total]);
   const quick = defs.filter((d) => d.kind === "quick");
   const detail = defs.filter((d) => d.kind !== "quick");
   const active = defs.filter((d) => isActive(d, values[d.key]));
@@ -103,7 +111,7 @@ export function FilterBar<T>({
       )}
       <div className="filter-status">
         <span className="filter-count" aria-live="polite">
-          조회 <b>{shown.toLocaleString()}</b>건 · 전체 {total.toLocaleString()}건{asOf ? ` · 데이터 기준일 ${asOf}` : ""}
+          조회 <b><CountUp value={shown} format={fmtInt} live={dataChanged} still /></b>건 · 전체 <CountUp value={total} format={fmtInt} live still />건{asOf ? ` · 데이터 기준일 ${asOf}` : ""}
         </span>
         {(active.length > 0 || query || !!scopeCount) && (
           <div className="active-chips">

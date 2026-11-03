@@ -6,6 +6,7 @@ import { useAgent } from "../store/agent";
 import { alertCount } from "../lib/payments";
 import { BrandBlock } from "./Brand";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { CountUp } from "./ui";
 import { ACCENTS, setAccent, setMotion, setTheme, useAccent, useMotion, useTheme } from "../platform/theme";
 
 function AiStatus() {
@@ -76,7 +77,7 @@ function DataStatus() {
       <span className={`badge-demo ${state.meta.isSample ? "" : "is-upload"}`} title={state.meta.isSample ? "SAMPLE = 시연용 가상 데이터입니다. 실제 데이터는 ‘불러오기’(데이터 관리 패널)로 올립니다." : "업로드한 데이터가 섞여 있습니다. ‘샘플 데이터로 되돌리기’로 되돌릴 수 있습니다."}>{state.meta.isSample ? "SAMPLE" : "업로드 포함"}</span>
       {state.manual.length > 0 && (
         <span className="badge-demo is-manual" data-manual-badge title="사용자가 ‘수기입력’으로 직접 입력한 값이 SAMPLE 데이터와 함께 계산에 들어 있습니다. ‘샘플 데이터로 되돌리기’로 지울 수 있습니다.">
-          + <span className="mb-long">수기 입력</span><span className="mb-short" aria-hidden data-t="수기" />{" "}{state.manual.length}건
+          + <span className="mb-long">수기 입력</span><span className="mb-short" aria-hidden data-t="수기" />{" "}<CountUp value={state.manual.length} live />건
         </span>
       )}
       <span className="ds-counts">
@@ -99,7 +100,7 @@ function NotificationBell() {
   return (
     <button type="button" className={`bell ${n ? "has-alert" : ""}`} onClick={() => dispatch({ type: "goPayments" })} aria-label={`${label} · 대금 결제 일정 보기`} title={`${label} · 누르면 대금 결제 일정으로 이동`}>
       <LuBell aria-hidden />
-      {n > 0 && <span className="bell-badge">{n}</span>}
+      {n > 0 && <span className="bell-badge"><CountUp value={n} live /></span>}
     </button>
   );
 }

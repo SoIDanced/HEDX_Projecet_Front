@@ -15,6 +15,13 @@ export const DOC_TYPE_ERROR = "지원하지 않는 형식입니다. PDF 또는 D
 export const DOC_SIZE_ERROR = "파일이 너무 큽니다. 20MB 이하의 파일만 등록할 수 있습니다.";
 export const DOC_OK_TEXT = "문서가 벡터DB에 저장되었습니다";
 
+/** 저장 대상: 챗봇 쪽은 벡터 DB, 데이터 관리 쪽은 일반 DB (확인 문구·완료 토스트만 다르고 흐름은 같다) */
+export type DocTarget = "vector" | "general";
+export const DOC_TARGETS: Record<DocTarget, { question: string; okText: string; note: string }> = {
+  vector: { question: "벡터 DB에 추가하시겠습니까?", okText: DOC_OK_TEXT, note: "파일 내용은 화면에서 읽지 않습니다. 파싱·청킹·임베딩과 벡터 DB 저장은 백엔드가 맡습니다." },
+  general: { question: "일반 DB에 저장하시겠습니까?", okText: "문서가 일반 DB에 저장되었습니다", note: "파일 내용은 화면에서 읽지 않습니다. 파싱과 일반 DB 저장은 백엔드가 맡습니다." },
+};
+
 const MIME_BY_EXT: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -37,7 +44,8 @@ export function validateDocumentFile(file: Pick<File, "name" | "size" | "type">)
 }
 
 /** PLACEHOLDER: 내용을 읽지 않고 메타데이터만 돌려준다 (약 0.6초 지연) */
-export async function registerDocument(file: File): Promise<RegisteredDocument> {
+export async function registerDocument(file: File, target: DocTarget = "vector"): Promise<RegisteredDocument> {
+  void target; // 스텁은 대상(벡터 DB·일반 DB)과 상관없이 같다. 백엔드가 생기면 대상별 엔드포인트만 나눈다
   await new Promise((r) => setTimeout(r, 600));
   return {
     docId: `DOC-UPLOAD-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase(),

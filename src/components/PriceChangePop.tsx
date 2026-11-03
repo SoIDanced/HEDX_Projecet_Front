@@ -40,7 +40,7 @@ function Body({ e }: { e: PriceChangeExplain }) {
         <dd>
           {e.status === "ok" ? (
             <>
-              <b className={(e.delta as number) > 0 ? "pp-up" : (e.delta as number) < 0 ? "pp-down" : ""}>{signedMoney(e.delta as number, e.currency)}</b> · <b className={(e.rate ?? 0) > 0 ? "pp-up" : (e.rate ?? 0) < 0 ? "pp-down" : ""}>{fmtSignedPct(e.rate)}</b>
+              <b className={(e.delta as number) > 0 ? "pp-up" : (e.delta as number) < 0 ? "pp-down" : ""}>{signedMoney(e.delta as number, e.currency)}</b> · <b className={(e.rate ?? 0) > 0 ? "pp-up" : (e.rate ?? 0) < 0 ? "pp-down" : ""}>{rateMark(e.rate)}{fmtSignedPct(e.rate)}</b>
               {e.currency !== "KRW" && <span className="muted"> (계약통화 {e.currency} 기준)</span>}
             </>
           ) : (
@@ -143,11 +143,16 @@ function PriceBody({ c }: { c: ContractView }) {
   return <Body e={explainPriceChange(c, ctx)} />;
 }
 
-/** up = 표의 기존 '기준 이상 상승' 강조(delta-up) 여부 */
+/** 변동률 방향 기호: 색만으로 구분하지 않도록 ▲(상승)·▼(하락)을 함께 쓴다. 0%는 기호·색 없음(중립) */
+export const rateMark = (r: number | null | undefined) => (r === null || r === undefined ? "" : r > 0 ? "▲ " : r < 0 ? "▼ " : "");
+
+/** up = 기준(EVAL_CONFIG.priceIncreaseThreshold) 이상 상승이면 굵게. 색은 상승=빨강·하락=파랑·0=중립 */
 export function PriceChangePop({ c, up }: { c: ContractView; up?: boolean }) {
-  const text = c.docType === "견적" ? "–" : fmtSignedPct(c.changeRate);
+  const quote = c.docType === "견적";
+  const text = quote ? "–" : fmtSignedPct(c.changeRate);
+  const dir = quote || c.changeRate === null ? "" : c.changeRate > 0 ? "chg-up" : c.changeRate < 0 ? "chg-down" : "chg-zero";
   return (
-    <HoverPop label={`변동률 ${text} 상세 보기`} className={up ? "delta-up" : ""} data="price" trigger={<span>{text}</span>}>
+    <HoverPop label={`변동률 ${text} 상세 보기`} className={`${dir}${up ? " chg-big" : ""}`} data="price" trigger={<span>{quote ? "" : rateMark(c.changeRate)}{text}</span>}>
       <PriceBody c={c} />
     </HoverPop>
   );

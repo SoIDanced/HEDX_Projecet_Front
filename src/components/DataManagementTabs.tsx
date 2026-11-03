@@ -9,6 +9,7 @@ import { TermsPop } from "./TermsPop";
 import { HoverPop } from "./HoverPop";
 import { PriceChangePop } from "./PriceChangePop";
 import { StockPolicyCell } from "./StockPolicyCell";
+import { DocRegister } from "./DocRegister";
 import { deliveryLines } from "../lib/delivery";
 import { FavStar } from "./FavStar";
 import { GradeBadge, StatusPill } from "./ui";
@@ -384,7 +385,7 @@ export function DataManagementTabs() {
           exp: (c) => (c.endDate ? daysBetween(today, c.endDate) : null),
           expKind: "int",
         },
-        { key: "terms", label: "계약조건", hint: "‘조건 보기’를 누르면 인도조건과 결제조건을 나눠 보여 줍니다", render: (c) => <TermsPop delivery={c.deliveryTerms} payment={c.paymentTerms} title={`${c.itemName} · ${c.supplierName}`} />, className: "terms-cell" },
+        { key: "terms", label: "계약조건", hint: "‘조건 보기’를 누르면 인도조건과 결제조건을 나눠 보여 줍니다", render: (c) => <TermsPop delivery={c.deliveryTerms} payment={c.paymentTerms} title={`${c.itemName} · ${c.supplierName}`} /> },
       ];
       const expExtra: ExportCol<ContractView>[] = [
         { header: "품목코드", kind: "text", value: (c) => c.itemCode },
@@ -411,7 +412,8 @@ export function DataManagementTabs() {
     const base = derived.inventoryViews.filter((v) => sf.item(v.itemCode) && sf.supplierHasItem(v.itemCode) && matches(q, v.itemCode, v.itemName, v.supplierName, v.location, v.status));
     const rows = applyFilters(base, defs, fv);
     const cols: Col<InventoryView>[] = [
-      { key: "name", label: "품목·협력업체", expLabel: "품목", render: (v) => <PairCell name={v.itemName} code={v.itemCode} sup={v.supplierName} star={<FavStar kind="items" id={v.itemCode} name={v.itemName} />} tag={<StatusPill value={v.status} />} />, sort: (v) => v.itemName, sticky: true, exp: (v) => v.itemName },
+      { key: "name", label: "품목·협력업체", expLabel: "품목", render: (v) => <PairCell name={v.itemName} code={v.itemCode} sup={v.supplierName} star={<FavStar kind="items" id={v.itemCode} name={v.itemName} />} />, sort: (v) => v.itemName, sticky: true, exp: (v) => v.itemName },
+      { key: "status", label: "상태", hint: "공급 상태: 정상 · 공급 지연 · 적정재고 미달 · 미달·지연", render: (v) => <StatusPill value={v.status} />, sort: (v) => v.status, exp: (v) => v.status, className: "status-col" },
       {
         key: "stock",
         label: "현재재고",
@@ -477,7 +479,6 @@ export function DataManagementTabs() {
       { header: "협력업체", kind: "text", value: (v) => v.supplierName },
       { header: "적정재고 상태", kind: "text", value: (v) => (v.safetyLocked ? "고정" : "자동(계획 없음, 현재 설정값 유지)") },
       { header: "적정재고 초기값", kind: "int", value: (v) => v.safetyInitial ?? v.safetyStock },
-      { header: "공급 상태", kind: "text", value: (v) => v.status },
       { header: "예상 입고일", kind: "date", value: (v) => v.expectedDate },
       { header: "보관 위치", kind: "text", value: (v) => v.location ?? null },
       { header: "단위", kind: "text", value: (v) => v.unit },
@@ -536,12 +537,12 @@ export function DataManagementTabs() {
         {TABS.map((t) => (
           <button key={t} type="button" role="tab" id={`tab-${t}`} tabIndex={tab === t ? 0 : -1} aria-selected={tab === t} aria-controls="tab-panel" className={`tab ${tab === t ? "is-active" : ""}`} onClick={() => dispatch({ type: "tab", tab: t })}>
             <span className="tab-label">{TAB_LABEL[t]}</span>
-            <span className="tab-count"><CountUp value={counts[t]} format={fmtInt} delay={600} /></span>
+            <span className="tab-count"><CountUp value={counts[t]} format={fmtInt} delay={600} live /></span>
           </button>
         ))}
       </div>
       <div className="tab-body" id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} ref={bodyRef}>
-      {subviews.length > 1 && (
+      {subviews.length >= 1 && (
         <div className="subtabs" role="tablist" aria-label={`${TAB_LABEL[tab]} 보기`} onKeyDown={(e) => tabKeys(e, subviews.map((v) => v.id), sub, (v) => dispatch({ type: "subView", tab, view: v }), (v) => `subtab-${tab}-${v}`)}>
           {subviews.map((v) => (
             <button key={v.id} type="button" role="tab" id={`subtab-${tab}-${v.id}`} tabIndex={sub === v.id ? 0 : -1} aria-controls="subview-panel" aria-selected={sub === v.id} className={`subtab ${sub === v.id ? "is-on" : ""}`} onClick={() => dispatch({ type: "subView", tab, view: v.id })} data-sub={v.id}>
@@ -551,7 +552,7 @@ export function DataManagementTabs() {
           ))}
         </div>
       )}
-      <div className="tab-body" id="subview-panel" role={subviews.length > 1 ? "tabpanel" : undefined} aria-labelledby={subviews.length > 1 ? `subtab-${tab}-${sub}` : undefined}>
+      <div className="tab-body" id="subview-panel" role={subviews.length >= 1 ? "tabpanel" : undefined} aria-labelledby={subviews.length >= 1 ? `subtab-${tab}-${sub}` : undefined}>
       {sub === "payments" ? (
         <PaymentSchedule />
       ) : sub === "materials" ? (
@@ -578,9 +579,12 @@ export function DataManagementTabs() {
             scopeCount={scopeActive(scope) ? 1 : 0}
             onClearScope={() => dispatch({ type: "scope", scope: EMPTY_SCOPE })}
             lead={
+              <>
               <button type="button" className="btn btn-quiet manual-btn" onClick={() => dispatch({ type: "manualOpen", open: true })} data-manual-open title="견적서·납기보고서·계약서를 직접 입력해 대시보드에 바로 반영합니다">
                 <LuPencilLine aria-hidden /> 수기입력
               </button>
+              <DocRegister target="general" inputId="doc-file-input-general" className="btn btn-quiet manual-btn doc-btn" labelClass="doc-btn-label" data="general" />
+              </>
             }
             actions={
               <>

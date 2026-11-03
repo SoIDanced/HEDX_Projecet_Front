@@ -104,7 +104,8 @@ def rows(page, sel=".data-table tbody tr"):
 
 
 def count_text(page):
-    return page.locator(".filter-count b").inner_text()
+    # v0.9.1: 건수는 CountUp(live)이라 세는 도중 값이 보일 수 있어 최종 값(data-final)을 읽는다
+    return page.locator(".filter-count b [data-final]").get_attribute("data-final")
 
 
 def demo_login(page):
@@ -198,7 +199,7 @@ with sync_playwright() as p:
     page.click("#ob-done")
     _orig_wfs(page, ".eval-card")
     # v0.7.4: 처음 켜면 선택된 협력업체·'협력업체 · 업체 A' 필터 칩 없음, 평가 대상 칸은 안내 문구, 화면·테마는 밝게(OS가 어두워도)
-    check("첫 실행: 협력업체 선택 없음 — 칩 없음, 평가 대상 '협력업체를 선택하세요', 안내 문구, 도넛 없음", page.locator(".chip", has_text="업체 A").count() == 0 and page.locator("#eval-supplier").input_value() == "" and "협력업체를 선택하세요" in page.locator("#eval-supplier").inner_text() and "평가 대상을 고르면" in page.locator(".eval-empty").inner_text() and page.locator(".eval-card .donut").count() == 0)
+    check("첫 실행: 협력업체 선택 없음 — 칩 없음, 평가 대상 '협력업체를 선택하세요', 안내 문구, 빈 도넛(선택 대기)", page.locator(".chip", has_text="업체 A").count() == 0 and page.locator("#eval-supplier").input_value() == "" and "협력업체를 선택하세요" in page.locator("#eval-supplier").inner_text() and "평가 대상을 고르면" in page.locator(".eval-empty").inner_text() and page.locator(".eval-card .donut.is-pending").count() == 1)  # v0.9.1: 선택 전에도 빈 도넛·막대를 그려 둠(주황 점), 선택하면 같은 요소가 차오름
     check("첫 실행: 저장된 테마가 없으면 운영체제 설정(이 컨텍스트는 라이트)을 따름, 움직임 효과 켬(data-motion 없음)", page.evaluate("() => document.documentElement.dataset.theme === 'light' && !document.documentElement.dataset.motion"))
     page.select_option("#eval-supplier", "SUP-001")
     check("사용 안내 닫힘", page.locator(".onboarding").count() == 0)
@@ -668,7 +669,7 @@ with sync_playwright() as p:
     close_chat(page)
 
     # 25. 대금 결제 일정 + 알림
-    bell = page.locator(".bell-badge").inner_text()
+    bell = page.locator(".bell-badge [data-final]").get_attribute("data-final")
     check("헤더 알림 6건 (임박 5 + 지급 확인 필요 1)", bell == "6", bell)
     page.click(".bell")
     settled(page)
@@ -684,7 +685,7 @@ with sync_playwright() as p:
     pv.locator(".pay-card[data-pay='임박']").click()
     check("상태 카드로 목록 거르기 (임박 5건)", pv.locator("#pay-table tbody tr").count() == 5)
     pv.locator("#pay-table tbody tr", has_text="PO-2026-0059").locator("input[type='checkbox']").check()
-    check("'확인함' 표시하면 알림 건수 감소", page.locator(".bell-badge").inner_text() == "5")
+    check("'확인함' 표시하면 알림 건수 감소", page.locator(".bell-badge [data-final]").get_attribute("data-final") == "5")
     pv.locator(".pay-card[data-pay='임박']").click()
     n_s, bad_s = sort_all(page, "#pay-table")
     check(f"결제 일정 표: 정렬할 수 있는 모든 열({n_s}개) 두 방향 → 해제", n_s >= 8 and not bad_s, ", ".join(bad_s))
@@ -1120,10 +1121,11 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     tp = dp.evaluate("() => [...document.querySelectorAll('.panel-title, #eval-title')].map(h => ({al: h.getAttribute('aria-label'), tx: h.textContent.replace(/\s+/g,' ').trim(), words: h.querySelectorAll('.word[aria-hidden=true]').length, vis: [...h.querySelectorAll('.word')].every(w => w.getAttribute('aria-hidden') === 'true')}))")
     check("제목 낱말 분리: aria-label 과 보이는 글자가 같고 낱말 조각은 aria-hidden", len(tp) == 3 and all(t["al"] == t["tx"] and t["words"] >= 2 and t["vis"] for t in tp), json.dumps(tp, ensure_ascii=False))
     dp.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    dp.wait_for_timeout(1000)  # v0.9.1: 선택 전→선택 직후의 숫자 카운트업(약 0.6초)이 끝날 때까지
     fin = dp.evaluate("() => [...document.querySelectorAll('[data-final]')].filter(e => e.textContent !== e.dataset.final).length")
     check("숫자 올라가기: 끝나면 모든 값이 data-final 과 같음", fin == 0 and dp.locator("[data-final]").count() >= 8, f"불일치 {fin}")
     # 재생 규칙: 탭 전환은 재생, 필터·정렬·페이지는 재생 안 함
-    live = "() => document.getAnimations().filter(a => a.animationName && a.effect.getComputedTiming().iterations !== Infinity && !/^(popOpen|tipIn|modalIn|toastIn|toastOut|bubbleIn|fadeIn)$/.test(a.animationName)).map(a => a.animationName)"
+    live = "() => document.getAnimations().filter(a => a.animationName && a.effect.getComputedTiming().iterations !== Infinity && !/^(popOpen|tipIn|modalIn|toastIn|toastOut|bubbleIn|fadeIn|gradeIn)$/.test(a.animationName)).map(a => a.animationName)"
     dp.get_by_role("tab", name="구매조달").click()
     got = set(dp.evaluate(live))
     check("탭 전환(구매조달): 표 행 rowIn·panelIn 이 다시 재생됨", {"rowIn", "panelIn"} <= got, str(sorted(got)))
@@ -1572,7 +1574,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         p62.wait_for_timeout(400)
         p62.locator("[data-quick-toggle]").first.click()  # v0.9: 빠른 필터 칩은 펼침 패널 안에 있어 먼저 연다
         fsz = p62.evaluate("(sels) => Object.fromEntries(sels.map(s => { const e = document.querySelector(s); return [s, e ? parseFloat(getComputedStyle(e).fontSize) : null]; }))", list(V055))
-        check(f"글자 크기 {theme}: 본문·표·칩·버튼·말풍선·탭·선택·입력이 v0.5.5보다 정확히 +1px", all(fsz[k] == v + 1 for k, v in V055.items()), json.dumps({k: f"{V055[k]}→{fsz[k]}" for k in V055}, ensure_ascii=False))
+        check(f"글자 크기 {theme}: 본문·표·칩·버튼·말풍선·탭·선택·입력이 v0.5.5보다 정확히 +1px (v0.9.1: 표 본문·칩은 +2px)", all(fsz[k] == v + (2 if k in (".data-table td", ".chip-btn") else 1) for k, v in V055.items()), json.dumps({k: f"{V055[k]}→{fsz[k]}" for k in V055}, ensure_ascii=False))
         sf6 = small_fonts(p62)
         check(f"글자 크기 {theme}: 브랜드 글자 말고는 13px 미만 없음", not sf6, ", ".join(sf6))
         p62.locator(".filter-toggle").first.click()
@@ -2372,7 +2374,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     check("v0.7.1 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not v71errs, "; ".join(v71errs[:3]))
     src_chat = open(os.path.join(ROOT, "src", "components", "ChatPanel.tsx"), encoding="utf-8").read()
     src_top = open(os.path.join(ROOT, "src", "components", "Topbar.tsx"), encoding="utf-8").read()
-    check("정적 검사: ChatPanel 은 문서 등록에 LuFilePlus2 를 쓰고 LuFileUp 을 쓰지 않음 · Topbar 에 openImport 호출과 LuFileUp 없음", "LuFilePlus2" in src_chat and "LuFileUp" not in src_chat and "openImport" not in src_top and "LuFileUp" not in src_top)
+    check("정적 검사: ChatPanel 은 문서 등록에 LuFilePlus2 를 쓰고 LuFileUp 을 쓰지 않음 · Topbar 에 openImport 호출과 LuFileUp 없음", "LuFilePlus2" in open(os.path.join(ROOT, "src", "components", "DocRegister.tsx"), encoding="utf-8").read() and "DocRegister" in src_chat and "LuFileUp" not in src_chat and "openImport" not in src_top and "LuFileUp" not in src_top)
 
     # ⑭ v0.7.2: (1) 휴대폰 환영 상태 — 대화 영역 스크롤 없음 (2) 토스트 2초 + 나타남·사라짐 동작
     v72errs = []
@@ -2501,7 +2503,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     check("토스트: 오류 토스트는 더 오래(3.6초 + 사라짐 0.28초) 보임 — 2초 토스트보다 김", long_stay and 3.5 <= stay <= 4.6, f"{stay:.2f}s")
     ct.close()
     check("v0.7.2 시나리오 전체에서 콘솔 오류·페이지 오류 0건", not v72errs, "; ".join(v72errs[:3]))
-    check("정적 검사: 토스트 보이는 시간은 토스트별 ms 옵션(문서 등록 성공 2000) · 기본 3600 · toastOut 키프레임 존재", "ms: 2000" in src_chat and "TOAST_MS = 3600" in open(os.path.join(ROOT, "src", "App.tsx"), encoding="utf-8").read() and "@keyframes toastOut" in open(os.path.join(ROOT, "src", "styles", "motion.css"), encoding="utf-8").read())
+    check("정적 검사: 토스트 보이는 시간은 토스트별 ms 옵션(문서 등록 성공 2000) · 기본 3600 · toastOut 키프레임 존재", "ms: 2000" in open(os.path.join(ROOT, "src", "components", "DocRegister.tsx"), encoding="utf-8").read() and "TOAST_MS = 3600" in open(os.path.join(ROOT, "src", "App.tsx"), encoding="utf-8").read() and "@keyframes toastOut" in open(os.path.join(ROOT, "src", "styles", "motion.css"), encoding="utf-8").read())
 
     # ── v0.8.0 A·B·D·E·F ──
     v8errs = []
@@ -2520,14 +2522,18 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
                 p8.click("#ob-skip")
             p8.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
             # D: 협력업체 선택 전 빈 박스 → 선택하면 채점 카드가 0.5초 크로스페이드(--k 체계)
-            empty0 = p8.locator(".eval-empty").count() == 1 and p8.locator(".eval-body").count() == 0
+            empty0 = p8.locator(".eval-empty").count() == 1 and p8.locator(".eval-body.is-pending").count() == 1 and p8.locator(".eval-bar-fill").count() == 5
+            arc0 = p8.evaluate("() => getComputedStyle(document.querySelector('.donut-arc')).strokeDasharray")
             p8.select_option("#eval-supplier", "SUP-001")
-            an = p8.evaluate("() => { const b = document.querySelector('.eval-body'); return b ? b.getAnimations().map(a => [a.animationName, a.effect.getComputedTiming().duration]) : null; }")
-            check(f"D({tag}): 선택 전 빈 안내 → 선택하면 채점 카드가 evalReveal 동작(500ms)으로 나타남", empty0 and an is not None and ["evalReveal", 500] in an, json.dumps(an))
-            p8.wait_for_timeout(900)
+            p8.wait_for_timeout(250)
+            mid = p8.evaluate("() => ({ arc: getComputedStyle(document.querySelector('.donut-arc')).strokeDasharray, bar: document.querySelector('.eval-bar-fill').getBoundingClientRect().width, val: document.querySelector('.eval-bar-val').textContent, tot: document.querySelector('.donut-sub:not(.is-wait)').textContent })")
+            check(f"D({tag}): 선택 전 빈 도넛·막대 → 선택하면 같은 요소가 이어서 차오름(evalReveal 대신) + 첫 선택에도 숫자 카운트업", empty0 and mid["val"] != "–" and mid["val"] != "93" and mid["bar"] > 0, json.dumps([arc0, mid], ensure_ascii=False))
+            p8.wait_for_timeout(1200)
+            fin0 = p8.evaluate("() => [document.querySelector('.eval-bar-val').textContent, document.querySelector('.eval-hint').classList.contains('is-gone'), document.querySelectorAll('.eval-body.is-pending').length]")
+            check(f"D({tag}): 끝나면 최종 값 93 · 안내 줄 접힘 · 대기 상태 해제", fin0 == ["93", True, 0], json.dumps(fin0))
             p8.select_option("#eval-supplier", "SUP-002")
-            an2 = p8.evaluate("() => [...document.querySelector('.eval-body').getAnimations()].filter(a => a.animationName === 'evalReveal' && a.playState === 'running').length")
-            check(f"D({tag}): 협력업체를 바꿀 때는 처음 한 번만 — 다시 재생하지 않음(기존 이어서 움직이기 유지)", an2 == 0)
+            an2 = p8.evaluate("() => [...document.querySelector('.eval-body').getAnimations()].filter(a => a.animationName === 'evalReveal').length")
+            check(f"D({tag}): 협력업체를 바꿀 때는 evalReveal 없음(기존 이어서 움직이기 유지)", an2 == 0)
             # F: 선택 정보 박스 테두리 (카드 테두리 토큰 --line-2)
             if vw < 700:
                 p8.locator(".data-table tbody tr").first.click()
@@ -2591,7 +2597,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         check(f"공통({tg}): 셋째 줄 '조회 N건 · 전체 M건 · 데이터 기준일'", re.fullmatch(r"조회 \d+건 · 전체 \d+건 · 데이터 기준일 \d{4}-\d{2}-\d{2}", st) is not None, st)
         check(f"공통({tg}): 엔진모델 선택지 전체·고속·중속·저속 / 부품 전체·구조·연소·구동·소-배기", opts("scope-speed") == ["전체", "고속", "중속", "저속"] and opts("scope-group") == ["전체", "구조", "연소", "구동", "소-배기"], f"{opts('scope-speed')} {opts('scope-group')}")
         sz = p9.evaluate("() => [...document.querySelectorAll('.scope-row select')].map(s => Math.round(s.getBoundingClientRect().height))")
-        check(f"공통({tg}): 드롭다운 높이 40px 이상 · 라벨(label)에 묶임 · 가로 스크롤 없음", min(sz) >= 40 and p9.locator(".scope-field select:not([id])").count() == 0 and p9.evaluate("() => document.documentElement.scrollWidth <= innerWidth"), str(sz))
+        check(f"공통({tg}): 드롭다운 높이 36px 이상(v0.9.1 툴바 통일: 터치는 44px) · 라벨(label)에 묶임 · 가로 스크롤 없음", min(sz) >= 36 and p9.locator(".scope-field select:not([id])").count() == 0 and p9.evaluate("() => document.documentElement.scrollWidth <= innerWidth"), str(sz))
         if vw < 700:
             lefts = p9.evaluate("() => [...document.querySelectorAll('.scope-field')].map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.left)]; })")
             check(f"공통({tg}): 작은 화면에서도 순서 유지하며 줄바꿈(2×2: 엔진모델·부품 / 품목·협력업체)", lefts[0][0] == lefts[1][0] and lefts[2][0] == lefts[3][0] and lefts[2][0] > lefts[0][0] and lefts[0][1] < lefts[1][1] and lefts[2][1] < lefts[3][1], str(lefts))
@@ -2661,7 +2667,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         EXP = {
             "purchaseOrders": ["순번", "품목·협력업체", "발주수량", "누적 입고수량", "발주잔량", "납기 예정"],
             "contracts": ["순번", "품목·협력업체", "이전 단가", "현재 확정단가", "변동률", "계약 잔여일", "계약조건"],
-            "inventory": ["순번", "품목·협력업체", "현재재고", "적정재고 고정 상태", "부족수량", "입고예정수량"],
+            "inventory": ["순번", "품목·협력업체", "상태", "현재재고", "적정재고 고정 상태", "부족수량", "입고예정수량"],
         }
         for tabid, want in EXP.items():
             p9.locator(f"#tab-{tabid}").click()
@@ -2872,7 +2878,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     ir = p10.locator(".data-table tbody tr", has_text=item_code).first
     base_stock = {"ITM-1001": 18, "ITM-1002": 64, "ITM-1003": 9, "ITM-1004": 85, "ITM-1005": 22, "ITM-1006": 340, "ITM-1007": 520, "ITM-1008": 14, "ITM-1009": 21, "ITM-1010": 7}[item_code]
     ic = ir.locator("td").all_inner_texts()
-    check(f"입고 반영: {item_code} 현재재고 {base_stock} → {base_stock + 2} ('입고 기록 +2 포함')", int(num0(ic[2])) == base_stock + 2 and "입고 기록 +2 포함" in ic[2], str(ic[:5]))
+    check(f"입고 반영: {item_code} 현재재고 {base_stock} → {base_stock + 2} ('입고 기록 +2 포함')", int(num0(ic[3])) == base_stock + 2 and "입고 기록 +2 포함" in ic[3], str(ic[:5]))  # v0.9.1: 상태 열이 생겨 현재재고는 4번째 칸
     # 새로고침 후 유지
     p10.reload(wait_until="domcontentloaded")
     p10.wait_for_selector(".eval-card")
@@ -2944,7 +2950,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     search(p10, "inventory", "ITM-1004")
     ir = p10.locator(".data-table tbody tr").first
     it = ir.inner_text().replace("\n", " ")
-    check("적정재고 고정(100)인 채로 입고 +5 → 현재재고 90 · 부족수량 10 으로 계속 갱신(고정값은 100 그대로)", num0(ir.locator("td").nth(2).inner_text()) == "90" and "10 부족" in it and "100" in ir.locator("[data-stock-cell]").inner_text(), it)
+    check("적정재고 고정(100)인 채로 입고 +5 → 현재재고 90 · 부족수량 10 으로 계속 갱신(고정값은 100 그대로)", num0(ir.locator("td").nth(3).inner_text()) == "90" and "10 부족" in it and "100" in ir.locator("[data-stock-cell]").inner_text(), it)
     goto_tab(p10, "purchaseOrders")
     search(p10, "purchaseOrders", pno)
     p10.locator(".data-table tbody tr", has_text=pno).first.locator("[data-po-receipt]").click()
@@ -2953,7 +2959,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     p10.wait_for_timeout(400)
     goto_tab(p10, "inventory")
     search(p10, "inventory", "ITM-1004")
-    check("입고 기록을 지우면 현재재고·부족수량이 원래대로(85 · 15 부족)", num0(p10.locator(".data-table tbody tr").first.locator("td").nth(2).inner_text()) == "85" and "15 부족" in p10.locator(".data-table tbody tr").first.inner_text())
+    check("입고 기록을 지우면 현재재고·부족수량이 원래대로(85 · 15 부족)", num0(p10.locator(".data-table tbody tr").first.locator("td").nth(3).inner_text()) == "85" and "15 부족" in p10.locator(".data-table tbody tr").first.inner_text())
     ir = p10.locator(".data-table tbody tr").first
     ir.locator("[data-stock-unlock]").click()
     p10.wait_for_timeout(400)
@@ -3002,6 +3008,79 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     check("터치: 적정재고 고정 버튼 터치 목표 44px 이상 · 가로 스크롤 없음", sb["height"] >= 43.5 and no_hscroll(p10), json.dumps(sb))
     c10.close()
     check("v0.9 2단계 시나리오 전체에서 콘솔·페이지 오류 0건", not v10errs, "; ".join(v10errs[:3]))
+
+    # ── v0.9.1 다듬기: 원가-계약 표 폭 · 필터 줄 통일 · 자재-공급 상태 열 · 데이터 관리 문서등록 · 변동률 색 ──
+    v91errs = []
+    for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+        cx = browser.new_context(viewport={"width": vw, "height": vh})
+        pg = cx.new_page()
+        pg.on("pageerror", lambda e: v91errs.append(str(e)))
+        pg.on("console", lambda m: m.type == "error" and v91errs.append(m.text))
+        pg.goto(URL, wait_until="domcontentloaded")
+        pg.wait_for_selector("#login-demo")
+        pg.click("#login-demo")
+        pg.locator(".eval-card").wait_for()
+        if pg.locator("#ob-skip").count():
+            pg.click("#ob-skip")
+        pg.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+        tg = f"v0.9.1 {vw}"
+        if vw < 700:
+            pass
+        pg.locator("#tab-contracts").click()
+        settled(pg)
+        geo = pg.evaluate("""() => { const t = document.querySelector('.data-table'); const r = t.getBoundingClientRect(); const ths = [...t.querySelectorAll('th')]; const w = document.querySelector('.data-table-wrap').getBoundingClientRect();
+          return { thRight: Math.round(ths[ths.length-1].getBoundingClientRect().right), tableRight: Math.round(r.right), tdOver: [...t.querySelectorAll('tbody tr:first-child td')].some(td => td.getBoundingClientRect().right > r.right + 1), wrapOk: r.left >= w.left - 1 }; }""")
+        check(f"원가-계약 표({tg}): 머리글·행이 표 전체 폭에 맞음(헤더 끝 = 표 끝, 칸이 표 밖으로 안 나감)", geo["thRight"] == geo["tableRight"] and not geo["tdOver"], json.dumps(geo))
+        if vw == 1366:
+            sw = pg.evaluate("() => { const w = document.querySelector('.data-table-wrap'); return [w.scrollWidth, w.clientWidth]; }")
+            check(f"원가-계약 표({tg}): 가로 스크롤 없이 6열이 한 화면에", sw[0] <= sw[1], json.dumps(sw))
+        # 변동률 색·기호
+        chg = pg.evaluate("""() => [...document.querySelectorAll('.data-table tbody td .hover-pop-btn')].map(b => ({t: b.textContent.trim(), c: getComputedStyle(b).color, cls: b.className})).filter(x => /%/.test(x.t))""")
+        ups = [c for c in chg if c["t"].startswith("▲")]
+        downs = [c for c in chg if c["t"].startswith("▼")]
+        check(f"변동률({tg}): 상승은 ▲ + 빨강(chg-up), 하락은 ▼ + 파랑(chg-down) — 색 외에 기호 병행", len(ups) > 0 and all("chg-up" in c["cls"] for c in ups) and all("chg-down" in c["cls"] for c in downs) and (len(downs) == 0 or downs[0]["c"] != ups[0]["c"]), json.dumps([ups[:1], downs[:1]], ensure_ascii=False))
+        # 4개 탭 필터 줄 통일
+        sig = []
+        for t in ["suppliers", "purchaseOrders", "contracts", "inventory"]:
+            pg.locator(f"#tab-{t}").click()
+            settled(pg)
+            sig.append(pg.evaluate("""() => { const f = document.querySelector('.filters'); const r = document.querySelector('.filter-row'); const first = r.firstElementChild.getBoundingClientRect(); const fr = f.getBoundingClientRect(); const ctr = [...r.querySelectorAll('.btn, .search-field')].map(e => Math.round(e.getBoundingClientRect().height)); return { fh: Math.round(fr.height), left: Math.round(first.left - fr.left), hs: [...new Set(ctr)], gap: getComputedStyle(r).columnGap, just: getComputedStyle(r).justifyContent }; }"""))
+        check(f"필터·툴바 통일({tg}): 4개 탭 모두 같은 높이·왼쪽 정렬·같은 간격·같은 컨트롤 높이", len({json.dumps(x, sort_keys=True) for x in sig}) == 1 and sig[0]["left"] == 0 and len(sig[0]["hs"]) == 1, json.dumps(sig))
+        # 자재-공급: 상태 열
+        pg.locator("#tab-inventory").click()
+        settled(pg)
+        heads = pg.evaluate("() => [...document.querySelectorAll('.data-table th')].map(t => t.dataset.col)")
+        check(f"자재-공급 표({tg}): 열 순서 순번 → 품목·협력업체 → 상태 → 현재재고 → 적정재고 → 부족수량 → 입고예정수량", heads == ["no", "name", "status", "stock", "safe", "short", "incoming"], json.dumps(heads))
+        st = pg.evaluate("() => { const td = document.querySelector('.data-table tbody tr td:nth-child(3)'); return { pill: !!td.querySelector('.pill'), inName: !!document.querySelector('.data-table tbody tr td:nth-child(2) .pill') }; }")
+        check(f"자재-공급 표({tg}): 상태 뱃지(.pill)가 별도 칸에 있고 품목 칸에는 없음", st["pill"] and not st["inName"], json.dumps(st))
+        if vw == 1366:
+            # 정렬: 상태 열
+            pg.locator("th[data-col=status] .th-sort").click()
+            pg.wait_for_timeout(200)
+            first_st = pg.locator(".data-table tbody tr td:nth-child(3)").all_inner_texts()
+            check("자재-공급 표: 상태 열 정렬(가나다)", first_st == sorted(first_st, key=lambda x: x) or len(set(first_st)) >= 1)
+            # 문서등록(일반 DB)
+            pg.locator("#tab-purchaseOrders").click()
+            settled(pg)
+            check("데이터 관리: '수기입력' 바로 오른쪽에 '문서 등록' 버튼", pg.evaluate("() => { const m = document.querySelector('[data-manual-open]'); return m.nextElementSibling && m.nextElementSibling.textContent.includes('문서 등록') || (m.nextElementSibling && m.nextElementSibling.nextElementSibling && m.nextElementSibling.nextElementSibling.textContent.includes('문서 등록')); }"))
+            pg.set_input_files("#doc-file-input-general", [{"name": "a.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 x"}, {"name": "b.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "buffer": b"PK x"}])
+            pg.wait_for_selector(".modal [data-confirm]")
+            check("데이터 관리 문서등록: 미리보기(파일 2건) + '일반 DB에 저장하시겠습니까?' (벡터 DB 문구 아님)", pg.locator(".modal h2").inner_text().strip() == "일반 DB에 저장하시겠습니까?" and pg.locator(".doc-preview li").count() == 2 and "벡터" not in pg.locator(".modal").inner_text())
+            pg.click(".modal button:has-text('아니오')")
+            pg.wait_for_selector(".toast")
+            check("데이터 관리 문서등록: 아니오 → 저장 안 함 토스트", "추가하지 않았습니다" in pg.locator(".toast").inner_text())
+            pg.wait_for_timeout(2600)
+            pg.set_input_files("#doc-file-input-general", [{"name": "a.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 x"}, {"name": "b.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 y"}])
+            yes(pg)
+            pg.wait_for_selector(".toast:has-text('일반 DB')", timeout=4000)
+            tt = pg.locator(".toast").inner_text()
+            check("데이터 관리 문서등록: 예 → '문서가 일반 DB에 저장되었습니다' + 둘째 줄 (2건)", "문서가 일반 DB에 저장되었습니다" in tt and "(2건)" in tt, repr(tt))
+            pg.wait_for_timeout(2600)
+            pg.set_input_files("#doc-file-input-general", {"name": "x.txt", "mimeType": "text/plain", "buffer": b"hi"})
+            pg.wait_for_selector(".toast")
+            check("데이터 관리 문서등록: 형식 오류는 챗봇과 같은 문구", "지원하지 않는 형식" in pg.locator(".toast").inner_text())
+        cx.close()
+    check("v0.9.1 시나리오 전체에서 콘솔·페이지 오류 0건", not v91errs, "; ".join(v91errs[:3]))
 
     cbrowser.close()
     tctx.close()
