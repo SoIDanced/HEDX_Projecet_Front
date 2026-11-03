@@ -220,7 +220,7 @@ export function SelectionDetail() {
               ["규격", c.spec ?? "–"],
               ["단가", `${fmtMoney(c.prevUnitPrice ?? null, c.currency)} → ${fmtMoney(c.unitPrice, c.currency)} (${fmtSignedPct(c.changeRate)})`],
               ["계약 기간", `${c.startDate ?? "–"} ~ ${c.endDate ?? "–"}${c.expiresInDays !== null ? ` · 종료까지 ${c.expiresInDays}일` : ""}`],
-              ["계약 조건", condText(c) || "–"],
+              ["계약 조건", condText(c, state.meta.asOf) || "–"],
               ["주요 소재", derived.itemsByCode.get(c.itemCode)?.materials?.join(", ") || "–"],
               ["부품군", <span title={PART_NOTE}>{partGroupText(c.itemCode)} <span className="muted">(프로젝트용 분류)</span></span>],
               ...(c.source === "manual" ? ([["출처", `수기 입력 (${c.docType === "견적" ? "견적서 — 확정된 계약이 아닌 견적 단가, 원가 점수·결제 일정에는 쓰지 않음" : "계약서"}) — SAMPLE 아님, 사용자가 직접 입력한 값`], ...(c.qty ? [["수량 · 금액", `${fmtInt(c.qty)} ${c.unit ?? ""} · ${fmtMoney(c.amount ?? null, c.currency)}`]] : []), ...(c.desiredDueDate ? [["희망 납기", c.desiredDueDate]] : []), ...(c.note ? [["비고", c.note]] : [])] as [string, string][]) : []),

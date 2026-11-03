@@ -247,7 +247,8 @@ export function priceChangeLines(e: PriceChangeExplain): string[] {
   else out.push(`단가 ${fmtMoney(e.curr, e.currency)} — ${e.whyNot}`);
   out.push(`비교기간: ${e.priceBasis}`);
   out.push(`참고 지표 비교기간: ${e.period.label}${e.period.mixed ? "" : ` (${e.period.basis})`}`);
-  if (e.materials.length) out.push(`관련 원자재 시세: ${e.materials.map((m) => `${m.material} 국내 ${m.domestic ? (m.domestic.rate === null ? NO_DATA : fmtSignedPct(m.domestic.rate)) : NO_DATA}, 국제(원화 환산) ${m.intl ? (m.intl.rate === null ? NO_DATA : fmtSignedPct(m.intl.rate)) : NO_DATA}`).join(" · ")}`);
+  const pct = (r: RateRow | null) => (r ? (r.rate === null ? NO_DATA : fmtSignedPct(r.rate)) : NO_DATA);
+  if (e.materials.length) for (const m of e.materials) out.push(`관련 원자재 시세 · ${m.material}: 국내 ${pct(m.domestic)} · 국제(원화 환산) ${pct(m.intl)}`);
   else out.push(`관련 원자재 시세: ${e.materialNote}`);
   if (e.jobs.length) out.push(`관련 직종 인건비: ${e.jobs.map((j) => `${j.job} ${j.row ? (j.row.rate === null ? NO_DATA : fmtSignedPct(j.row.rate)) : NO_DATA}`).join(" · ")} (${e.jobBasis})`);
   else out.push(`관련 직종 인건비: ${e.jobNote}`);
@@ -257,4 +258,11 @@ export function priceChangeLines(e: PriceChangeExplain): string[] {
   out.push(...e.interpretation.slice(-2));
   out.push(`자료 기준일 ${e.asOf} · ${e.sources.join(" · ")}${e.isSample ? " (SAMPLE · 실제 자료 아님)" : ""}`);
   return out;
+}
+
+/** 여러 계약의 설명 줄 중 모든 계약에 똑같이 나오는 줄을 따로 뽑는다(2건 이상일 때만). 숫자·문장은 그대로, 중복만 한 번으로 줄인다 */
+export function splitCommonLines(all: string[][]): { common: string[]; unique: string[][] } {
+  if (all.length < 2) return { common: [], unique: all };
+  const common = all[0].filter((l, i, a) => a.indexOf(l) === i && all.every((x) => x.includes(l)));
+  return { common, unique: all.map((x) => x.filter((l) => !common.includes(l))) };
 }

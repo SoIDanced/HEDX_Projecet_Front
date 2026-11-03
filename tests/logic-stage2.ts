@@ -7,7 +7,7 @@ import { runAnalysis } from "../src/lib/analysis";
 import { answerSections } from "../src/lib/answerText";
 import { deliveryLines } from "../src/lib/delivery";
 import { buildEntry, emptyForm, mergeManual, syncAmount, validateManual, type ManualForm } from "../src/lib/manual";
-import { NO_DATA, NO_REASON, explainPriceChange, pctChange, priceChangeLines, type PriceChangeCtx } from "../src/lib/priceChange";
+import { NO_DATA, NO_REASON, explainPriceChange, pctChange, priceChangeLines, splitCommonLines, type PriceChangeCtx } from "../src/lib/priceChange";
 import { mergeReceipts, sanitizeReceipts, upsertReceipt, validateReceipt } from "../src/lib/receipts";
 import { NO_PLANS, applyStockPolicy, lockStock, shortageOf, unlockStock, validateStockQty } from "../src/lib/stockPolicy";
 import type { Receipt } from "../src/data/types";
@@ -64,9 +64,11 @@ check("사유가 명시된 문서가 있으면 ‘확인된 사유’로 문서 
 check("다른 업체·품목의 문서는 연결하지 않음", explainPriceChange(cv("CT-2026-002"), pcx({ docs: [{ id: "DOC-X", title: "t", date: "2026-03-01", type: "계약서", supplier: "업체 A", item: "실린더 라이너", priceReason: "x" }] })).confirmedReasons.length === 0);
 check("원인 단정 금지·기여도 미계산 문구가 항상 포함", e1.interpretation.some((t) => t.includes("원인이라고 볼 수 없습니다")) && e1.interpretation.some((t) => t.includes("기여도는 계산하지 않았습니다")));
 // 외화
-const usd = explainPriceChange(cv("CT-2026-004"), pcx());
+// 샘플에서 USD 계약(CT-2026-004)을 뺐으므로 외화 처리 코드 경로는 합성 입력(실린더 라이너 업체 D USD 880→905)으로 검사한다
+const usdCt = { ...cv("CT-2026-001"), contractId: "CT-SYN-USD", currency: "USD", prevUnitPrice: 880, unitPrice: 905, changeRate: pctChange(880, 905) } as ReturnType<typeof cv>;
+const usd = explainPriceChange(usdCt, pcx());
 const fxs = data.fxRates.filter((f) => f.currency === "USD");
-check("외화(USD): 계약통화 기준 단가 변동과 환율 변동을 구분해 표시", usd.currency === "USD" && usd.rate === cv("CT-2026-004").changeRate && usd.fx?.rate === pctChange(fxs.find((f) => f.month === "2026-01")!.krw, fxs.find((f) => f.month === "2026-09")!.krw) && usd.caveats.some((t) => t.includes("계약통화(USD)")), JSON.stringify(usd.fx));
+check("외화(USD): 계약통화 기준 단가 변동과 환율 변동을 구분해 표시", usd.currency === "USD" && usd.rate === usdCt.changeRate && usd.fx?.rate === pctChange(fxs.find((f) => f.month === "2026-01")!.krw, fxs.find((f) => f.month === "2026-09")!.krw) && usd.caveats.some((t) => t.includes("계약통화(USD)")), JSON.stringify(usd.fx));
 check("원화 계약에는 환율 지표 없음", e1.fx === null);
 // 비교 어려움
 const specDiff = explainPriceChange({ ...cv("CT-2026-001"), spec: "다른 규격" } as never, pcx());
@@ -78,8 +80,15 @@ check("지표별 기간이 다르면 실제 쓴 기간을 각각 표시(mixed)",
 const r = runAnalysis({ kind: "price_increase", threshold: 3, itemCode: "ITM-1001" }, data, d, meta, "단가 왜 올랐어");
 const sec = answerSections(r).find((s) => s.id === "pc-CT-2026-001");
 const lines = priceChangeLines(e1);
-check("AI 답변(analysis)의 단가 변동 상세 = 팝업과 같은 함수 결과(priceChangeLines) 그대로", !!sec && JSON.stringify(sec.items) === JSON.stringify(lines));
-check("AI 답변에 증감액·변동률·비교기간·사유 미확인·출처가 포함", !!sec && sec.items.some((l) => l.includes("+3.3%")) && sec.items.some((l) => l.startsWith("비교기간")) && sec.items.some((l) => l === NO_REASON) && sec.items.some((l) => l.includes("SAMPLE")));
+const secs2 = answerSections(r);
+const common = secs2.find((s) => s.id === "pcommon");
+const pcs = secs2.filter((s) => s.id.startsWith("pc-"));
+// 변경(v0.9.2): 답변은 모든 계약에 똑같은 줄(참고 동향·원가 구성비 없음·자료 기준일 등)을 한 번만 보여 준다 — 나머지는 팝업과 같은 priceChangeLines 결과 그대로
+check("AI 답변의 단가 변동 상세 = 팝업과 같은 함수 결과(priceChangeLines)에서 계약 공통 줄만 따로 뺀 것", !!sec && !!common && JSON.stringify(sec.items) === JSON.stringify(lines.filter((l) => !common.items.includes(l))) && common.items.every((l) => lines.includes(l)));
+check("공통 줄은 답변 전체에서 1번만(계약별 구획에 반복되지 않음)", !!common && common.items.length >= 3 && common.items.every((l) => pcs.every((s) => !s.items.includes(l)) && secs2.flatMap((s) => s.items).filter((x) => x === l).length === 1));
+check("계약이 1건이면 공통 줄을 따로 빼지 않음(그대로 출력)", splitCommonLines([lines]).common.length === 0 && JSON.stringify(splitCommonLines([lines]).unique[0]) === JSON.stringify(lines));
+check("AI 답변에 증감액·변동률·비교기간·사유 미확인·출처가 포함", !!sec && !!common && sec.items.some((l) => l.includes("+3.3%")) && sec.items.some((l) => l.startsWith("비교기간")) && [...sec.items, ...common.items].some((l) => l === NO_REASON) && [...sec.items, ...common.items].some((l) => l.includes("SAMPLE")));
+check("답변 문구: 비문 ‘미확인한 계약’ 없음 · ‘순 순’ 없음", !secs2.some((s) => s.items.some((l) => l.includes("미확인한 계약")) || s.title.includes("순 순")));
 
 // ── 수기 계약서: 이전 확정단가를 직전 확정 계약에서 ──
 const items = new Map(data.items.map((i) => [i.itemCode, i]));

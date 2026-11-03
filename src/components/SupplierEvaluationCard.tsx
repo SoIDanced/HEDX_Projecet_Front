@@ -394,10 +394,14 @@ export function SupplierEvaluationCard() {
           </select>
           {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
         </div>
-        <div className={`eval-hint${pending ? "" : " is-gone"}`} aria-hidden={!pending}>
-          <div className="eval-hint-in">
-            <p className="eval-empty">{!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}</p>
-          </div>
+        {/* 안내 자리는 선택 전·후 같은 칸(같은 높이)을 쓰고 글만 교차해서 바뀐다 — 카드 높이가 변하지 않아 아래 내용이 밀리지 않는다 */}
+        <div className="eval-hint">
+          <p className={`eval-empty${pending ? "" : " is-off"}`} aria-hidden={!pending}>
+            {!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}
+          </p>
+          <p className={`eval-picked${pending ? " is-off" : ""}`} aria-hidden={pending}>
+            {sup ? `${sup.name} (${sup.supplierId})${sup.process ? ` · ${sup.process}` : ""} — 채점 결과입니다. ‘근거’에서 항목별 계산 근거를 볼 수 있습니다.` : ""}
+          </p>
         </div>
       </div>
       {/* 선택 전에도 같은 도넛·막대를 그려 두고(비어 있음), 선택하면 같은 요소가 채워지고 숫자가 0 → 값으로 센다 (data-tween: 숫자는 지금 보이는 값에서 이어 센다) */}

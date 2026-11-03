@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data", "sample");
 mkdirSync(OUT, { recursive: true });
 
-const AS_OF = "2026-10-15";
+// 샘플 발주·입고를 만든 시점(데이터 스냅샷). 화면의 ‘데이터 기준일’은 AS_OF(아래 meta) — 입고일 등 기존 데이터를 바꾸지 않으려고 둘을 나눴다
+const DATA_CUTOFF = "2026-10-15";
+const AS_OF = "2026-11-03";
 
 // 시드 고정 난수 (같은 결과를 재현)
 function mulberry32(a) {
@@ -114,7 +116,7 @@ for (const pr of pairs) {
     orders.push({ orderDate, dueDate });
   }
   orders.sort((a, b) => a.orderDate.localeCompare(b.orderDate));
-  const closed = orders.map((o, idx) => ({ ...o, idx })).filter((o) => o.dueDate <= AS_OF);
+  const closed = orders.map((o, idx) => ({ ...o, idx })).filter((o) => o.dueDate <= DATA_CUTOFF);
   // 기한 초과 대상 선택: overdueOpen이면 가장 최근 마감분 1건을 미입고 지연으로 둔다
   const lateSet = new Set();
   if (pr.overdueOpen && closed.length) lateSet.add(closed[closed.length - 1].idx);
@@ -125,11 +127,11 @@ for (const pr of pairs) {
     const year = Number(o.orderDate.slice(0, 4));
     const price = pr.p[Math.min(2, Math.max(0, year - 2024))];
     let receivedDate = null;
-    if (o.dueDate <= AS_OF) {
+    if (o.dueDate <= DATA_CUTOFF) {
       if (lateSet.has(idx)) {
         const isOverdueOpen = pr.overdueOpen && idx === closed[closed.length - 1].idx;
         receivedDate = isOverdueOpen ? null : addDays(o.dueDate, randInt(4, 21));
-        if (receivedDate && receivedDate > AS_OF) receivedDate = null;
+        if (receivedDate && receivedDate > DATA_CUTOFF) receivedDate = null;
       } else {
         receivedDate = addDays(o.dueDate, -randInt(0, 6));
       }
@@ -154,7 +156,8 @@ const purchaseOrders = rawPOs.map((po) => {
   return { poNo: `PO-${y}-${String(yearSeq[y]).padStart(4, "0")}`, ...po };
 });
 
-const contracts = pairs.map((pr, k) => {
+// 외화(USD) 단가 계약은 샘플에서 뺐다(코드 경로는 남김). 계약번호는 기존 번호를 유지하려고 k 를 그대로 쓴다
+const contracts = pairs.map((pr, k) => ({ pr, k })).filter(({ pr }) => (pr.cur || "KRW") === "KRW").map(({ pr, k }) => {
   const item = items.find((x) => x.itemCode === pr.i);
   return {
     contractId: `CT-2026-${String(k + 1).padStart(3, "0")}`,

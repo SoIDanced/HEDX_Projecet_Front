@@ -17,7 +17,7 @@ import { PaymentSchedule } from "./subviews/PaymentSchedule";
 import { MaterialPrices } from "./subviews/MaterialPrices";
 import { LaborWages } from "./subviews/LaborWages";
 import { IndustryNews } from "./subviews/IndustryNews";
-import { dday, daysBetween, fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, todayStr } from "../lib/format";
+import { dday, daysBetween, fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct } from "../lib/format";
 import { normalizeScope, scopeActive, scopeFilter, scopeOptions, EMPTY_SCOPE, type Scope } from "../lib/scope";
 import type { ContractView, InventoryView, POView, SupplierView } from "../lib/metrics";
 import { EVAL_CONFIG } from "../lib/evaluation";
@@ -202,7 +202,7 @@ export function DataManagementTabs() {
     if (n.speed !== scope.speed || n.group !== scope.group || n.item !== scope.item || n.supplier !== scope.supplier) dispatch({ type: "scope", scope: n });
   }, [derived, scope, dispatch]);
   const onScope = (key: keyof Scope, value: string) => dispatch({ type: "scope", scope: normalizeScope(derived, { ...scope, [key]: value }) });
-  const today = todayStr();
+  const today = asOf; // 계약 잔여일(D-day)도 데이터 기준일 하나로 계산 — 브라우저 오늘 날짜는 쓰지 않는다
 
   // 부품 분류(엔진 > 대부품 > 중부품 > 소부품) 필터 — 모든 탭 공통
   const bomDef = useCallback(
@@ -246,7 +246,7 @@ export function DataManagementTabs() {
         { key: "quality", label: "품질 점수", hint: "협력업체 시트의 품질 평가 점수(입고검사 기반, 100점)", render: (s) => fmtNum(s.qualityScore ?? null, 0), sort: (s) => s.qualityScore ?? null, num: true, expKind: "int" },
         { key: "defect", label: "불량률", hint: "입고검사 불량 비율(%)", render: (s) => fmtPct(s.defectRate ?? null), sort: (s) => s.defectRate ?? null, num: true, expKind: "pct" },
         { key: "trade", label: "최근 거래일", render: (s) => fmtDate(s.tradeDate), sort: (s) => s.tradeDate, date: true },
-        { key: "items", label: "공급 가능 품목", render: (s) => <span className="clip">{s.items.map(itemName).join(", ") || "–"}</span>, sort: (s) => s.items.length, exp: (s) => s.items.map(itemName).join(", ") },
+        { key: "items", label: "공급 가능 품목", render: (s) => <span className="clip" title={s.items.map(itemName).join(", ")}>{s.items.map(itemName).join(", ") || "–"}</span>, sort: (s) => s.items.length, exp: (s) => s.items.map(itemName).join(", ") },
         { key: "hist", label: "평가 이력", hint: "최근 평가 3회 (상=상반기, 하=하반기)", render: (s) => (s.evalHistory.length ? s.evalHistory.slice(-3).map((h) => `${halfLabel(h, true)} ${h.grade}`).join(" · ") : "–"), exp: (s) => s.evalHistory.map((h) => `${halfLabel(h)} ${h.grade}(${h.score})`).join(" → ") },
       ];
       return { rows, cols, defs: defs as FilterDef<unknown>[], placeholder: "협력업체명·업체ID·공정·품목으로 찾기", key: (s: SupplierView) => s.supplierId, pin: (s: SupplierView) => favSup.includes(s.supplierId), hasFav: favSup.length > 0 } as const;
@@ -378,7 +378,7 @@ export function DataManagementTabs() {
         {
           key: "left",
           label: "계약 잔여일",
-          hint: `계약 종료일까지 남은 날 (D-12 = 12일 남음, D+3 = 3일 지남). 기준은 오늘 날짜 ${today}`,
+          hint: `계약 종료일까지 남은 날 (D-12 = 12일 남음, D+3 = 3일 지남). 기준은 데이터 기준일 ${today}`,
           render: (c) => (c.endDate ? <span title={`계약 종료 ${c.endDate}`}>{dday(c.endDate, today)}</span> : <span className="muted">–</span>),
           sort: (c) => (c.endDate ? daysBetween(today, c.endDate) : null),
           num: true,

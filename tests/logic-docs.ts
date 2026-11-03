@@ -28,7 +28,7 @@ const catalog = { items: data.items.map((i) => ({ itemCode: i.itemCode, name: i.
   // ── 말뭉치 ──
   const ids = SAMPLE_DOCS.map((x) => x.id);
   check("말뭉치 10~14건, ID 중복 없음, DOC- 형식", SAMPLE_DOCS.length >= 10 && SAMPLE_DOCS.length <= 14 && new Set(ids).size === ids.length && ids.every((i) => /^DOC-2026-\d{4}-\d{3}$/.test(i)), `${SAMPLE_DOCS.length}건`);
-  check("모든 문서: 기준일(2026-10-15) 이전 · 샘플 업체·품목 이름 사용", SAMPLE_DOCS.every((x) => x.date <= AS_OF && data.suppliers.some((s) => s.name === x.supplier) && data.items.some((i) => i.name === x.item)));
+  check("모든 문서: 기준일(2026-11-03) 이전 · 샘플 업체·품목 이름 사용", SAMPLE_DOCS.every((x) => x.date <= AS_OF && data.suppliers.some((s) => s.name === x.supplier) && data.items.some((i) => i.name === x.item)));
   check("모든 문서: 본문 2~5문장", SAMPLE_DOCS.every((x) => { const n = x.body.split(/(?<=[.!?])\s+/).length; return n >= 2 && n <= 5; }));
 
   // ── 예시 질문 ──

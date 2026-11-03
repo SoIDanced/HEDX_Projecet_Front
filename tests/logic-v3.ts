@@ -9,7 +9,7 @@ import { KPIS } from "../src/lib/kpi";
 import { itemsUnder, optionsAt, pathText } from "../src/lib/bom";
 import { buildXlsx, colName, crc32, excelDate } from "../src/lib/xlsx";
 import { resultCsv, resultSheets } from "../src/lib/exporters";
-import { answerSections } from "../src/lib/answerText";
+import { answerSections, emphasize } from "../src/lib/answerText";
 import { runAnalysis } from "../src/lib/analysis";
 import { validateRows } from "../src/lib/validate";
 
@@ -40,16 +40,16 @@ check("결제조건 없음", !parseTerms("").ok);
 check("월말 계산", monthEnd("2024-02-10") === "2024-02-29" && addDays("2026-12-30", 3) === "2027-01-02");
 check("상태 구분: D-0 임박, D-7 임박, D-8 예정, D-30 예정, D-31 이후, D+3 지급 확인 필요, D+15 제외", statusOf(0) === "임박" && statusOf(7) === "임박" && statusOf(8) === "예정" && statusOf(30) === "예정" && statusOf(31) === "이후" && statusOf(-3) === "지급 확인 필요" && statusOf(-15) === null);
 const pay = buildPayments(d.poViews, data.contracts, meta.asOf);
-check("샘플 결제: 임박 5건", pay.summary["임박"].count === 5, String(pay.summary["임박"].count));
-check("샘플 결제: 예정 10건", pay.summary["예정"].count === 10, String(pay.summary["예정"].count));
-check("샘플 결제: 지급 확인 필요 1건", pay.summary["지급 확인 필요"].count === 1);
-check("샘플 결제: 결제조건 확인 필요 3건", pay.summary["조건 확인 필요"].count === 3);
-check("샘플 결제: 입고 대기 3건 (납기 지연 발주)", pay.summary["입고 대기"].count === d.poViews.filter((p) => p.status === "납기 지연").length);
+check("샘플 결제: 임박 0건 (기준일 11-03)", pay.summary["임박"].count === 0, String(pay.summary["임박"].count));
+check("샘플 결제: 예정 5건", pay.summary["예정"].count === 5, String(pay.summary["예정"].count));
+check("샘플 결제: 지급 확인 필요 12건", pay.summary["지급 확인 필요"].count === 12);
+check("샘플 결제: 결제조건 확인 필요 2건 (USD 계약 삭제로 3→2)", pay.summary["조건 확인 필요"].count === 2);
+check("샘플 결제: 입고 대기 = 납기 지연 발주 수(11건)", pay.summary["입고 대기"].count === d.poViews.filter((p) => p.status === "납기 지연").length);
 const r59 = pay.rows.find((r) => r.poNo === "PO-2026-0059");
-check("PO-2026-0059: 10/20 결제, D-5 임박", r59?.payDate === "2026-10-20" && r59?.dday === 5 && r59?.status === "임박", JSON.stringify(r59));
+check("PO-2026-0059: 10/20 결제, 기준일 11-03 기준 D+14 지급 확인 필요", r59?.payDate === "2026-10-20" && r59?.dday === -14 && r59?.status === "지급 확인 필요", JSON.stringify(r59));
 check("금액 = 수량 × 단가", pay.rows.every((r) => r.amount === null || r.amount === d.poViews.find((p) => p.poNo === r.poNo)!.qty * (d.poViews.find((p) => p.poNo === r.poNo)!.unitPrice ?? 0)));
 check("통화별 합계 (환율로 합치지 않음)", Object.keys(pay.summary["조건 확인 필요"].amounts).includes("USD"));
-check("알림 건수 = 임박 + 지급 확인 필요", alertCount(pay, []) === 6 && alertCount(pay, ["PO-2026-0059"]) === 5);
+check("알림 건수 = 임박 + 지급 확인 필요", alertCount(pay, []) === 12 && alertCount(pay, ["PO-2026-0059"]) === 11);
 check("주별 그래프 12주", pay.weeks.length === 12 && pay.weeks[0].from === meta.asOf);
 
 // ── 원자재 시세 ──
@@ -77,7 +77,7 @@ check("공정 → 직종 연결 (단조·가공)", jobsForProcess("단조·가�
 // ── 요약 지표 ──
 const k = Object.fromEntries(KPIS.map((x) => [x.id, x.count(d)]));
 check("요약 지표: 기준 미달(C·D) 2곳", k.gradeCD === 2, JSON.stringify(k));
-check("요약 지표: 납기 지연 3건", k.overdue === 3);
+check("요약 지표: 납기 지연 11건 (기준일 11-03)", k.overdue === 11);
 check("요약 지표: 단가 상승 4건", k.priceUp === 4);
 check("요약 지표: 재고 미달 3품목", k.belowSafety === 3);
 
@@ -114,6 +114,21 @@ check("글 답변: 위험 요소·평가 근거 구역", secs.some((s) => s.id =
 check("글 답변: 순위 제외 사유 문장", flat.includes("순위 제외") === res.rows.some((r) => r.excludedReason));
 check("글 답변: 업체명이 모두 들어감", res.rows.every((r) => flat.includes(r.label)));
 check("CSV 내보내기: 머리글 + 업체 행", resultCsv(res).trim().split("\n").length >= res.rows.length + 1);
+
+// ── v0.9.2: 답변 가독성 ──
+const pi = runAnalysis({ kind: "price_increase", threshold: 5 }, data, d, meta, "단가 상승");
+const pis = answerSections(pi);
+const piLines = pis.flatMap((x) => x.items).join("\n").split("\n");
+check("단가 상승 답변 본문 줄 수가 이전(56줄)보다 줄었다", piLines.length < 56 && pis.filter((x) => x.fold).length >= 3, `${piLines.length}줄`);
+check("단가 상승 답변 글자 수 감소(이전 3,770자 → 3,000자 미만)", piLines.join("\n").length < 3000, String(piLines.join("\n").length));
+check("제목에 ‘순 순’ 없음", pis.every((x) => !x.title.includes("순 순")) && secs.every((x) => !x.title.includes("순 순")) && secs.find((x) => x.id === "rows")!.title === "비교 결과 (검토 순서)");
+check("접이식: 단가 변동 상세·검토할 사항·평가 근거만 fold, 첫 단가 상세만 open", pis.filter((x) => x.fold).every((x) => x.id.startsWith("pc") || x.id === "review" || x.id === "basis") && pis.filter((x) => x.open).length === 1 && pis.find((x) => x.open)!.id.startsWith("pc-") && !pis.find((x) => x.id === "rows")!.fold && !pis.find((x) => x.id === "risks")!.fold);
+const rowsSec = secs.find((x) => x.id === "rows")!;
+check("행 = ‘이름 — 핵심값 하나’ + 줄바꿈 뒤 보조값, 점수에 단위(점)", rowsSec.items[0].split("\n")[0].endsWith("점") && rowsSec.items[0].split("\n").length === 2);
+check("위험 요소가 비교 결과 숫자를 되풀이하지 않음(단가 상승)", pis.find((x) => x.id === "risks")!.items.every((t) => !/직전 계약 대비/.test(t)));
+const em = (t: string) => emphasize(t).filter((p) => p.strong).map((p) => p.text);
+check("굵게: 숫자+단위만(%·원·점·건·EA·USD), 업체ID·품목코드·계약번호·날짜는 제외", JSON.stringify(em("SUP-001 ITM-1001 CT-2026-002 2026-10-15 9월 18일")) === "[]" && em("변동률 +12.6% 단가 1,520,000원 82.5점").join("|") === "+12.6%|1,520,000원|82.5점" && em("USD 905 · 35EA").join("|") === "USD 905|35EA");
+check("굵게: 한 줄 3개까지, 글자는 그대로", em("1% 2% 3% 4% 5%").length === 3 && emphasize("가 1건 나 2원 다").map((p) => p.text).join("") === "가 1건 나 2원 다");
 
 console.log(`\n${pass}/${pass + fail} 통과`);
 process.exit(fail ? 1 : 0);

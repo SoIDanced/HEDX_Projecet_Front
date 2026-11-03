@@ -67,5 +67,5 @@ export function josa(word: string, pair: "이/가" | "은/는" | "을/를" | "�
 }
 
 // 계약 조건 칸: '창원 공장 도착도'는 모든 계약 공통이라 뺀다. 남는 기한은 계약 종료일 기준 D-day
-export const condText = (c: { endDate?: string | null; deliveryTerms?: string; paymentTerms?: string }) =>
-  [c.endDate ? `종료 ${dday(c.endDate)}` : "", c.deliveryTerms?.replace(/^창원 공장 도착도\s*/, ""), c.paymentTerms].filter(Boolean).join(" · ");
+export const condText = (c: { endDate?: string | null; deliveryTerms?: string; paymentTerms?: string }, asOf: string) =>
+  [c.endDate ? `종료 ${dday(c.endDate, asOf)}` : "", c.deliveryTerms?.replace(/^창원 공장 도착도\s*/, ""), c.paymentTerms].filter(Boolean).join(" · ");
