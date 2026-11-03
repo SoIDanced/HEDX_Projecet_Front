@@ -1,23 +1,22 @@
 // AI 에이전트 패널: 오른쪽에 고정된 대화창 — 글 답변만 보여 준다 (표·차트 없음)
 // 위쪽: 선택 정보(접이식) · 문서 등록 · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuFilePlus2, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
+import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
 import { STEPS } from "../ai/agent";
 import { resultName, SUGGESTED, useStore, WELCOME_SHORT, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
 import { answerSections } from "../lib/answerText";
-import { DOC_ACCEPT, DOC_OK_TEXT, registerDocument, validateDocumentFile } from "../lib/documents";
 import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { resultCsv, resultSheets } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
 import type { AnalysisResult } from "../lib/analysisTypes";
 import { AiAvatar } from "./AiAvatar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { DocRegister } from "./DocRegister";
 import { HistoryPanel } from "./HistoryPanel";
 import { SelectionDetail, useSelectionTitle } from "./SelectionDetail";
 import { Chip, Words } from "./ui";
 
-const docSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 function EngineBadge({ engine }: { engine: string }) {
   if (engine === "rule") return <span className="engine engine-rule">규칙 기반 데모 응답</span>;
@@ -160,9 +159,6 @@ export function ChatPanel() {
   const [newBelow, setNewBelow] = useState(false); // 위를 읽는 중 새 답변이 온 경우
   const [announce, setAnnounce] = useState(""); // 스크린리더용 한 줄 알림 (긴 답변 전체를 읽지 않게)
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [registering, setRegistering] = useState(false);
-  const [pendingDocs, setPendingDocs] = useState<File[] | null>(null); // 미리보기 후 "벡터 DB에 추가하시겠습니까?" 대기 중인 파일
   const listRef = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
   const seenCount = useRef(state.messages.length);
@@ -230,31 +226,6 @@ export function ChatPanel() {
     setText("");
     ask(q);
     inputRef.current?.focus();
-  };
-
-  // 문서 등록: 형식·크기만 화면에서 검사하고, 실제 파싱·청킹·임베딩·벡터DB 저장은 백엔드 몫(src/lib/documents.ts 스텁)
-  const onPickDocs = async (list: FileList | null) => {
-    const files = Array.from(list ?? []);
-    if (fileRef.current) fileRef.current.value = ""; // 같은 파일을 다시 골라도 반응하게
-    if (!files.length || registering) return;
-    for (const f of files) {
-      const err = validateDocumentFile(f);
-      if (err) return void dispatch({ type: "toast", text: files.length > 1 ? `${f.name}: ${err}` : err, tone: "warn" });
-    }
-    setPendingDocs(files); // 등록 → 미리보기 → 예/아니오 (예일 때만 저장 처리)
-  };
-  const saveDocs = async (files: File[]) => {
-    setPendingDocs(null);
-    setRegistering(true);
-    try {
-      await Promise.all(files.map((f) => registerDocument(f)));
-      dispatch({ type: "toast", text: files.length > 1 ? `${DOC_OK_TEXT}
-(${files.length}건)` : DOC_OK_TEXT, ms: 2000 });
-    } catch {
-      dispatch({ type: "toast", text: "문서 등록에 실패했습니다. 잠시 뒤 다시 시도해 주세요.", tone: "warn" });
-    } finally {
-      setRegistering(false);
-    }
   };
 
   const openFromHistory = (id: string) => {
@@ -346,10 +317,7 @@ export function ChatPanel() {
                 <LuInfo aria-hidden />
               </button>
             )}
-            <input ref={fileRef} id="doc-file-input" type="file" hidden multiple accept={DOC_ACCEPT} onChange={(e) => onPickDocs(e.target.files)} />
-            <button type="button" className="btn btn-quiet doc-register-btn" onClick={() => fileRef.current?.click()} disabled={registering} aria-busy={registering} title="문서 등록 — PDF · DOCX, 파일당 20MB 이하" aria-description="PDF 또는 DOCX 파일, 파일당 20MB 이하">
-              <LuFilePlus2 aria-hidden /> <span className="tool-label">{registering ? "등록 중…" : "문서 등록"}</span>
-            </button>
+            <DocRegister target="vector" inputId="doc-file-input" />
             <button
               type="button"
               className={`btn btn-quiet history-toggle ${showHistory ? "is-on" : ""}`}
@@ -447,29 +415,6 @@ export function ChatPanel() {
         </form>
         <p className="composer-hint">Enter 보내기 · Shift+Enter 줄바꿈</p>
       </div>
-      {pendingDocs && (
-        <ConfirmDialog
-          title="벡터 DB에 추가하시겠습니까?"
-          tone="normal"
-          confirmLabel="예"
-          cancelLabel="아니오"
-          onCancel={() => {
-            setPendingDocs(null);
-            dispatch({ type: "toast", text: "문서를 추가하지 않았습니다.", ms: 2000 });
-          }}
-          onConfirm={() => void saveDocs(pendingDocs)}
-        >
-          <ul className="doc-preview" aria-label="등록할 문서 미리보기">
-            {pendingDocs.map((f, i) => (
-              <li key={`${f.name}-${i}`}>
-                <b className="doc-prev-name">{f.name}</b>
-                <span className="muted">{f.name.toLowerCase().endsWith(".pdf") ? "PDF" : "DOCX"} · {docSize(f.size)}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="muted">파일 내용은 화면에서 읽지 않습니다. 파싱·청킹·임베딩과 벡터 DB 저장은 백엔드가 맡습니다.</p>
-        </ConfirmDialog>
-      )}
       {confirmClear && (
         <ConfirmDialog
           title="대화를 지울까요?"

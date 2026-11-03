@@ -10,20 +10,42 @@ import { fmtNum } from "../lib/format";
 import { FavStar } from "./FavStar";
 import { CountUp, Words } from "./ui";
 
-function Donut({ value, grade }: { value: number | null; grade: string | null }) {
+/** 도넛: 선택 전(pending)에도 같은 요소로 그려 두고(빈 고리 + 위쪽 주황 점), 선택하면 같은 호가 0 → 값으로 이어서 차오른다 */
+function Donut({ value, grade, pending }: { value: number | null; grade: string | null; pending?: boolean }) {
   const r = 44;
   const c = 2 * Math.PI * r;
-  const p = value === null ? 0 : Math.max(0, Math.min(100, value)) / 100;
+  const p = value === null || pending ? 0 : Math.max(0, Math.min(100, value)) / 100;
+  // 선택 전 → 선택으로 바뀐 뒤에만 등급 글자가 나타나는 동작을 붙인다(다시 마운트하지 않으므로 필터·정렬·쪽 변경·대상 바꿈에서는 재생 안 됨)
+  const everPending = useRef(false);
+  if (pending) everPending.current = true;
   return (
-    <svg className="donut" viewBox="0 0 108 108" role="img" aria-label={grade ? `${grade}등급, 종합 ${fmtNum(value)}점` : "평가 불가"}>
+    <svg className={`donut${pending ? " is-pending" : ""}`} viewBox="0 0 108 108" role="img" aria-label={pending ? "평가 대상 선택 대기" : grade ? `${grade}등급, 종합 ${fmtNum(value)}점` : "평가 불가"}>
+      <defs>
+        <linearGradient id="donut-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--accent-3)" />
+          <stop offset="1" stopColor="var(--accent)" />
+        </linearGradient>
+      </defs>
       <circle cx="54" cy="54" r={r} className="donut-track" />
-      <circle cx="54" cy="54" r={r} className="donut-arc" style={{ strokeDasharray: `${c * p} ${c}` }} transform="rotate(-90 54 54)" />
-      <text x="54" y="52" className="donut-grade" textAnchor="middle">
-        {grade ?? "–"}
+      <circle cx="54" cy="54" r={r} className="donut-arc" style={{ strokeDasharray: pending ? `0.01 ${c}` : `${c * p} ${c}` }} transform="rotate(-90 54 54)" />
+      <text key={pending ? "wait" : "grade"} x="54" y="52" className={`donut-grade${pending ? " is-wait" : everPending.current ? " donut-grade-in" : ""}`} textAnchor="middle">
+        {pending ? "–" : grade ?? "–"}
       </text>
-      <text x="54" y="72" className="donut-sub" textAnchor="middle">
-        {value === null ? "산정 불가" : (<>종합 <CountUp as="tspan" value={value} format={(n) => fmtNum(n)} delay={400} />점</>)}
-      </text>
+      {pending && (
+        <text x="54" y="72" className="donut-sub is-wait" textAnchor="middle">
+          선택 대기
+        </text>
+      )}
+      {/* 숫자는 선택 전에도 0 으로 마운트해 두어(숨김) 첫 선택에서도 0 → 값으로 센다 */}
+      {(pending || value !== null) ? (
+        <text x="54" y="72" className="donut-sub" textAnchor="middle" visibility={pending ? "hidden" : "visible"}>
+          종합 <CountUp as="tspan" value={pending ? 0 : value!} format={(n) => fmtNum(n)} delay={400} />점
+        </text>
+      ) : (
+        <text x="54" y="72" className="donut-sub" textAnchor="middle">
+          산정 불가
+        </text>
+      )}
     </svg>
   );
 }
@@ -331,14 +353,7 @@ export function SupplierEvaluationCard() {
   const sup = sid ? derived.suppliersById.get(sid) : undefined;
   const ev = sid ? derived.evaluations.get(sid) : undefined;
   const docked = useDocked(cardRef, !!(sup && ev));
-  // 선택 없음 → 선택 전환 때만 채점 카드가 부드럽게 나타난다(첫 로드에 이미 선택돼 있으면 재생 안 함)
-  const prevSid = useRef(sid);
-  const [reveal, setReveal] = useState(false);
-  useEffect(() => {
-    if (!prevSid.current && sid) setReveal(true);
-    else if (!sid) setReveal(false);
-    prevSid.current = sid;
-  }, [sid]);
+  const pending = !sup || !ev;
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false);
     if (restoreFocus) btnRef.current?.focus();
@@ -370,36 +385,41 @@ export function SupplierEvaluationCard() {
         </div>
       </div>
 
-      <div className="eval-picker">
-        <label htmlFor="eval-supplier">평가 대상</label>
-        <select id="eval-supplier" value={sid ?? ""} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
-          {!sid && <option value="" disabled>협력업체를 선택하세요</option>}
-          <SupplierOptions />
-        </select>
-        {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
-      </div>
-
-      {!sup || !ev ? (
-        <p className="eval-empty">{!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}</p>
-      ) : (
-        <>
-          <div className={`eval-body${reveal || (!prevSid.current && !!sid) ? " is-reveal" : ""}`} data-tween onAnimationEnd={(e) => e.target === e.currentTarget && setReveal(false)}>
-            <Donut value={ev.total} grade={ev.grade} />
-            <ul className="eval-bars">
-              {ev.criteria.map((c) => (
-                <li key={c.key}>
-                  <span className="eval-bar-label">{c.label}</span>
-                  <span className="eval-bar-track" aria-hidden>
-                    <span className={`eval-bar-fill ${c.score === null ? "is-missing" : ""}`} style={{ width: `${c.score ?? 0}%` }} />
-                  </span>
-                  <span className="eval-bar-val">{c.score === null ? "누락" : <CountUp value={c.score} format={(n) => fmtNum(n, 0)} delay={500} />}</span>
-                </li>
-              ))}
-            </ul>
+      <div className="eval-pickwrap">
+        <div className="eval-picker">
+          <label htmlFor="eval-supplier">평가 대상</label>
+          <select id="eval-supplier" value={sid ?? ""} onChange={(e) => dispatch({ type: "selectSupplier", supplierId: e.target.value })}>
+            {!sid && <option value="" disabled>협력업체를 선택하세요</option>}
+            <SupplierOptions />
+          </select>
+          {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
+        </div>
+        <div className={`eval-hint${pending ? "" : " is-gone"}`} aria-hidden={!pending}>
+          <div className="eval-hint-in">
+            <p className="eval-empty">{!sid && derived.supplierViews.length ? "평가 대상을 고르면 채점 결과가 나타납니다. 데이터 관리 패널의 협력업체 표에서 행을 눌러도 됩니다." : "협력업체 데이터가 없습니다. 데이터 관리 패널의 ‘불러오기’로 협력업체 파일을 올려 주세요."}</p>
           </div>
-          {open && btnRef.current && <BasisPopover anchor={btnRef.current} ev={ev} supplierName={sup.name} onClose={close} />}
-        </>
-      )}
+        </div>
+      </div>
+      {/* 선택 전에도 같은 도넛·막대를 그려 두고(비어 있음), 선택하면 같은 요소가 채워지고 숫자가 0 → 값으로 센다 (data-tween: 숫자는 지금 보이는 값에서 이어 센다) */}
+      <div className={`eval-body${pending ? " is-pending" : ""}`} data-tween>
+        <Donut value={ev?.total ?? null} grade={ev?.grade ?? null} pending={pending} />
+        <ul className="eval-bars">
+          {EVAL_CONFIG.criteria.map((def) => {
+            const c = ev?.criteria.find((x) => x.key === def.key);
+            const score = pending ? 0 : c?.score ?? null;
+            return (
+              <li key={def.key}>
+                <span className="eval-bar-label">{def.label}</span>
+                <span className="eval-bar-track" aria-hidden>
+                  <span className={`eval-bar-fill ${!pending && score === null ? "is-missing" : ""}`} style={{ width: pending ? "10px" : `${score ?? 0}%` }} />
+                </span>
+                <span className="eval-bar-val">{pending || score !== null ? <CountUp value={score ?? 0} format={(n) => (pending ? "–" : fmtNum(n, 0))} delay={500} /> : "누락"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {sup && ev && open && btnRef.current && <BasisPopover anchor={btnRef.current} ev={ev} supplierName={sup.name} onClose={close} />}
     </section>
     </>
   );

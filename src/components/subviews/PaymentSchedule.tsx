@@ -126,7 +126,7 @@ export function PaymentSchedule() {
             <button key={c.status} type="button" className={`pay-card tone-${c.status === "임박" ? "hot" : c.status === "예정" ? "info" : c.status === "지급 확인 필요" || c.status === "조건 확인 필요" ? "warn" : "muted"} ${on ? "is-on" : ""}`} aria-pressed={on} onClick={() => setStatus(on ? "all" : c.status)} title={c.hint} data-pay={c.status}>
               <span className="pay-card-label">{c.label}</span>
               <span className="pay-card-count">
-                <CountUp value={cell.count} delay={450} />
+                <CountUp value={cell.count} delay={450} live />
                 <small>건</small>
               </span>
               <span className="pay-card-amt">{money(cell.amounts)}</span>
