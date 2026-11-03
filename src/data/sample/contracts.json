@@ -39,19 +39,6 @@
     "endDate": "2026-12-31"
   },
   {
-    "contractId": "CT-2026-004",
-    "itemCode": "ITM-1001",
-    "supplierId": "SUP-004",
-    "spec": "Ø500 × 2,100mm, 특수주철",
-    "unitPrice": 905,
-    "prevUnitPrice": 880,
-    "currency": "USD",
-    "deliveryTerms": "FOB 해외 선적항",
-    "paymentTerms": "T/T 선적 후 30일",
-    "startDate": "2026-01-01",
-    "endDate": "2026-12-31"
-  },
-  {
     "contractId": "CT-2026-005",
     "itemCode": "ITM-1008",
     "supplierId": "SUP-001",

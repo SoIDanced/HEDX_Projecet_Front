@@ -5,7 +5,7 @@ import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuHistory, Lu
 import { STEPS } from "../ai/agent";
 import { resultName, SUGGESTED, useStore, WELCOME_SHORT, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
-import { answerSections } from "../lib/answerText";
+import { answerSections, emphasize } from "../lib/answerText";
 import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { resultCsv, resultSheets } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
@@ -17,6 +17,27 @@ import { HistoryPanel } from "./HistoryPanel";
 import { SelectionDetail, useSelectionTitle } from "./SelectionDetail";
 import { Chip, Words } from "./ui";
 
+
+/** 답변 목록: 줄바꿈이 있으면 첫 줄은 본문(숫자+단위만 굵게), 나머지는 보조 줄 */
+function AnsList({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((t, i) => {
+        const [first, ...rest] = t.split("\n");
+        return (
+          <li key={i}>
+            {emphasize(first).map((p, j) => (p.strong ? <strong key={j}>{p.text}</strong> : p.text))}
+            {rest.map((r, j) => (
+              <span key={j} className="ans-subline">
+                {r}
+              </span>
+            ))}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function EngineBadge({ engine }: { engine: string }) {
   if (engine === "rule") return <span className="engine engine-rule">규칙 기반 데모 응답</span>;
@@ -68,7 +89,9 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
       <div className={`msg-body ${m.error ? "is-error" : ""}`}>
         <EngineBadge engine={m.error ? "error" : m.engine} />
         {paras.map((t, i) => (
-          <p key={i}>{t}</p>
+          <p key={i} className={result && i === 0 ? "ans-lead" : undefined}>
+            {t}
+          </p>
         ))}
         {result && (
           <>
@@ -81,16 +104,22 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
                 </button>
               </div>
             )}
-            {sections.map((s) => (
-              <section key={s.id} className="ans-sec" data-section={s.id}>
-                <h3>{s.title}</h3>
-                <ul>
-                  {s.items.map((t, i) => (
-                    <li key={i}>{t}</li>
-                  ))}
-                </ul>
-              </section>
-            ))}
+            {sections.map((s) =>
+              s.fold ? (
+                <details key={s.id} className="ans-sec" data-section={s.id} open={s.open}>
+                  <summary>
+                    <h3>{s.title}</h3>
+                    {!s.id.startsWith("pc-") && <span className="ans-count">{s.items.length}건</span>}
+                  </summary>
+                  <AnsList items={s.items} />
+                </details>
+              ) : (
+                <section key={s.id} className="ans-sec" data-section={s.id}>
+                  <h3>{s.title}</h3>
+                  <AnsList items={s.items} />
+                </section>
+              ),
+            )}
             <p className="msg-sources">
               <LuDatabase aria-hidden />
               <span>

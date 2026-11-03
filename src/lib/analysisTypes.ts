@@ -34,6 +34,8 @@ export interface ResultColumn {
   higherIsBetter?: boolean;
   primary?: boolean; // 좁은 화면 기본 표시 열
   unit?: string;
+  core?: boolean; // 답변 글에서 행의 ‘이름 — 핵심값’ 자리에 오는 열 (없으면 첫 primary 열)
+  suffix?: string; // 답변 글에서만 값 뒤에 붙이는 단위 (내보내기 머리글에는 영향 없음)
 }
 
 export interface ResultRow {

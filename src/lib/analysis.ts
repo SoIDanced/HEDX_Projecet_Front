@@ -4,7 +4,7 @@ import type { AnalysisParams, AnalysisResult, ChartSpec, IntentKind, PriorityMod
 import { EVAL_CONFIG, qualityScore } from "./evaluation";
 import { addMonths, fmtMoney, fmtNum, fmtPct, fmtSignedPct, josa, quarterOf, quarterSortKey, round } from "./format";
 import { SAMPLE_DOCS } from "../data/sample/documents";
-import { explainPriceChange, priceChangeLines, NO_REASON, type PriceChangeCtx } from "./priceChange";
+import { explainPriceChange, priceChangeLines, splitCommonLines, type PriceChangeCtx } from "./priceChange";
 import { deliveryByQuarter, deliveryStats, priceByQuarter, type ContractView, type Derived, type POView } from "./metrics";
 
 export const KIND_LABEL: Record<IntentKind, string> = {
@@ -170,7 +170,7 @@ function itemCandidates(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     if (r.st.rate !== null && r.st.rate === maxRate && comparable.length > 1) strengths.push(`해당 품목 납기 준수율 최고 (${fmtPct(r.st.rate)})`);
     if (r.q !== null && r.q === maxQ && comparable.length > 1) strengths.push(`품질 점수 최고 (${fmtNum(r.q)}점)`);
     if (r.ev?.grade === "A") strengths.push("평가등급 A");
-    if (r.st.rate !== null && r.st.rate < EVAL_CONFIG.lowDeliveryThreshold) risks.push(`납기 준수율 ${fmtPct(r.st.rate)} — 관리 기준 ${EVAL_CONFIG.lowDeliveryThreshold}% 미만`);
+    if (r.st.rate !== null && r.st.rate < EVAL_CONFIG.lowDeliveryThreshold) risks.push(`납기 준수율이 관리 기준 ${EVAL_CONFIG.lowDeliveryThreshold}% 미만`);
     if (r.st.overdueOpen) risks.push(`납기 경과 미입고 발주 ${r.st.overdueOpen}건`);
     if (r.contract?.changeRate != null && r.contract.changeRate >= EVAL_CONFIG.priceIncreaseThreshold) risks.push(`최근 계약 단가 ${fmtSignedPct(r.contract.changeRate)} 인상`);
     if (r.sup?.defectRate != null && r.sup.defectRate >= 1.5) risks.push(`불량률 ${fmtNum(r.sup.defectRate)}%`);
@@ -218,7 +218,7 @@ function itemCandidates(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     { key: "quality", label: "품질 점수", kind: "number", higherIsBetter: true },
     { key: "priceChange", label: "단가 변동", kind: "signedPercent", higherIsBetter: false },
     { key: "late", label: "지연 건수", kind: "int", higherIsBetter: false },
-    { key: "score", label: "검토 점수", kind: "number", higherIsBetter: true },
+    { key: "score", label: "검토 점수", kind: "number", higherIsBetter: true, core: true, suffix: "점" },
     { key: "condition", label: "비교 조건", kind: "text" },
   ];
 
@@ -428,7 +428,7 @@ function lowDelivery(ctx: Ctx, params: AnalysisParams): AnalysisResult {
           rows.some((r) => Number(r.values.overdue) > 0) ? `납기가 지났는데 아직 입고되지 않은 발주가 ${rows.reduce((a, r) => a + Number(r.values.overdue || 0), 0)}건 있습니다.` : "",
         ].filter(Boolean)
       : [],
-    risks: rows.flatMap((r) => r.risks.slice(0, 2).map((x) => `${r.label}: ${x}`)),
+    risks: rows.flatMap((r) => r.risks.slice(1, 3).map((x) => `${r.label}: ${x}`)),
     reviewPoints: [
       ...rows.filter((r) => Number(r.values.overdue) > 0).map((r) => `${r.label}의 미입고 발주 입고 일정을 확인하고 생산 일정 영향 여부를 공유하세요.`),
       rows.length ? "지연이 반복되는 품목은 발주 리드타임을 늘리거나 대체 업체를 검토하세요." : "",
@@ -559,10 +559,17 @@ function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
             : "",
         ].filter(Boolean)
       : [],
-    risks: rows.map((r) => `${r.label}: ${r.risks[0]}${r.values.peer !== null ? ` (타 업체 평균 ${fmtSignedPct(Number(r.values.peer))})` : ""}`),
-    detailSections: explains.map(({ c, ex }) => ({ id: `pc-${c.contractId}`, title: `단가 변동 상세 · ${c.itemName} · ${c.supplierName} (${c.contractId})`, items: priceChangeLines(ex) })),
+    risks: rows.map((r) => `${r.label}: ${r.risks.slice(1).join(" · ")}`),
+    detailSections: (() => {
+      // 모든 계약에 똑같이 나오는 줄(참고 동향·원가 구성비 없음·자료 기준일 등)은 답변에서 한 번만 — 팝업은 priceChangeLines 전체를 그대로 쓴다
+      const { common, unique } = splitCommonLines(explains.map(({ ex }) => priceChangeLines(ex)));
+      return [
+        ...explains.map(({ c }, i) => ({ id: `pc-${c.contractId}`, title: `단가 변동 상세 · ${c.itemName} · ${c.supplierName} (${c.contractId})`, items: unique[i] })),
+        ...(common.length ? [{ id: "pcommon", title: `단가 변동 공통 사항 (${explains.length}건 공통)`, items: common }] : []),
+      ];
+    })(),
     reviewPoints: [
-      rows.length ? (explains.every((x) => x.ex.confirmedReasons.length) ? "문서에 적힌 인상 사유와 협력업체 견적 근거가 일치하는지 확인하세요." : `${NO_REASON}한 계약은 협력업체 견적 근거(원자재 시세·환율·사양 변경)를 확인하세요. 원자재·인건비 동향은 참고 지표이며 원인으로 단정할 수 없습니다.`) : "",
+      rows.length ? (explains.every((x) => x.ex.confirmedReasons.length) ? "문서에 적힌 인상 사유와 협력업체 견적 근거가 일치하는지 확인하세요." : `사유가 확인되지 않은 계약은 협력업체 견적 근거(원자재 시세·환율·사양 변경)를 확인하세요. 원자재·인건비 동향은 참고 지표이며 원인으로 단정할 수 없습니다.`) : "",
       ...rows.filter((r) => r.risks.some((x) => x.includes("계약 종료"))).map((r) => `${r.label}: 계약 종료가 가까워 재계약 협상 일정에 반영하세요.`),
     ].filter(Boolean),
     basis: ["변동률 = (최근 계약 단가 ÷ 직전 계약 단가 − 1) × 100", "단가 추이 차트는 발주 단가의 분기 평균을 첫 분기=100으로 환산한 지수", `기준 ${threshold}%는 ${params.threshold ? "질문에서 지정" : `${EVAL_CONFIG.name}의 예시값`}`],
@@ -642,10 +649,10 @@ function gradeQuality(ctx: Ctx, params: AnalysisParams): AnalysisResult {
       { label: "기준일", value: ctx.meta.asOf },
     ],
     columns: [
-      { key: "quality", label: "품질 점수", kind: "number", higherIsBetter: true, primary: true },
+      { key: "quality", label: "품질 점수", kind: "number", higherIsBetter: true, primary: true, suffix: "점" },
       { key: "defectRate", label: "불량률(%)", kind: "number", digits: 1, higherIsBetter: false, primary: true },
       { key: "onTimeRate", label: "납기 준수율", kind: "percent", higherIsBetter: true, primary: true },
-      { key: "total", label: "종합 점수", kind: "number", higherIsBetter: true, primary: true },
+      { key: "total", label: "종합 점수", kind: "number", higherIsBetter: true, primary: true, suffix: "점" },
       { key: "auditGrade", label: "심사 등급", kind: "grade" },
       { key: "items", label: "공급 품목 수", kind: "int" },
     ],
@@ -691,7 +698,6 @@ function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
   const rows: ResultRow[] = ev.criteria.map((c) => ({
     id: c.key,
     label: c.label,
-    sub: `가중치 ${c.weight}`,
     supplierId: sid,
     values: { weight: c.weight, score: c.score, weighted: c.score === null ? null : round((c.weight * c.score) / ev.usedWeight, 1), status: c.status === "ok" ? "확인" : c.status === "missing" ? "누락" : "표본 적음", source: c.source },
     strengths: c.score !== null && c.score >= 90 ? [`${c.label} ${fmtNum(c.score)}점 — 상위 수준`] : [],
@@ -711,9 +717,9 @@ function supplierProfile(ctx: Ctx, params: AnalysisParams): AnalysisResult {
       { label: "기간", value: `${d.windowFrom} ~ ${ctx.meta.asOf}` },
     ],
     columns: [
-      { key: "score", label: "점수", kind: "number", higherIsBetter: true, primary: true },
+      { key: "score", label: "점수", kind: "number", higherIsBetter: true, primary: true, suffix: "점" },
       { key: "weight", label: "가중치", kind: "int", primary: true },
-      { key: "weighted", label: "반영 점수", kind: "number", primary: true },
+      { key: "weighted", label: "반영 점수", kind: "number", primary: true, suffix: "점" },
       { key: "status", label: "상태", kind: "status", primary: true },
       { key: "source", label: "데이터 출처", kind: "text" },
     ],
@@ -788,8 +794,8 @@ function supplierCompare(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     ],
     columns: [
       { key: "grade", label: "등급", kind: "grade", primary: true },
-      { key: "total", label: "종합", kind: "number", higherIsBetter: true, primary: true },
-      ...crit.map((c) => ({ key: c.key, label: c.label, kind: "number" as const, higherIsBetter: true, primary: c.key === "quality" || c.key === "delivery" })),
+      { key: "total", label: "종합", kind: "number", higherIsBetter: true, primary: true, suffix: "점" },
+      ...crit.map((c) => ({ key: c.key, label: c.label, kind: "number" as const, higherIsBetter: true, primary: c.key === "quality" || c.key === "delivery", suffix: "점" })),
       { key: "common", label: "공통 품목", kind: "text" },
     ],
     rows,
@@ -868,7 +874,7 @@ function stockRisk(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     cardMetrics: ["stock", "safety", "shortage", "open"],
     highlights: rows.length ? [{ label: "위험 품목", value: `${rows.length}개` }, { label: "가장 시급", value: `${rows[0].label} · ${rows[0].values.status}`, rowId: rows[0].id }] : [],
     summary: rows.length ? [`적정재고 미달 또는 공급 지연 품목은 ${rows.length}개입니다.`, `가장 시급한 품목은 ${rows[0].label}(${rows[0].values.status})입니다.`] : [],
-    risks: rows.flatMap((r) => r.risks.slice(0, 1).map((x) => `${r.label}: ${x}`)),
+    risks: rows.flatMap((r) => r.risks.filter((x) => !x.startsWith("적정재고보다")).slice(0, 1).map((x) => `${r.label}: ${x}`)),
     reviewPoints: rows.length ? ["부족 품목의 생산 투입 일정을 생산관리와 확인하세요.", "납기 경과 미입고 발주는 공급업체에 입고 일정을 요청하세요."] : [],
     basis: ["부족 수량 = 적정재고 − 현재 재고", "발주 잔량 = 진행 중·납기 지연 발주 수량 합계", "예상 입고일 = 미입고 발주 중 가장 빠른 납기 예정일"],
     sources: [

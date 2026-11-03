@@ -7,6 +7,10 @@ export interface AnswerSection {
   id: string;
   title: string;
   items: string[];
+  /** 접이식 구획(기본 접힘) — 단가 변동 상세·평가 근거·검토할 사항 */
+  fold?: boolean;
+  /** fold 구획 중 처음부터 펼쳐 둘 것(첫 단가 변동 상세) */
+  open?: boolean;
 }
 
 export const MAX_ROW_LINES = 10;
@@ -33,25 +37,72 @@ export function cellText(kind: ColumnKind, v: unknown, currency = "KRW", digits?
 
 const unitOf = (c: ResultColumn) => (c.unit && !c.label.includes(c.unit) && c.kind !== "percent" && c.kind !== "signedPercent" && c.kind !== "money" ? ` ${c.unit}` : "");
 
+/** 한 열의 ‘이름 값’ 문구. 라벨 끝 ‘(%)’는 값 뒤 %로 옮기고, 점수 열에는 ‘점’을 붙인다 */
+function colText(c: ResultColumn, r: AnalysisResult["rows"][number]): { text: string; has: boolean } {
+  const raw = r.values[c.key];
+  const pctLabel = c.label.endsWith("(%)");
+  const label = pctLabel ? c.label.slice(0, -3) : c.label;
+  const v = cellText(c.kind, raw, r.currency, c.digits);
+  const has = !(raw === null || raw === undefined || raw === "");
+  return { text: `${label} ${v}${has ? (pctLabel ? "%" : c.suffix ?? unitOf(c)) : ""}`, has };
+}
+
+const FOLD = (id: string) => id === "basis" || id === "review" || id === "pcommon" || id.startsWith("pc-");
+
 export function answerSections(result: AnalysisResult): AnswerSection[] {
   const primary = result.columns.filter((c) => c.primary);
   const cols = primary.length ? primary : result.columns.slice(0, 5);
+  const core = result.columns.find((c) => c.core);
+  // 행 = ‘이름 — 핵심값 하나’ + 줄바꿈 뒤 보조값들(한 줄에 값이 줄줄이 붙지 않게)
   const rowLine = (r: AnalysisResult["rows"][number]) => {
     const head = r.rank ? `${r.rank}) ` : "";
-    const vals = cols.map((c) => `${c.label} ${cellText(c.kind, r.values[c.key], r.currency, c.digits)}${unitOf(c)}`).join(" · ");
-    return `${head}${r.label}${r.sub ? ` (${r.sub})` : ""} — ${vals}${r.excludedReason ? ` [순위 제외: 조건 상이 — ${r.excludedReason}]` : ""}`;
+    const ordered = core ? [core, ...cols.filter((c) => c.key !== core.key)] : cols;
+    const parts = ordered.map((c) => colText(c, r));
+    const lead = parts.find((p) => p.has) ?? parts[0];
+    const rest = parts.filter((p, i) => p !== lead && (p.has || ordered[i] !== core)).map((p) => p.text);
+    const note = r.excludedReason ? `[순위 제외: 조건 상이 — ${r.excludedReason}]` : "";
+    const second = [rest.join(" · "), note].filter(Boolean).join(" ");
+    return `${head}${r.label}${r.sub ? ` (${r.sub})` : ""} — ${lead ? lead.text : ""}${second ? `\n${second}` : ""}`;
   };
   const rows = result.rows.slice(0, MAX_ROW_LINES).map(rowLine);
   if (result.rows.length > MAX_ROW_LINES) rows.push(`그 밖 ${result.rows.length - MAX_ROW_LINES}건은 아래 ‘내보내기’(엑셀·CSV)에서 확인할 수 있습니다.`);
   const all: AnswerSection[] = [
     { id: "highlights", title: "핵심 지표", items: result.highlights.map((h) => `${h.label}: ${h.value}`) },
-    { id: "rows", title: `${result.rankLabel ? `비교 결과 (${result.rankLabel} 순)` : "비교 결과"}`, items: rows },
+    { id: "rows", title: result.rankLabel ? `비교 결과 (${result.rankLabel})` : "비교 결과", items: rows },
     ...(result.detailSections ?? []),
     { id: "risks", title: "추가 검토가 필요한 위험 요소", items: result.risks.slice(0, 8) },
     { id: "review", title: "검토할 사항", items: result.reviewPoints },
     { id: "basis", title: "비교에 사용된 데이터와 평가 근거", items: [...result.basis, ...result.notes.map((n) => `참고: ${n}`)] },
   ];
-  return all.filter((s) => s.items.length);
+  const out = all.filter((s) => s.items.length).map((s) => (FOLD(s.id) ? { ...s, fold: true } : s));
+  const firstPc = out.find((s) => s.id.startsWith("pc-"));
+  if (firstPc) firstPc.open = true;
+  return out;
+}
+
+const UNITS = "개월|%p|%|원|점|건|곳|일|개|명|EA";
+// 날짜·업체ID·품목코드·계약번호는 먼저 통째로 잡아 굵게 하지 않고, 그다음 ‘숫자+단위’만 굵게 한다
+const EMPH = new RegExp(
+  String.raw`(\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{4}년(?:\s?\d{1,2}월)?(?:\s?\d{1,2}일)?|\d{1,2}월(?:\s?\d{1,2}일)?|[A-Z]{2,}(?:-[A-Za-z0-9]+)+)|((?:USD\s?)?[+\-−]?\d[\d,]*(?:\.\d+)?(?:UNITS)|USD\s?\d[\d,]*(?:\.\d+)?)`.replace("UNITS", UNITS),
+  "g",
+);
+
+/** 한 줄 글에서 ‘숫자+단위’ 토큰을 굵게 할 조각으로 나눈다(글자는 그대로, 한 줄에 최대 max개) */
+export function emphasize(line: string, max = 3): { text: string; strong: boolean }[] {
+  const out: { text: string; strong: boolean }[] = [];
+  let last = 0;
+  let n = 0;
+  for (const m of line.matchAll(EMPH)) {
+    if (m[2] === undefined) continue; // 날짜·ID: 굵게 하지 않음
+    if (n >= max) break;
+    const i = m.index as number;
+    if (i > last) out.push({ text: line.slice(last, i), strong: false });
+    out.push({ text: m[2], strong: true });
+    last = i + m[2].length;
+    n++;
+  }
+  if (last < line.length) out.push({ text: line.slice(last), strong: false });
+  return out;
 }
 
 export const DOC_SAMPLE_NOTE = "※ SAMPLE 문서입니다(가상 데이터, 실제 자료 아님)";

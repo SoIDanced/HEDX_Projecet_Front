@@ -806,12 +806,11 @@ th.sticky-col { background: var(--soft); }
 .eval-card:has(.eval-body.is-pending) .eval-picker select { border-color: var(--accent-text-dk); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eval-card:has(.eval-body.is-pending) .eval-picker label { color: var(--accent-text-dk); font-weight: 600; }
 .eval-picker label { transition: color 0.4s var(--ease); }
-/* 선택 전 안내 줄: 선택하면 부드럽게 접힌다(카드가 툭 줄지 않게) */
+/* 선택 전 안내 줄(v0.9.2): 선택 전·후 같은 자리·같은 높이(두 문구를 한 칸에 겹쳐 높이 = 더 긴 쪽)에서 글만 교차 페이드 — 높이가 변하지 않아 카드 아래가 밀리지 않는다 */
 .eval-pickwrap { display: flex; flex-direction: column; }
-.eval-hint { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows calc(1600ms * var(--k-tween)) var(--ease-q), opacity calc(900ms * var(--k-tween)) var(--ease-q); }
-.eval-hint-in { min-height: 0; overflow: hidden; }
-.eval-hint .eval-empty { margin: 0; padding-top: 10px; font-size: var(--fs-14); }
-.eval-hint.is-gone { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+.eval-hint { display: grid; }
+.eval-hint :is(.eval-empty, .eval-picked) { grid-area: 1 / 1; margin: 0; padding-top: 10px; font-size: var(--fs-14); opacity: 1; transition: opacity calc(700ms * var(--k-tween)) var(--ease-q); }
+.eval-hint :is(.eval-empty, .eval-picked).is-off { opacity: 0; pointer-events: none; }
 /* 1366 폭에서 원가-계약 6열이 가로 스크롤 없이 들어가도록 칸 좌우 여백을 6px 로 (글자는 +1 단계 키움) */
 .data-table th, .data-table td { padding-left: 6px; padding-right: 6px; }
 .data-table th.no-col, .data-table td.no-col { padding-left: 6px; padding-right: 6px; width: 40px; min-width: 40px; max-width: 40px; }
@@ -819,3 +818,26 @@ th.sticky-col { background: var(--soft); }
 .th-sort { gap: 3px; }
 .terms-btn { padding: 0 6px; font-size: var(--fs-13); gap: 3px; }
 [data-theme="dark"] .chg-up { color: #f79b9a; } /* 관심 고정 행(노란 바탕) 위에서도 4.5:1 이상 */
+
+/* ── v0.9.2 선택 정보 상자: 윤곽선 3:1 이상(--edge), 머리 줄([선택 해제]·[접기])은 상자 안에서 스크롤해도 맨 위에 붙어 있다 ── */
+.chat-detail { border-color: var(--edge); }
+.chat-detail:has(.row-summary), .chat-detail:has(.row-detail) { padding: 0; }
+.chat-detail :is(.row-detail, .row-summary) { margin: 10px; }
+.chat-detail .row-detail-head { position: sticky; top: 0; z-index: 3; background: var(--card); }
+.chat-detail .ctx-chips { margin: 0 10px 10px; }
+
+/* ── v0.9.2 표 정돈(협력업체·구매조달·원가-계약·자재-공급관리 공통) ──
+   숫자 열은 머리글·값 모두 오른쪽(표 숫자 자릿수 맞춤), 글자 열은 왼쪽, 모든 칸은 가운데 세로 정렬, 행 높이는 한 줄·두 줄 칸이 섞여도 같은 최소 높이 */
+.data-table th, .data-table td { vertical-align: middle; }
+.data-table tbody tr { height: 56px; }
+.data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table th.num .th-sub { display: block; text-align: right; }
+.data-table td .clip { vertical-align: middle; max-width: 15em; }
+.data-table td .name-cell { vertical-align: middle; }
+.data-table td.no-col { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.data-table th.no-col { text-align: right; }
+.data-table .safe-cell { min-width: 9.5em; }
+.data-table .stock-note { max-width: 14em; color: var(--muted); }
+.data-table .due-cell { min-width: 8.5em; }
+.eval-picker { min-height: 44px; } /* 선택하면 즐겨찾기 별이 생겨도 줄 높이가 변하지 않게 */
+@media (max-width: 640px) { .eval-head-side { min-height: 68px; align-content: flex-start; } } /* 선택하면 ‘근거’ 버튼·처리 단계 아이콘이 생겨도 머리 높이가 변하지 않게 */
