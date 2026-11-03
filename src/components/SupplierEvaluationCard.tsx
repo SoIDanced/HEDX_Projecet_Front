@@ -10,7 +10,7 @@ import { fmtNum } from "../lib/format";
 import { FavStar } from "./FavStar";
 import { CountUp, Words } from "./ui";
 
-/** 도넛: 선택 전(pending)에도 같은 요소로 그려 두고(빈 고리 + 위쪽 주황 점), 선택하면 같은 호가 0 → 값으로 이어서 차오른다 */
+/** 도넛: 선택 전(pending)에도 같은 요소로 그려 두고(빈 트랙), 선택하면 같은 호가 0 → 값으로 이어서 차오른다 */
 function Donut({ value, grade, pending }: { value: number | null; grade: string | null; pending?: boolean }) {
   const r = 44;
   const c = 2 * Math.PI * r;
@@ -22,12 +22,12 @@ function Donut({ value, grade, pending }: { value: number | null; grade: string 
     <svg className={`donut${pending ? " is-pending" : ""}`} viewBox="0 0 108 108" role="img" aria-label={pending ? "평가 대상 선택 대기" : grade ? `${grade}등급, 종합 ${fmtNum(value)}점` : "평가 불가"}>
       <defs>
         <linearGradient id="donut-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--accent-3)" />
-          <stop offset="1" stopColor="var(--accent)" />
+          <stop offset="0" stopColor="var(--accent)" />
+          <stop offset="1" stopColor="var(--accent-deep)" />
         </linearGradient>
       </defs>
       <circle cx="54" cy="54" r={r} className="donut-track" />
-      <circle cx="54" cy="54" r={r} className="donut-arc" style={{ strokeDasharray: pending ? `0.01 ${c}` : `${c * p} ${c}` }} transform="rotate(-90 54 54)" />
+      <circle cx="54" cy="54" r={r} className="donut-arc" style={{ strokeDasharray: pending ? `0 ${c}` : `${c * p} ${c}`, opacity: pending ? 0 : 1 }} transform="rotate(-90 54 54)" />
       <text key={pending ? "wait" : "grade"} x="54" y="52" className={`donut-grade${pending ? " is-wait" : everPending.current ? " donut-grade-in" : ""}`} textAnchor="middle">
         {pending ? "–" : grade ?? "–"}
       </text>
@@ -56,6 +56,22 @@ const STEP_ICON = {
   todo: <LuCircleDashed aria-hidden />,
 };
 const STEP_WORD = { done: "완료", warn: "확인 필요", todo: "대기" } as const;
+
+/** 선택 전에도 처리 단계 줄과 같은 크기의 보이지 않는 자리를 둔다 — 선택해도 카드 머리 높이가 변하지 않는다 */
+function StepsGhost() {
+  return (
+    <div className="eval-steps-mini is-ghost" aria-hidden>
+      <span className="steps-mini-title">처리 단계</span>
+      <ol className="steps-mini-list">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <li key={i} className="step-mini step-todo">
+            <LuCircleDashed aria-hidden />
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 /** 처리 단계 아이콘 줄: 마우스를 올리거나 초점을 주면 모든 단계의 이름·상태·상세를 바로 보여 준다 (카드 밖으로 잘리지 않게 body에 고정 배치) */
 function StepsMini({ steps }: { steps: SupplierEvaluation["steps"] }) {
@@ -378,10 +394,8 @@ export function SupplierEvaluationCard() {
               </button>
             )}
           </div>
-          {ev && (
-            // 처리 단계: 카드 아래 큰 영역 대신 오른쪽 위 구석에 작은 아이콘 줄로 (마우스를 올리면 단계 이름·상태)
-            <StepsMini steps={ev.steps} />
-          )}
+          {/* 처리 단계: 카드 아래 큰 영역 대신 오른쪽 위 구석에 작은 아이콘 줄로 (마우스를 올리면 단계 이름·상태). 선택 전엔 보이지 않는 같은 크기 자리 */}
+          {ev ? <StepsMini steps={ev.steps} /> : <StepsGhost />}
         </div>
       </div>
 
@@ -415,7 +429,7 @@ export function SupplierEvaluationCard() {
               <li key={def.key}>
                 <span className="eval-bar-label">{def.label}</span>
                 <span className="eval-bar-track" aria-hidden>
-                  <span className={`eval-bar-fill ${!pending && score === null ? "is-missing" : ""}`} style={{ width: pending ? "10px" : `${score ?? 0}%` }} />
+                  <span className={`eval-bar-fill ${!pending && score === null ? "is-missing" : ""}`} style={{ width: pending ? "0%" : `${score ?? 0}%` }} />
                 </span>
                 <span className="eval-bar-val">{pending || score !== null ? <CountUp value={score ?? 0} format={(n) => (pending ? "–" : fmtNum(n, 0))} delay={500} /> : "누락"}</span>
               </li>

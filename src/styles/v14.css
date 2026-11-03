@@ -793,7 +793,8 @@ th.sticky-col { background: var(--soft); }
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 26%, transparent) 0%, color-mix(in srgb, var(--accent) 17%, transparent) 28%, color-mix(in srgb, var(--accent) 9%, transparent) 52%, color-mix(in srgb, var(--accent) 3%, transparent) 76%, transparent 100%);
 }
 .donut-arc { stroke: url(#donut-grad); }
-.eval-bar-fill { background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+/* v0.9.3: 채움은 진한 주황 → 더 진한 주황(밝은 --accent-2/3 는 쓰지 않음). 끝 색도 트랙(--char-3)과 3:1 이상 */
+.eval-bar-fill { background: linear-gradient(90deg, var(--accent), var(--accent-deep)); }
 .eval-bar-fill.is-missing { background: transparent; }
 .donut-grade-in { transform-box: fill-box; transform-origin: 50% 50%; animation: gradeIn calc(500ms * var(--k)) var(--ease) both; }
 .donut-grade.is-wait, .donut-sub.is-wait { fill: var(--char-muted); }
@@ -826,18 +827,32 @@ th.sticky-col { background: var(--soft); }
 .chat-detail .row-detail-head { position: sticky; top: 0; z-index: 3; background: var(--card); }
 .chat-detail .ctx-chips { margin: 0 10px 10px; }
 
-/* ── v0.9.2 표 정돈(협력업체·구매조달·원가-계약·자재-공급관리 공통) ──
-   숫자 열은 머리글·값 모두 오른쪽(표 숫자 자릿수 맞춤), 글자 열은 왼쪽, 모든 칸은 가운데 세로 정렬, 행 높이는 한 줄·두 줄 칸이 섞여도 같은 최소 높이 */
-.data-table th, .data-table td { vertical-align: middle; }
+/* ── v0.9.3 표 정돈(협력업체·구매조달·원가-계약·자재-공급관리 공통) ──
+   v0.9.2 의 숫자 열 우측 정렬을 되돌려 머리글·값·순번 모두 왼쪽 정렬. 숫자는 tabular-nums 로 자릿수를 맞춘다(비교 보완).
+   모든 칸은 가운데 세로 정렬, 행은 한 줄·두 줄 칸이 섞여도 같은 최소 높이 + 위아래 여백 */
+.data-table th, .data-table td { vertical-align: middle; text-align: left; }
+.data-table td { padding-top: 10px; padding-bottom: 10px; }
 .data-table tbody tr { height: 56px; }
-.data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.data-table th.num .th-sub { display: block; text-align: right; }
+.data-table th.num, .data-table td.num, .data-table td, .data-table th { font-variant-numeric: tabular-nums; }
+.data-table th.num .th-sub { display: block; text-align: left; }
 .data-table td .clip { vertical-align: middle; max-width: 15em; }
 .data-table td .name-cell { vertical-align: middle; }
-.data-table td.no-col { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
-.data-table th.no-col { text-align: right; }
+.data-table td.no-col, .data-table th.no-col { color: var(--muted); text-align: left; }
+.data-table .safe-cell { align-items: flex-start; }
+.data-table .stock-note, .data-table .stock-top, .data-table .stock-btns { text-align: left; justify-content: flex-start; }
 .data-table .safe-cell { min-width: 9.5em; }
 .data-table .stock-note { max-width: 14em; color: var(--muted); }
 .data-table .due-cell { min-width: 8.5em; }
 .eval-picker { min-height: 44px; } /* 선택하면 즐겨찾기 별이 생겨도 줄 높이가 변하지 않게 */
 @media (max-width: 640px) { .eval-head-side { min-height: 68px; align-content: flex-start; } } /* 선택하면 ‘근거’ 버튼·처리 단계 아이콘이 생겨도 머리 높이가 변하지 않게 */
+
+/* ── v0.9.3 평가 카드: 선택 전·후 같은 크기 ── 선택 전엔 보이지 않는 ‘근거’ 버튼·처리 단계 자리를 같은 높이로 확보, 선택 전 도넛·막대는 빈 트랙(채움 0) */
+.eval-head-tools { min-height: 32px; }
+.eval-steps-mini.is-ghost { visibility: hidden; }
+.donut-arc { transition: stroke-dasharray calc(1600ms * var(--k-tween)) var(--ease-q), opacity calc(200ms * var(--k-tween)) linear; }
+
+/* ── v0.9.3 답변 맨 위 ‘근거’ 블록: 작지만 눈에 띄게(13px 이상, 글자 대비 4.5:1↑). 접힘 구획·내보내기와 무관한 일반 블록 ── */
+.msg-sources.ans-basis { border: 1px solid var(--accent-line); border-top: 1px solid var(--accent-line); background: var(--accent-wash); border-radius: var(--r-sm); padding: 8px 10px; gap: 8px; align-items: flex-start; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.5; }
+.msg-sources.ans-basis svg { color: var(--accent-ink); margin-top: 3px; }
+.msg-sources.ans-basis > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.msg-sources.ans-basis b { color: var(--accent-ink); font-weight: 700; }

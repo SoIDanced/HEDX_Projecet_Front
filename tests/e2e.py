@@ -1859,7 +1859,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     ask(ps, "2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘")
     ta = last_ai(ps).inner_text()
     check("문서 검색 답변: '해당 민원 문서 원본 ID는'·'DOC-'·'다음은 문서 내용입니다:'·SAMPLE 안내·유사도 줄", "해당 민원 문서 원본 ID는 (DOC-2026-0918-001)입니다" in ta and "다음은 문서 내용입니다:" in ta and "※ SAMPLE 문서입니다(가상 데이터, 실제 자료 아님)" in ta and "(의미 검색 결과: 유사도 " in ta, ta[:160])
-    check("문서 검색 답변: 글만(표·차트·내보내기 버튼 없음), '자동 확정' 안내문 없음", last_ai(ps).locator("table, svg, [data-export]").count() == 0 and "자동 확정" not in ta)
+    check("문서 검색 답변: 글만(표·차트·내보내기 버튼 없음), '자동 확정' 안내문 없음", last_ai(ps).locator("table, svg:not(.msg-sources svg), [data-export]").count() == 0 and "자동 확정" not in ta)
     ps.screenshot(path=f"{SHOTS}/v060_doc_answer_1366.png")
     ask(ps, "2026년 3월 2일 터보차저 보증서 찾아줘")
     tb_ = last_ai(ps).inner_text()
@@ -2165,7 +2165,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     settled(mp)
     mp.fill("#filter-q-purchaseOrders", "PO-E2E-2")
     mp.wait_for_timeout(300)
-    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.click()
+    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.locator("td.no-col").click()  # v0.9.3: 행 가운데는 열 정렬 변경으로 납기 팝업 칸에 걸릴 수 있어 순번 칸을 누른다
     mp.wait_for_timeout(500)
     check("G: 수기 발주를 고르면 상세에 '입고 처리'·'수기 입력 수정' 버튼(샘플 발주에는 없음)", mp.locator("[data-po-receive]").inner_text().strip() == "입고 처리" and mp.locator("[data-po-edit]").count() == 1)
     mp.click("[data-po-receive]")
@@ -2178,7 +2178,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     mp.wait_for_timeout(700)
     row_t = mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.inner_text()
     check("G: 입고 저장 → 창 닫힘 · 표에 입고일·입고 수량 반영 · '수기' 필 · 수정 토스트", mp.locator(".manual-modal").count() == 0 and "2026-10-12" in row_t and "7" in row_t and "수기" in row_t and "수정했습니다" in mp.locator(".toast-region").inner_text(), row_t.replace("\n", " | "))
-    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.click()
+    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.locator("td.no-col").click()  # v0.9.3: 행 가운데는 열 정렬 변경으로 납기 팝업 칸에 걸릴 수 있어 순번 칸을 누른다
     mp.wait_for_timeout(400)
     check("G: 상세에 입고 수량·입고 완료, 버튼은 '입고 내용 수정'", "입고 내용 수정" in mp.locator("[data-po-receive]").inner_text() and "입고 수량" in mp.locator(".chat-detail").inner_text())
     mopen(mp)
@@ -2190,7 +2190,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     mp.fill("#mf-note", "E2E 수정 메모")
     mp.click("[data-manual-save]")
     mp.wait_for_timeout(600)
-    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.click()
+    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.locator("td.no-col").click()  # v0.9.3: 행 가운데는 열 정렬 변경으로 납기 팝업 칸에 걸릴 수 있어 순번 칸을 누른다
     mp.wait_for_timeout(400)
     check("G: 수정 저장 → 건수 그대로(3건), 비고 반영", re.search(r"수기 입력\s*3건", mp.locator(".data-status").text_content()) and "E2E 수정 메모" in mp.locator(".chat-detail").inner_text())
     mp.reload(wait_until="domcontentloaded")
@@ -2201,7 +2201,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
     mp.fill("#filter-q-purchaseOrders", "PO-E2E-2")
     mp.wait_for_timeout(300)
     check("G: 새로고침 후에도 수정·입고 내용 유지(브라우저 저장)", "2026-10-12" in mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.inner_text())
-    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.click()
+    mp.locator(".data-table tbody tr", has_text="PO-E2E-2").first.locator("td.no-col").click()  # v0.9.3: 행 가운데는 열 정렬 변경으로 납기 팝업 칸에 걸릴 수 있어 순번 칸을 누른다
     mp.wait_for_timeout(300)
     mp.fill("#filter-q-purchaseOrders", "")
     # 주의: 아래 '샘플로 되돌리기' 흐름은 수기 입력 건수를 문구로 확인하므로 건수는 그대로 3건이다
@@ -3156,6 +3156,111 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
             check("데이터 관리 문서등록: 형식 오류는 챗봇과 같은 문구", "지원하지 않는 형식" in pg.locator(".toast").inner_text())
         cx.close()
     check("v0.9.1 시나리오 전체에서 콘솔·페이지 오류 0건", not v91errs, "; ".join(v91errs[:3]))
+
+    # ── v0.9.3: 평가 카드 선택 전·후 같은 크기 · 도넛 0→값 · 진한 그라데이션 / 표 전부 좌측 정렬 / 답변 맨 위 근거 ──
+    v93errs = []
+    def login93(pg):  # 선택 없는 첫 상태가 필요해 demo_login(자동으로 업체 A 선택) 대신 직접 로그인
+        pg.goto(URL, wait_until="domcontentloaded")
+        pg.wait_for_selector("#login-demo")
+        pg.click("#login-demo")
+        pg.locator(".eval-card").wait_for()
+        if pg.locator("#ob-skip").count():
+            pg.click("#ob-skip")
+        pg.wait_for_function("() => !document.querySelector('.is-entering')", timeout=4000)
+    CARD93 = """() => { const c = document.querySelector('.eval-card'); const cr = c.getBoundingClientRect(); const q = (s) => { const r = c.querySelector(s).getBoundingClientRect(); return [r.left - cr.left, r.top - cr.top, r.width, r.height].map((v) => Math.round(v * 2) / 2); }; return {card: [cr.width, cr.height].map((v) => Math.round(v * 2) / 2), head: q('.eval-head'), pick: q('.eval-pickwrap'), body: q('.eval-body'), donut: q('.donut'), bars: q('.eval-bars')}; }"""
+    MOTION_OFF = "try{localStorage.setItem('procure-ai:motion','\"off\"')}catch(e){}"
+    for theme in ("light", "dark"):
+        for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+            cx = browser.new_context(viewport={"width": vw, "height": vh})
+            cx.add_init_script(MOTION_OFF)
+            pg = cx.new_page()
+            pg.on("pageerror", lambda e: v93errs.append(str(e)))
+            pg.on("console", lambda m: m.type == "error" and v93errs.append(m.text))
+            login93(pg)
+            if theme == "dark":
+                pg.locator(".theme-seg [aria-label='어둡게']").click()
+            settled(pg)
+            pre = pg.evaluate(CARD93)
+            arc0 = pg.evaluate("() => { const a = document.querySelector('.donut-arc'); return [getComputedStyle(a).strokeDasharray, getComputedStyle(a).opacity, document.querySelector('.eval-bar-fill').getBoundingClientRect().width]; }")
+            pg.select_option("#eval-supplier", index=1)
+            pg.wait_for_timeout(2200)
+            post = pg.evaluate(CARD93)
+            check(f"평가 카드 선택 전·후 크기·내부 위치 동일({theme} {vw}): 카드·머리·선택 줄·도넛 영역·막대 영역", pre == post, f"{pre} → {post}")
+            check(f"선택 전 도넛은 빈 트랙(호 길이 0·숨김), 막대 채움 너비 0({theme} {vw})", arc0[0].startswith("0px") and arc0[1] == "0" and arc0[2] == 0, str(arc0))
+            if theme == "light" and vw == 1366:
+                st = pg.evaluate("() => [...document.querySelectorAll('#donut-grad stop')].map((s) => getComputedStyle(s).stopColor)")
+                bg = pg.evaluate("() => getComputedStyle(document.querySelector('.eval-bar-fill')).backgroundImage")
+                check("도넛·막대 채움 그라데이션은 진한 주황 → 더 진한 주황(밝은 --accent-2/3 없음)", st == ["rgb(243, 115, 33)", "rgb(217, 95, 18)"] and "243, 115, 33" in bg and "217, 95, 18" in bg and "248, 155, 108" not in bg, f"{st} {bg[:90]}")
+            cx.close()
+    # 선택하면 0 → 값으로 차오름: 호 길이와 숫자가 같이 증가하고 끝에서 일치, 움직임 끔이면 즉시
+    cx = browser.new_context(viewport={"width": 1366, "height": 768})
+    pg = cx.new_page()
+    login93(pg)
+    pg.wait_for_timeout(1500)
+    ARC = "() => [parseFloat(getComputedStyle(document.querySelector('.donut-arc')).strokeDasharray), parseFloat(document.querySelector('.donut-sub').textContent.replace(/[^0-9.]/g, '') || 0)]"
+    pg.select_option("#eval-supplier", index=1)
+    mid = None
+    for _ in range(10):
+        pg.wait_for_timeout(80)
+        v = pg.evaluate(ARC)
+        if 0 < v[0] < 240:
+            mid = v
+            break
+    pg.wait_for_timeout(1800)
+    end = pg.evaluate(ARC)
+    check("선택하면 도넛 호가 0에서 차오르는 중간 상태가 있고, 끝 값은 숫자(종합 점수)와 일치", mid is not None and end[0] > 200 and abs(end[0] / 276.46 * 100 - end[1]) < 1, f"mid {mid} end {end}")
+    cx.close()
+    cx = browser.new_context(viewport={"width": 1366, "height": 768})
+    cx.add_init_script(MOTION_OFF)
+    pg = cx.new_page()
+    login93(pg)
+    settled(pg)
+    pg.select_option("#eval-supplier", index=1)
+    pg.wait_for_timeout(60)
+    check("움직임 끔: 선택 즉시 최종 값(차오름 없음)", pg.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.donut-arc')).strokeDasharray)") > 200)
+    cx.close()
+
+    # 표 4개 탭: 머리글·값·순번 모두 좌측 정렬, 셀 안 넘침 없음, 3폭 × 2테마
+    TBL93 = """() => { const t = document.querySelector('.data-table'); const al = new Set(); let ov = 0; for (const c of t.querySelectorAll('th,td')) { al.add(getComputedStyle(c).textAlign); if (c.scrollWidth > c.clientWidth + 1) ov++; } return {al: [...al], ov, hs: document.documentElement.scrollWidth > innerWidth, tn: getComputedStyle(t.querySelector('td')).fontVariantNumeric.includes('tabular-nums'), rh: Math.round(t.querySelector('tbody tr').getBoundingClientRect().height)}; }"""
+    for theme in ("light", "dark"):
+        for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+            cx = browser.new_context(viewport={"width": vw, "height": vh})
+            pg = cx.new_page()
+            pg.on("pageerror", lambda e: v93errs.append(str(e)))
+            demo_login(pg)
+            if theme == "dark":
+                pg.locator(".theme-seg [aria-label='어둡게']").click()
+            settled(pg)
+            for tab in ("suppliers", "purchaseOrders", "contracts", "inventory"):
+                pg.click(f"#tab-{tab}")
+                settled(pg)
+                r = pg.evaluate(TBL93)
+                check(f"표 좌측 정렬({tab} {theme} {vw}): 머리글·값·순번 모두 left, 칸 넘침 0, 가로 쪽 스크롤 없음, tabular-nums, 행 높이 50~120", r["al"] == ["left"] and r["ov"] == 0 and not r["hs"] and r["tn"] and 50 <= r["rh"] <= 120, json.dumps(r))
+            cx.close()
+
+    # 답변 맨 위 근거 블록: 대표 질문 4종 + 일반 질문
+    cx = browser.new_context(viewport={"width": 1366, "height": 768})
+    pg = cx.new_page()
+    pg.on("pageerror", lambda e: v93errs.append(str(e)))
+    demo_login(pg)
+    settled(pg)
+    BJS = """() => { const m = [...document.querySelectorAll('.msg-ai')].pop(); const b = m.querySelector('[data-basis]'); const lead = m.querySelector('.msg-body p:not(.msg-sources)'); const fs = [...b.querySelectorAll('*')].map((e) => parseFloat(getComputedStyle(e).fontSize)); return {docs: b.querySelector('[data-basis-docs]').innerText, data: b.querySelector('[data-basis-data]').innerText, first: m.querySelector('.msg-body').firstElementChild === b, above: b.getBoundingClientRect().bottom <= lead.getBoundingClientRect().top + 1, fs: Math.min(...fs), n: m.querySelectorAll('[data-basis]').length, exp: m.querySelectorAll('[data-export]').length, det: m.querySelectorAll('details.ans-sec').length}; }"""
+    for q, docs_has, data_has, want_exp in [
+        ("실린더 라이너 후보 업체를 비교해 줘.", "없음(등록 데이터만 사용)", "구매조달 발주", 2),
+        ("최근 단가가 상승한 품목을 보여줘.", "없음(등록 데이터만 사용)", "원가-계약", 2),
+        ("납기 준수율이 낮은 협력업체를 찾아줘.", "없음(등록 데이터만 사용)", "구매조달 발주", 2),
+        ("2026년 9월 18일자 실린더라이너 스크래치 민원 찾아줘", "DOC-2026-0918-001", "의미 검색", 0),
+        ("오늘 점심 메뉴 추천해줘", "없음(등록 데이터만 사용)", "없음", 0),
+    ]:
+        ask(pg, q)
+        if last_ai(pg).locator(".opt-chip").count():
+            last_ai(pg).locator(".opt-chip").first.click()
+            pg.wait_for_function("() => !document.querySelector('.progress')", timeout=8000)
+        pg.wait_for_timeout(400)
+        r = pg.evaluate(BJS)
+        check(f"답변 맨 위 근거 블록: {q[:16]}…", r["n"] == 1 and r["first"] and r["above"] and docs_has in r["docs"] and data_has in r["data"] and "2026-11-03" in r["data"] and r["fs"] >= 13 and r["exp"] == want_exp, json.dumps(r, ensure_ascii=False))
+    cx.close()
+    check("v0.9.3 시나리오 전체에서 콘솔·페이지 오류 0건", not v93errs, "; ".join(v93errs[:3]))
 
     cbrowser.close()
     tctx.close()
