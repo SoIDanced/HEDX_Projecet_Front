@@ -1,5 +1,5 @@
 // 분석 계층 ③: 질문 의도별 분석 — 모든 수치는 여기서 코드로 계산한다 (AI는 수치를 만들지 않는다)
-import type { DataMeta, DataSet, Grade } from "../data/types";
+import type { DataMeta, DataSet, DatasetKey, Grade } from "../data/types";
 import type { AnalysisParams, AnalysisResult, ChartSpec, IntentKind, PriorityMode, ResultColumn, ResultRow, SourceRef, TemplateId } from "./analysisTypes";
 import { EVAL_CONFIG, qualityScore } from "./evaluation";
 import { addMonths, fmtMoney, fmtNum, fmtPct, fmtSignedPct, josa, quarterOf, quarterSortKey, round } from "./format";
@@ -608,6 +608,13 @@ function priceIncrease(ctx: Ctx, params: AnalysisParams): AnalysisResult {
     templates: ["table", "chart", "cards", "report"],
     templateHints: { table: "과거·최근 단가와 변동률 비교", chart: "변동률과 분기별 단가 지수", cards: "계약별 위험 요소", report: "협상 검토 의견 포함" },
   });
+  // 상세 문단(단가 변동 상세)이 실제로 쓴 참고 지표·사유 문서 — 근거 표기용
+  const extra = new Set<DatasetKey>();
+  if (explains.some((x) => x.ex.materials.length)) extra.add("materialPrices");
+  if (explains.some((x) => x.ex.fx)) extra.add("fxRates");
+  if (explains.some((x) => x.ex.jobs.length)) extra.add("laborWages");
+  res.extraDatasets = [...extra];
+  res.docRefs = [...new Set(explains.flatMap((x) => x.ex.confirmedReasons.map((r) => `${r.title} (${r.docId})`)))];
   if (!rows.length) res.empty = `직전 계약 대비 단가가 ${threshold}% 이상 오른 계약이 없습니다.`;
   return res;
 }

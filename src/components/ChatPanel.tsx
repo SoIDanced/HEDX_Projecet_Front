@@ -5,7 +5,7 @@ import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuHistory, Lu
 import { STEPS } from "../ai/agent";
 import { resultName, SUGGESTED, useStore, WELCOME_SHORT, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
-import { answerSections, emphasize } from "../lib/answerText";
+import { analysisBasis, answerSections, basisLines, emphasize } from "../lib/answerText";
 import { buildXlsx, exportFileName, XLSX_MIME } from "../lib/xlsx";
 import { resultCsv, resultSheets } from "../lib/exporters";
 import { saveFile, saveMessage } from "../platform/runtime";
@@ -78,7 +78,8 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
   const result = m.resultId ? state.results[m.resultId] : undefined;
   const sections = useMemo(() => (result ? answerSections(result) : []), [result]);
   const stale = result && result.dataId !== meta.dataId && state.lastResultId === result.id; // 가장 최근 답변에만 안내
-  const sample = result?.dataLabel.includes("SAMPLE");
+  const basis = m.basis ?? (result ? analysisBasis(result) : undefined); // 지난 답변 다시 보기·옛 저장 대화는 분석 결과에서 다시 만든다
+  const bl = basis ? basisLines(basis) : null;
   const phone = useSyncExternalStore(subscribePhone, isPhone, () => false);
   const paras = m.id === "welcome" && phone ? WELCOME_SHORT : m.text;
   return (
@@ -87,6 +88,18 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
         <AiAvatar size={32} />
       </div>
       <div className={`msg-body ${m.error ? "is-error" : ""}`}>
+        {bl && (
+          // 답변 맨 위: 이 답변 계산에 실제로 쓴 문서·데이터 집합(분석 결과 sources 에서 코드가 만든 값)
+          <div className="msg-sources ans-basis" data-basis role="note" aria-label="이 답변의 근거">
+            <LuDatabase aria-hidden />
+            <div>
+              <b>근거</b>
+              <span data-basis-docs>{bl.docs}</span>
+              <span data-basis-data>{bl.data}</span>
+              {bl.scope && <span data-basis-scope>{bl.scope}</span>}
+            </div>
+          </div>
+        )}
         <EngineBadge engine={m.error ? "error" : m.engine} />
         {paras.map((t, i) => (
           <p key={i} className={result && i === 0 ? "ans-lead" : undefined}>
@@ -120,18 +133,6 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
                 </section>
               ),
             )}
-            <p className="msg-sources">
-              <LuDatabase aria-hidden />
-              <span>
-                사용 데이터:{" "}
-                {result.sources
-                  .filter((s) => s.ids.length)
-                  .map((s) => `${s.label} ${s.ids.length}건`)
-                  .join(" · ")}{" "}
-                · 기준일 {result.asOf} · {result.dataLabel}
-                {sample ? " · 실제 자료 아님" : ""}
-              </span>
-            </p>
             <p className="msg-foot">최종 선정과 조치는 자동 확정되지 않습니다. 이 답변은 담당자 검토를 돕는 의사결정 지원 자료입니다.</p>
             <div className="msg-actions">
               <button type="button" className="btn btn-quiet btn-small" onClick={() => rerun(result)} title="현재 데이터로 다시 분석">

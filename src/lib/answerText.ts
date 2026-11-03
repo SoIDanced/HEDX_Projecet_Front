@@ -1,6 +1,9 @@
 // 답변 본문: 분석 결과(AnalysisResult)를 글로만 풀어 쓴다 — 표·차트·카드 없이, 숫자와 문장은 모두 코드가 데이터로 만든다
 import type { AnalysisResult, ColumnKind, ResultColumn } from "./analysisTypes";
 import type { DocSearchResult } from "./documentSearch";
+import type { DataMeta } from "../data/types";
+import { DATASET_LABEL } from "../data/types";
+import { SAMPLE_DOCS } from "../data/sample/documents";
 import { fmtDate, fmtInt, fmtMoney, fmtNum, fmtPct, fmtSignedPct } from "./format";
 
 export interface AnswerSection {
@@ -123,4 +126,61 @@ export function documentAnswerText(r: DocSearchResult): string[] {
   if (r.similar.length) out.push(`ID가 비슷한 문서 ${r.similar.length}건도 있습니다: ${r.similar.map((h) => h.doc.id).join(", ")}`);
   out.push(DOC_SAMPLE_NOTE);
   return out;
+}
+
+/** 답변 맨 위 ‘근거’ 블록의 내용 — 그 답변 계산에 실제로 쓴 문서·데이터 집합만 담는다(순수 함수, 새로 지어내지 않음) */
+export interface AnswerBasis {
+  docs: string[]; // 근거로 쓴(검색된) 문서. 없으면 빈 목록
+  docNote?: string; // 문서가 없을 때의 사실 그대로의 이유
+  data: string[]; // 계산에 쓴 데이터 집합 (예: ‘구매조달 발주 12건’)
+  scope: string[]; // 사용한 조회 조건·필터 (예: ‘품목 실린더 라이너’)
+  asOf: string;
+  label: string; // 데이터 묶음 이름(SAMPLE 여부 포함)
+  sample: boolean;
+}
+
+const metaPart = (meta: Pick<DataMeta, "asOf" | "label" | "isSample">) => ({ asOf: meta.asOf, label: meta.label, sample: meta.isSample });
+
+/** 분석 답변(후보 비교·단가 상승·납기 저조 등): result.sources 의 데이터 집합(건수) + 상세 문단이 쓴 참고 지표 + 사유 문서 */
+export function analysisBasis(r: AnalysisResult): AnswerBasis {
+  const used = r.sources.filter((s) => s.ids.length);
+  const listed = (used.length ? used : r.sources).map((s) => `${s.label} ${s.ids.length}건`);
+  const have = new Set(r.sources.map((s) => s.label));
+  const extra = (r.extraDatasets ?? []).map((k) => DATASET_LABEL[k]).filter((l) => !have.has(l));
+  const docs = r.docRefs ?? [];
+  return {
+    docs,
+    docNote: docs.length ? undefined : "없음(등록 데이터만 사용)",
+    data: [...listed, ...extra],
+    scope: r.scope.filter((s) => s.label !== "기준일").map((s) => `${s.label} ${s.value}`),
+    asOf: r.asOf,
+    label: r.dataLabel,
+    sample: r.dataLabel.includes("SAMPLE"),
+  };
+}
+
+/** 문서 검색 답변: 실제 검색에서 나온 문서(1순위 + 비슷한 문서)만. 못 찾았으면 ‘없음’이라고 그대로 적는다 */
+export function docSearchBasis(r: DocSearchResult, meta: Pick<DataMeta, "asOf" | "label" | "isSample">): AnswerBasis {
+  const docs = r.found && r.best ? [`${r.best.doc.title} (${r.best.doc.id})`, ...r.similar.map((h) => `${h.doc.title} (${h.doc.id})`)] : [];
+  return {
+    docs,
+    docNote: docs.length ? undefined : "없음(관련 문서를 찾지 못함)",
+    data: [`등록 문서 ${SAMPLE_DOCS.length}건 의미 검색`],
+    scope: [],
+    ...metaPart(meta),
+  };
+}
+
+/** 분석·문서 검색 없이 안내만 한 답변(도움말·대상 못 찾음 등): 쓴 데이터가 없다는 사실을 그대로 적는다 */
+export function noDataBasis(meta: Pick<DataMeta, "asOf" | "label" | "isSample">): AnswerBasis {
+  return { docs: [], docNote: "없음(등록 데이터만 사용)", data: [], scope: [], ...metaPart(meta) };
+}
+
+/** 근거 블록의 화면 문구: [문서 줄, 데이터 줄, (있으면) 조회 조건 줄] */
+export function basisLines(b: AnswerBasis): { docs: string; data: string; scope?: string } {
+  return {
+    docs: `문서 ${b.docs.length ? b.docs.join(", ") : b.docNote ?? "없음"}`,
+    data: `데이터 ${b.data.length ? b.data.join(" · ") : "없음"}(기준일 ${b.asOf} · ${b.label}${b.sample ? " · 실제 자료 아님" : ""})`,
+    scope: b.scope.length ? `조회 조건 ${b.scope.join(" · ")}` : undefined,
+  };
 }

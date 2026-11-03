@@ -109,6 +109,10 @@ export interface AnalysisResult {
   /** 항목별 상세 문단(예: 단가 변동 상세) — 답변 글에 그대로 풀어 쓴다. 숫자는 코드가 계산한 값 */
   detailSections?: { id: string; title: string; items: string[] }[];
   sources: SourceRef[];
+  /** sources 에 건수 목록으로는 없지만 이 답변 계산에 실제로 쓴 데이터 집합(예: 단가 변동 상세의 원자재 시세·환율·인건비) */
+  extraDatasets?: DatasetKey[];
+  /** 이 답변 계산에 실제로 쓴 근거 문서(예: 단가 변동 사유 문서). 없으면 비어 있음 */
+  docRefs?: string[];
   charts: ChartSpec[];
   recommended: TemplateId;
   templates: TemplateId[];

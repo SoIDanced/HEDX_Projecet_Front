@@ -5,7 +5,7 @@ import type { AnalysisParams, AnalysisResult } from "../lib/analysisTypes";
 import { AnalysisError, KIND_LABEL, PRIORITY, runAnalysis, weightText } from "../lib/analysis";
 import type { Derived } from "../lib/metrics";
 import { fmtNum } from "../lib/format";
-import { documentAnswerText } from "../lib/answerText";
+import { analysisBasis, docSearchBasis, documentAnswerText, noDataBasis, type AnswerBasis } from "../lib/answerText";
 import { searchDocuments } from "../lib/documentSearch";
 import { parseQuestion, type Catalog, type ParsedIntent } from "./intent";
 import { buildPrompt, sanitizeLLM, type LLMProvider } from "./llm";
@@ -25,9 +25,9 @@ export interface ClarifyOption {
 }
 
 export type AgentReply =
-  | { type: "analysis"; result: AnalysisResult; text: string[]; engine: Engine; engineNote?: string; followup: boolean }
+  | { type: "analysis"; result: AnalysisResult; text: string[]; basis: AnswerBasis; engine: Engine; engineNote?: string; followup: boolean }
   | { type: "clarify"; text: string[]; options: ClarifyOption[]; pending: PendingClarify; engine: Engine; engineNote?: string }
-  | { type: "message"; text: string[]; suggestions?: string[]; engine: Engine; engineNote?: string };
+  | { type: "message"; text: string[]; basis?: AnswerBasis; suggestions?: string[]; engine: Engine; engineNote?: string };
 
 export interface AgentContext {
   data: DataSet;
@@ -146,7 +146,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
   });
 
   if (parsed.unknownItemRef) {
-    return { type: "message", text: [`${parsed.unknownItemRef} 품목을 현재 데이터에서 찾지 못했습니다. 품목코드를 확인하거나 왼쪽 데이터 관리에서 품목을 선택해 주세요.`], engine, engineNote: note };
+    return { type: "message", text: [`${parsed.unknownItemRef} 품목을 현재 데이터에서 찾지 못했습니다. 품목코드를 확인하거나 왼쪽 데이터 관리에서 품목을 선택해 주세요.`], basis: noDataBasis(ctx.meta), engine, engineNote: note };
   }
 
   switch (parsed.kind) {
@@ -203,7 +203,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
       await step(2);
       const found = searchDocuments(sourceQuestion, ctx.meta.asOf);
       await step(3);
-      return { type: "message", text: documentAnswerText(found), engine, engineNote: note };
+      return { type: "message", text: documentAnswerText(found), basis: docSearchBasis(found, ctx.meta), engine, engineNote: note };
     }
     case "help":
       return {
@@ -212,6 +212,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
           "협력업체·발주·계약·재고 데이터로 다음을 분석할 수 있습니다: 품목별 후보 업체 비교, 납기 준수율 저조 협력업체, 단가 상승 품목, 등급별 품질 실적, 협력업체 평가 근거, 재고·공급 위험.",
           "질문하면 데이터로 계산한 결과를 글로 정리해 이 대화에 바로 답하고, 근거 표는 엑셀·CSV로 내보낼 수 있습니다.",
         ],
+        basis: noDataBasis(ctx.meta),
         suggestions: SUGGESTIONS,
         engine,
         engineNote: note,
@@ -223,6 +224,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
           "질문에서 분석할 대상을 찾지 못했습니다. 데이터에 없는 내용은 추측해서 답하지 않습니다.",
           "품목명·협력업체명·등급을 넣어 다시 질문하거나 아래 예시를 눌러 보세요.",
         ],
+        basis: noDataBasis(ctx.meta),
         suggestions: SUGGESTIONS,
         engine,
         engineNote: note,
@@ -234,13 +236,13 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
   try {
     result = runAnalysis(params!, ctx.data, ctx.derived, ctx.meta, sourceQuestion);
   } catch (e) {
-    if (e instanceof AnalysisError) return { type: "message", text: [e.message], suggestions: SUGGESTIONS, engine, engineNote: note };
+    if (e instanceof AnalysisError) return { type: "message", text: [e.message], basis: noDataBasis(ctx.meta), suggestions: SUGGESTIONS, engine, engineNote: note };
     throw e;
   }
   await step(3);
 
   if (result.empty) {
-    return { type: "message", text: [result.empty, "조건(기간·기준값)을 바꿔 다시 질문해 보세요."], engine, engineNote: note };
+    return { type: "message", text: [result.empty, "조건(기간·기준값)을 바꿔 다시 질문해 보세요."], basis: analysisBasis(result), engine, engineNote: note };
   }
 
   let text: string[];
@@ -256,7 +258,7 @@ export async function answer(question: string, ctx: AgentContext, llm: LLMProvid
   } else {
     text = leadText(result, usedSelection, ctx);
   }
-  return { type: "analysis", result, text, engine, engineNote: note, followup };
+  return { type: "analysis", result, text, basis: analysisBasis(result), engine, engineNote: note, followup };
 }
 
 export const kindLabel = KIND_LABEL;

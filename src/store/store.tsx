@@ -12,6 +12,7 @@ import { derive, type Derived } from "../lib/metrics";
 import type { FilterValues } from "../lib/filters";
 import { EMPTY_SCOPE, type Scope } from "../lib/scope";
 import type { ClarifyOption, Engine, PendingClarify } from "../ai/agent";
+import type { AnswerBasis } from "../lib/answerText";
 import { readStore, removeStore, userKey, writeStore } from "../platform/storage";
 import { idbDel, idbGet, idbSet } from "../platform/idb";
 import type { User } from "../platform/users";
@@ -25,6 +26,8 @@ export type ChatMessage =
       engine: Engine | "system";
       engineNote?: string;
       text: string[];
+      /** 답변 맨 위 ‘근거’ 블록(쓴 문서·데이터 집합) */
+      basis?: AnswerBasis;
       resultId?: string;
       followup?: boolean;
       options?: ClarifyOption[];

@@ -96,7 +96,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           // 규칙 기반 분석 자체는 끊을 수 없어, 중단하면 기다리지 않고 결과를 버린다
           new Promise<never>((_, reject) => ctrl.signal.addEventListener("abort", () => reject(new Error(abortMsg())), { once: true })),
         ]);
-        const base = { id: uid(), role: "assistant" as const, at: new Date().toISOString(), engine: reply.engine, engineNote: reply.engineNote, text: reply.text };
+        const base = { id: uid(), role: "assistant" as const, at: new Date().toISOString(), engine: reply.engine, engineNote: reply.engineNote, text: reply.text, basis: reply.type === "clarify" ? undefined : reply.basis };
         if (reply.type === "analysis") {
           // 분석이 끝나면 글 답변을 대화에 바로 붙인다 (표·차트 없음)
           const r = reply.result;
