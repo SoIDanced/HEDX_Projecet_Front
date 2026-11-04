@@ -1,7 +1,7 @@
 // AI 에이전트 패널: 오른쪽에 고정된 대화창 — 글 답변만 보여 준다 (표·차트 없음)
-// 위쪽: 선택 정보(접이식) · 문서 등록 · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuHistory, LuInfo, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
+// 위쪽: 선택 정보(접이식, 등장·퇴장 전환) · 문서 등록 · 대화 이력 · 대화 지우기 / 가운데: 대화 / 아래: 추천 질문 · 입력창
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { LuArrowDown, LuArrowUp, LuDatabase, LuDownload, LuEraser, LuHistory, LuRefreshCw, LuSquare, LuTriangleAlert } from "react-icons/lu";
 import { STEPS } from "../ai/agent";
 import { resultName, SUGGESTED, useStore, WELCOME_SHORT, type ChatMessage } from "../store/store";
 import { useAgent } from "../store/agent";
@@ -180,6 +180,37 @@ function Assistant({ m }: { m: Extract<ChatMessage, { role: "assistant" }> }) {
   );
 }
 
+/** 선택 정보 상자의 등장·퇴장: 높이(0fr↔1fr)·투명도·위치를 CSS 전환으로. 사라질 때는 마지막 모습의 정적 복사본(id 제거, inert)을 전환이 끝날 때까지 남긴다 */
+function DetailReveal({ on, children }: { on: boolean; children: ReactNode }) {
+  const [shown, setShown] = useState(false);
+  const [mounted, setMounted] = useState(on);
+  const clip = useRef<HTMLDivElement>(null);
+  const snap = useRef("");
+  useLayoutEffect(() => {
+    if (on && clip.current) snap.current = clip.current.innerHTML.replace(/ id="[^"]*"/g, "");
+  });
+  useEffect(() => {
+    if (on) {
+      setMounted(true);
+      const r = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true))); // 접힌 모습을 한 번 그린 뒤 펼친다
+      return () => cancelAnimationFrame(r);
+    }
+    setShown(false);
+    const t = setTimeout(() => setMounted(false), 800); // transitionend 가 없을 때의 안전장치
+    return () => clearTimeout(t);
+  }, [on]);
+  if (!mounted && !on) return null;
+  return (
+    <div className={`chat-detail-wrap${shown && on ? " is-on" : ""}`} onTransitionEnd={(e) => e.target === e.currentTarget && e.propertyName === "grid-template-rows" && !on && setMounted(false)}>
+      {on ? (
+        <div className="chat-detail-clip" ref={clip}>{children}</div>
+      ) : (
+        <div className="chat-detail-clip" inert aria-hidden dangerouslySetInnerHTML={{ __html: snap.current }} />
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel() {
   const { state, derived, dispatch } = useStore();
   const { ask, abort, showAnswer } = useAgent();
@@ -193,7 +224,6 @@ export function ChatPanel() {
   const nearBottom = useRef(true);
   const seenCount = useRef(state.messages.length);
   const selTitle = useSelectionTitle();
-  const showDetail = !!selTitle && state.detailOpen;
   const historyCount = Object.keys(state.results).length;
   const closeHistory = useCallback(() => setShowHistory(false), []);
   const onlyWelcome = state.messages.every((m) => m.id === "welcome");
@@ -235,6 +265,22 @@ export function ChatPanel() {
     const a = document.activeElement as HTMLButtonElement | null;
     if (!a || a === document.body || a.disabled || !a.isConnected) inputRef.current?.focus();
   }, [state.busy]);
+
+  // 선택 정보 상자가 펼쳐지고 접히며 대화 영역의 위쪽 경계가 움직여도 대화 글이 화면에서 제자리에 있도록: 경계가 움직인 만큼 스크롤을 같이 옮긴다
+  useEffect(() => {
+    const el = listRef.current;
+    const panel = el?.parentElement;
+    if (!el || !panel || typeof ResizeObserver === "undefined") return;
+    const rel = () => (el.offsetParent ? el.getBoundingClientRect().top - panel.getBoundingClientRect().top : NaN); // 숨겨진 탭에서는 NaN
+    let top = rel();
+    const ro = new ResizeObserver(() => {
+      const n = rel();
+      if (!Number.isNaN(n) && !Number.isNaN(top) && Math.abs(n - top) > 0.01) el.scrollTop += n - top;
+      top = n;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const onListScroll = () => {
     const el = listRef.current;
@@ -334,19 +380,6 @@ export function ChatPanel() {
             </div>
           </div>
           <div className="chat-tools">
-            {selTitle && (
-              <button
-                type="button"
-                className={`icon-btn detail-toggle ${showDetail ? "is-on" : ""}`}
-                onClick={() => dispatch({ type: "detailOpen", open: !state.detailOpen })}
-                aria-expanded={showDetail}
-                aria-controls="selection-detail"
-                aria-label={`${showDetail ? "선택 정보 접기" : "선택 정보 펼치기"}: ${selTitle}`}
-                title={`${showDetail ? "선택 정보 접기" : "선택한 협력업체·부품 정보 펼치기"} · ${selTitle}`}
-              >
-                <LuInfo aria-hidden />
-              </button>
-            )}
             <DocRegister target="vector" inputId="doc-file-input" />
             <button
               type="button"
@@ -368,12 +401,12 @@ export function ChatPanel() {
         </div>
         {showHistory && <HistoryPanel onClose={closeHistory} onOpen={openFromHistory} />}
       </div>
-      {selTitle && (
+      <DetailReveal on={!!selTitle}>
         <div className="chat-detail">
           <SelectionDetail />
           {ctxChips}
         </div>
-      )}
+      </DetailReveal>
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announce}
       </div>

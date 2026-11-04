@@ -1,5 +1,5 @@
 // 선택 정보: 데이터 관리 표에서 고른 협력업체·발주·계약·부품의 상세 — 오른쪽 AI 에이전트 패널 위쪽에 접이식으로 표시
-// 기본은 한 줄 요약, 펼치면 2열 상세(높이 제한·내부 스크롤). 질문을 보내거나 새 답변이 나오면 접히고, 대화 패널 머리의 '선택 정보' 아이콘으로 다시 열고 닫는다
+// 기본은 한 줄 요약, 펼치면 2열 상세(높이 제한·내부 스크롤). 질문을 보내거나 새 답변이 나오면 접히고, 상세 머리·요약 줄의 접기/펼치기 버튼으로 다시 열고 닫는다
 import { useMemo, type ReactNode } from "react";
 import { LuChevronDown, LuChevronUp, LuMessageSquareText, LuPackageCheck, LuPencilLine, LuX } from "react-icons/lu";
 import { TAB_LABEL } from "../data/types";
@@ -73,7 +73,7 @@ function Detail({ title, summary, fields, actions, onClose, star, children }: { 
   );
 }
 
-/** 지금 선택된 행의 제목 (대화 패널 머리 아이콘에 표시) */
+/** 지금 선택된 행의 제목 (선택 정보 상자를 보일지 정하는 데 쓴다) */
 export function useSelectionTitle(): string | null {
   const { state, derived } = useStore();
   const { rowTab, rowKey } = state.selection;

@@ -766,7 +766,7 @@ th.sticky-col { background: var(--soft); }
 
 /* ── 글자 키우기(+1 단계, 13px 이상 유지): 표·필터·라벨·쪽수 ── */
 .data-table td { font-size: var(--fs-14); }
-.data-table th { font-size: var(--fs-13); font-weight: 600; } /* 머리글은 본문보다 한 단계 작게(굵게) — 좁은 폭에서 열이 넘치지 않게 */
+.data-table th { font-size: var(--fs-14); font-weight: 600; } /* v0.9.4: 머리글도 오른쪽 AI 에이전트 패널의 본문(15px)과 같게(예전 14px) */
 .data-table th { padding-top: 10px; padding-bottom: 10px; }
 .data-table td { padding-top: 9px; padding-bottom: 9px; }
 .data-table .th-sub, .name-cell .sub-line, .due-cell small, .safe-cell small, .code { font-size: var(--fs-13); }
@@ -813,7 +813,7 @@ th.sticky-col { background: var(--soft); }
 .eval-hint :is(.eval-empty, .eval-picked) { grid-area: 1 / 1; margin: 0; padding-top: 10px; font-size: var(--fs-14); opacity: 1; transition: opacity calc(700ms * var(--k-tween)) var(--ease-q); }
 .eval-hint :is(.eval-empty, .eval-picked).is-off { opacity: 0; pointer-events: none; }
 /* 1366 폭에서 원가-계약 6열이 가로 스크롤 없이 들어가도록 칸 좌우 여백을 6px 로 (글자는 +1 단계 키움) */
-.data-table th, .data-table td { padding-left: 6px; padding-right: 6px; }
+.data-table th, .data-table td { padding-left: 5px; padding-right: 5px; } /* v0.9.4: 머리글 15px 로 키우며 1366 원가-계약 6열이 가로 스크롤 없이 들어가도록 6 → 5px */
 .data-table th.no-col, .data-table td.no-col { padding-left: 6px; padding-right: 6px; width: 40px; min-width: 40px; max-width: 40px; }
 .no-col + .sticky-col { left: 40px; }
 .th-sort { gap: 3px; }
@@ -856,3 +856,25 @@ th.sticky-col { background: var(--soft); }
 .msg-sources.ans-basis svg { color: var(--accent-ink); margin-top: 3px; }
 .msg-sources.ans-basis > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
 .msg-sources.ans-basis b { color: var(--accent-ink); font-weight: 700; }
+
+/* ── v0.9.4 선택 전 숨겨 둔 요소(‘근거’ 버튼·즐겨찾기 별·처리 단계 아이콘)가 선택하면 제자리에서 부드럽게 나타난다 ──
+   자리는 선택 전에도 확보돼 있어 레이아웃 시프트가 없다. 선택 전(.is-ghost)에는 visibility:hidden 이라 클릭·초점·읽기 대상이 아니다.
+   대상을 바꿀 때는 클래스가 그대로라 재생되지 않고, 선택 해제 → 재선택에서만 다시 재생. 길이는 도넛 호(1600ms×--k-tween)보다 짧게, 순서는 별 → 근거 → 처리 단계 아이콘 */
+@keyframes revealIn { from { opacity: 0; transform: translateY(6px) scale(0.9); } }
+.rv.is-ghost { visibility: hidden; }
+.rv:not(.is-ghost), .eval-steps-mini:not(.is-ghost), .eval-steps-mini:not(.is-ghost) .step-mini { animation: revealIn calc(1100ms * var(--k-tween)) var(--ease-q) calc(var(--n, 0) * 150ms * var(--k-tween)) backwards; }
+.rv-star { display: inline-grid; place-items: center; flex: none; min-width: 32px; min-height: 32px; }
+.eval-basis-btn { --n: 1; }
+.eval-steps-mini { --n: 2; }
+.eval-steps-mini .step-mini:nth-child(1) { --n: 3; }
+.eval-steps-mini .step-mini:nth-child(2) { --n: 4; }
+.eval-steps-mini .step-mini:nth-child(3) { --n: 5; }
+.eval-steps-mini .step-mini:nth-child(4) { --n: 6; }
+.eval-steps-mini .step-mini:nth-child(5) { --n: 7; }
+
+/* ── v0.9.4 선택 정보 상자(.chat-detail) 등장·퇴장: 높이는 grid-template-rows 0fr↔1fr, 투명도·살짝 위에서 내려옴. 아래 대화는 ChatPanel 이 바닥 기준으로 자리를 지킨다 ── */
+.chat-detail-wrap { display: grid; grid-template-rows: 0fr; flex: 0 1 auto; min-height: 0; opacity: 0; translate: 0 -6px; transition: grid-template-rows calc(1100ms * var(--k-tween)) var(--ease-q), opacity calc(900ms * var(--k-tween)) var(--ease-q), translate calc(1100ms * var(--k-tween)) var(--ease-q); }
+.chat-detail-wrap.is-on { grid-template-rows: 1fr; opacity: 1; translate: 0 0; }
+.chat-detail-clip { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.chat-detail-clip > .chat-detail { flex: 0 1 auto; }
+.eval-bar-label, .eval-bar-val { font-size: var(--fs-14); } /* v0.9.4: 점수 막대 글자도 오른쪽 AI 에이전트 패널 본문(15px)과 같게(예전 14px) */

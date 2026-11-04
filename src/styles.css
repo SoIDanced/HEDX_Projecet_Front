@@ -861,7 +861,6 @@ fieldset.import-mode label { display: flex; gap: 6px; align-items: center; }
 .basis-bar-fill.is-missing { background: transparent; }
 
 /* ── v0.3.1: 분석 결과창 위쪽의 선택 정보 ── */
-.detail-toggle.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
 .selection-wrap { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .selection-eyebrow { font-size: var(--fs-12); font-weight: 700; color: var(--accent-ink); letter-spacing: 0.02em; }
 

@@ -388,11 +388,10 @@ export function SupplierEvaluationCard() {
         <div className="eval-head-side">
           <div className="eval-head-tools">
             <span className="eval-tag">{state.meta.isSample ? "SAMPLE" : "업로드 데이터"}</span>
-            {sup && ev && (
-              <button ref={btnRef} type="button" className={`eval-basis-btn ${open ? "is-on" : ""}`} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="basis-popover" aria-haspopup="dialog" title="평가 근거 전체 보기">
-                <LuFileSearch aria-hidden /> 근거
-              </button>
-            )}
+            {/* 선택 전에도 같은 자리를 차지하되(숨김·초점 불가), 선택하면 그 자리에서 페이드인 — 대상을 바꿀 때는 재생하지 않는다 */}
+            <button ref={btnRef} type="button" className={`eval-basis-btn rv${pending ? " is-ghost" : ""}${open ? " is-on" : ""}`} onClick={() => setOpen((v) => !v)} aria-expanded={pending ? undefined : open} aria-controls="basis-popover" aria-haspopup="dialog" title="평가 근거 전체 보기" inert={pending} aria-hidden={pending || undefined}>
+              <LuFileSearch aria-hidden /> 근거
+            </button>
           </div>
           {/* 처리 단계: 카드 아래 큰 영역 대신 오른쪽 위 구석에 작은 아이콘 줄로 (마우스를 올리면 단계 이름·상태). 선택 전엔 보이지 않는 같은 크기 자리 */}
           {ev ? <StepsMini steps={ev.steps} /> : <StepsGhost />}
@@ -406,7 +405,9 @@ export function SupplierEvaluationCard() {
             {!sid && <option value="" disabled>협력업체를 선택하세요</option>}
             <SupplierOptions />
           </select>
-          {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
+          <span className={`rv rv-star${sup ? "" : " is-ghost"}`} aria-hidden={!sup || undefined} inert={!sup}>
+            {sup && <FavStar kind="suppliers" id={sup.supplierId} name={sup.name} size="md" />}
+          </span>
         </div>
         {/* 안내 자리는 선택 전·후 같은 칸(같은 높이)을 쓰고 글만 교차해서 바뀐다 — 카드 높이가 변하지 않아 아래 내용이 밀리지 않는다 */}
         <div className="eval-hint">
