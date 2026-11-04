@@ -688,8 +688,8 @@ with sync_playwright() as p:
     page.locator(".data-table tbody tr", has_text="업체 F").locator(".name").click()
     det = page.locator(".row-detail")
     check("행을 누르면 상세는 오른쪽 AI 에이전트 패널 위쪽에", page.locator(".panel-c #selection-detail").count() == 1 and page.evaluate("() => document.querySelector('.chat-detail').getBoundingClientRect().bottom <= document.querySelector('.chat-list').getBoundingClientRect().top + 1") and page.locator(".panel-a .row-detail").count() == 0)
-    check("대화 패널 머리에 선택 정보 아이콘(펼침)", page.locator(".detail-toggle").get_attribute("aria-expanded") == "true" and "업체 F" in page.locator(".detail-toggle").get_attribute("aria-label") and page.locator(".detail-toggle").inner_text().strip() == "")
-    check("선택 정보 아이콘은 글자 없이 aria-label만(세 번 반복 제거), 두 '선택 해제'는 이름이 서로 다름", page.locator(".detail-toggle").evaluate("e => e.getBoundingClientRect().width <= 48") and page.locator(".detail-clear").get_attribute("aria-label") != "선택 해제")
+    check("v0.9.4: 대화 패널 머리에 선택 정보 'i' 버튼 없음(요약 줄의 접기/펼치기 버튼과 기능 중복이라 삭제) — 머리 도구는 문서 등록·대화 이력·대화 지우기 3개뿐", page.locator(".detail-toggle").count() == 0 and page.locator(".chat-tools .icon-btn").count() == 0 and page.locator(".chat-tools > .btn").count() == 3)
+    check("두 '선택 해제'(표 행 선택 해제·질문 대상 칩)는 이름이 서로 다름(예전 'i' 버튼 검사에서 이름 검사만 남김)", page.locator(".detail-clear").get_attribute("aria-label") != "선택 해제")
     check("상세: 등급 타임라인 (평가 5회 + 현재)", det.locator(".tl-item").count() == 6, str(det.locator(".tl-item").count()))
     check("상세: 하락 표시와 변동 사유", "하락" in det.inner_text() and "납기 지연 증가" in det.inner_text())
     check("상세: 마지막 점은 '현재 · 시스템 계산'", "현재 · 시스템 계산" in det.locator(".tl-item").last.inner_text())
@@ -699,8 +699,8 @@ with sync_playwright() as p:
     chk_h = page.evaluate("() => { const d = document.querySelector('.chat-detail').getBoundingClientRect(), l = document.querySelector('.chat-list').getBoundingClientRect(); return [d.height, l.height, innerHeight]; }")
     check("펼친 상세는 높이 제한(35vh 이하) + 대화 영역 최소 96px", chk_h[0] <= chk_h[2] * 0.35 + 2 and chk_h[1] >= 96, str(chk_h))
     check("펼친 상세는 2열 격자", page.evaluate("() => getComputedStyle(document.querySelector('.chat-detail .kv')).gridTemplateColumns.split(' ').length") == 2)
-    page.locator(".detail-toggle").click()
-    check("아이콘으로 접으면 한 줄 요약만 남음", page.locator("#selection-detail").count() == 0 and page.locator(".detail-toggle").get_attribute("aria-expanded") == "false" and page.locator(".row-summary").count() == 1)
+    page.locator(".row-detail .icon-btn[aria-expanded]").click()  # v0.9.4: 머리 'i' 버튼 삭제 → 상세 머리의 접기 버튼으로
+    check("접기 버튼으로 접으면 한 줄 요약만 남음", page.locator("#selection-detail").count() == 0 and page.locator(".row-summary .icon-btn").get_attribute("aria-expanded") == "false" and page.locator(".row-summary").count() == 1)
     sm = page.evaluate("() => { const t = document.querySelector('.row-summary-text'); return [t.scrollHeight <= t.clientHeight + 1, t.innerText]; }")
     check("요약은 한 줄이며 이름과 핵심 값(등급·납기)을 보여 줌", sm[0] and "업체 F" in sm[1] and "등급" in sm[1] and "납기" in sm[1], sm[1])
     page.screenshot(path=f"{SHOTS}/05_1920_detail_collapsed.png")
@@ -715,10 +715,10 @@ with sync_playwright() as p:
     check("새 답변 뒤 선택 정보를 다시 펼치면 대화는 그대로", page.locator("#selection-detail").count() == 1 and page.locator(".ans-sec").count() >= 1)
     ask(page, "업체 F의 평가 근거를 정리해 줘")
     check("새 답변이 나오면 선택 정보는 접힘", page.locator("#selection-detail").count() == 0 and page.locator(".row-summary").count() == 1 and last_ai(page).locator(".ans-sec").count() >= 1)
-    page.locator(".detail-toggle").click()
+    page.locator(".row-summary .icon-btn").click()  # v0.9.4: 요약 줄의 펼치기 버튼으로
     check("대화 위로 선택 정보 다시 열기", page.locator("#selection-detail").count() == 1 and page.locator(".ans-sec").count() >= 1)
     page.locator(".detail-clear").click()
-    check("선택 해제 버튼 → 선택 정보 닫힘", page.locator("#selection-detail").count() == 0 and page.locator(".detail-toggle").count() == 0)
+    check("선택 해제 버튼 → 선택 정보 닫힘", page.locator("#selection-detail").count() == 0)
     close_chat(page)
 
     # 25. 대금 결제 일정 + 알림
@@ -1628,7 +1628,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         p62.wait_for_timeout(400)
         p62.locator("[data-quick-toggle]").first.click()  # v0.9: 빠른 필터 칩은 펼침 패널 안에 있어 먼저 연다
         fsz = p62.evaluate("(sels) => Object.fromEntries(sels.map(s => { const e = document.querySelector(s); return [s, e ? parseFloat(getComputedStyle(e).fontSize) : null]; }))", list(V055))
-        check(f"글자 크기 {theme}: 본문·표·칩·버튼·말풍선·탭·선택·입력이 v0.5.5보다 정확히 +1px (v0.9.1: 표 본문·칩은 +2px)", all(fsz[k] == v + (2 if k in (".data-table td", ".chip-btn") else 1) for k, v in V055.items()), json.dumps({k: f"{V055[k]}→{fsz[k]}" for k in V055}, ensure_ascii=False))
+        check(f"글자 크기 {theme}: 본문·표·칩·버튼·말풍선·탭·선택·입력이 v0.5.5보다 정확히 +1px (v0.9.1: 표 본문·칩은 +2px, v0.9.4: 표 머리글도 +2px = 우측 본문 15px)", all(fsz[k] == v + (2 if k in (".data-table td", ".chip-btn", ".data-table th") else 1) for k, v in V055.items()), json.dumps({k: f"{V055[k]}→{fsz[k]}" for k in V055}, ensure_ascii=False))
         sf6 = small_fonts(p62)
         check(f"글자 크기 {theme}: 브랜드 글자 말고는 13px 미만 없음", not sf6, ", ".join(sf6))
         p62.locator(".filter-toggle").first.click()
@@ -2613,6 +2613,7 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
             if p8.locator(".chat-detail .row-summary").count():
                 p8.locator(".chat-detail .icon-btn[aria-label='선택 정보 펼치기']").click()
                 p8.wait_for_selector(".chat-detail .row-detail")
+            p8.wait_for_timeout(900)  # v0.9.4: 선택 정보 상자 등장 전환(높이 0fr→1fr)이 끝난 뒤에 잰다
             STK = """() => { const c = document.querySelector('.chat-detail'); c.style.maxHeight = '150px'; c.scrollTop = c.scrollHeight; const h = document.querySelector('.chat-detail .row-detail-head').getBoundingClientRect(), cr = c.getBoundingClientRect(), clr = document.querySelector('.chat-detail .detail-clear').getBoundingClientRect(), tg = document.querySelector('.chat-detail .row-detail-head .icon-btn').getBoundingClientRect(); const kv = [...document.querySelectorAll('.chat-detail .kv > div')].filter(d => { const b = d.getBoundingClientRect(); return b.bottom > cr.top && b.top < h.bottom - 1 && b.top >= cr.top; }).length; const over = (b) => b.top >= cr.top - 1 && b.bottom <= cr.bottom + 1 && b.height >= 28; return {scrolled: c.scrollTop > 0, canScroll: c.scrollHeight > c.clientHeight, headTop: Math.round(h.top - cr.top), clearIn: over(clr), toggleIn: over(tg), clearH: Math.round(clr.height), tgH: Math.round(tg.height), kvUnderHead: kv}; }"""
             sk = p8.evaluate(STK)
             check(f"F({tag}): 상세 박스 안을 스크롤해도 [선택 해제]·[접기] 머리 줄이 맨 위에 붙어 보임(내용과 겹치지 않음)", sk["canScroll"] and sk["scrolled"] and sk["headTop"] <= 2 and sk["clearIn"] and sk["toggleIn"] and sk["kvUnderHead"] == 0, json.dumps(sk))
@@ -3261,6 +3262,143 @@ addEventListener('DOMContentLoaded', () => { const iv = setInterval(() => {
         check(f"답변 맨 위 근거 블록: {q[:16]}…", r["n"] == 1 and r["first"] and r["above"] and docs_has in r["docs"] and data_has in r["data"] and "2026-11-03" in r["data"] and r["fs"] >= 13 and r["exp"] == want_exp, json.dumps(r, ensure_ascii=False))
     cx.close()
     check("v0.9.3 시나리오 전체에서 콘솔·페이지 오류 0건", not v93errs, "; ".join(v93errs[:3]))
+
+    # ── v0.9.4: 평가 카드 요소 등장 모션 / 선택 정보 상자 등장·퇴장 / 좌측 글자 크기 / 챗봇 머리 'i' 버튼 삭제 ──
+    v94errs = []
+    REVEAL = """() => { const g = (s) => { const e = document.querySelector(s), c = getComputedStyle(e); return {op: +c.opacity, vis: c.visibility, inert: e.inert || !!e.closest('[inert]'), hid: e.getAttribute('aria-hidden') === 'true' || e.closest('[aria-hidden=true]') !== null}; }; return {btn: g('.eval-basis-btn'), star: g('.rv-star'), steps: g('.eval-steps-mini')}; }"""
+    CARDBOX = "() => { const r = document.querySelector('.eval-card').getBoundingClientRect(); const s = document.querySelector('#eval-supplier').getBoundingClientRect(); return [r.width, r.height, s.left - r.left, s.width].map((v) => Math.round(v * 2) / 2); }"
+    for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+        cx = browser.new_context(viewport={"width": vw, "height": vh})
+        pg = cx.new_page()
+        pg.on("pageerror", lambda e: v94errs.append(str(e)))
+        pg.on("console", lambda m: m.type == "error" and v94errs.append(m.text))
+        login93(pg)
+        pg.wait_for_timeout(1500)
+        pre = pg.evaluate(REVEAL)
+        box0 = pg.evaluate(CARDBOX)
+        check(f"평가 카드({vw}): 선택 전 ‘근거’ 버튼·즐겨찾기 별·처리 단계 아이콘은 보이지 않고(visibility hidden) 초점·스크린리더에 잡히지 않음(inert/aria-hidden)", all(v["vis"] == "hidden" and (v["inert"] or v["hid"]) for v in pre.values()) and pre["btn"]["inert"] and pre["btn"]["hid"], json.dumps(pre))
+        pg.select_option("#eval-supplier", index=1)
+        mids = []
+        for _ in range(12):
+            pg.wait_for_timeout(40)
+            mids.append(pg.evaluate("() => [+getComputedStyle(document.querySelector('.eval-basis-btn')).opacity, +getComputedStyle(document.querySelector('.rv-star')).opacity, +getComputedStyle(document.querySelector('.eval-steps-mini')).opacity]"))
+        pg.wait_for_timeout(1500)
+        post = pg.evaluate(REVEAL)
+        box1 = pg.evaluate(CARDBOX)
+        check(f"평가 카드({vw}): 선택하면 세 요소가 0<투명도<1 인 등장 중간 상태를 거쳐 모두 보임·초점 가능", any(0.05 < m[0] < 0.95 for m in mids) and any(0.05 < m[1] < 0.95 for m in mids) and any(0.05 < m[2] < 0.95 for m in mids) and all(v["vis"] == "visible" and v["op"] == 1 and not v["inert"] and not v["hid"] for v in post.values()), json.dumps(mids[:6]) + " " + json.dumps(post))
+        check(f"평가 카드({vw}): 선택 전·후 카드 크기와 평가 대상 칸 위치·너비 동일(레이아웃 시프트 없음)", box0 == box1, f"{box0} → {box1}")
+        pg.select_option("#eval-supplier", index=2)
+        pg.wait_for_timeout(30)
+        n_anim = pg.evaluate("() => document.getAnimations().filter((a) => a.animationName === 'revealIn').length")
+        check(f"평가 카드({vw}): 선택을 다른 업체로 바꿀 때는 등장 모션을 다시 재생하지 않음", n_anim == 0, str(n_anim))
+        pg.wait_for_timeout(900)
+        pg.evaluate("() => document.querySelector(\"[aria-label='협력업체 선택 해제']\").click()")  # 좁은 화면에선 칩이 다른 탭에 있어 직접 호출
+        pg.wait_for_timeout(1200)
+        again = pg.evaluate(REVEAL)
+        pg.select_option("#eval-supplier", index=1)
+        pg.wait_for_timeout(30)
+        n_anim2 = pg.evaluate("() => document.getAnimations().filter((a) => a.animationName === 'revealIn').length")
+        check(f"평가 카드({vw}): 선택 해제 → 다시 숨김, 재선택하면 등장 모션 재생", all(v["vis"] == "hidden" for v in again.values()) and n_anim2 >= 3, f"{n_anim2} {json.dumps(again)}")
+        cx.close()
+    cx = browser.new_context(viewport={"width": 1366, "height": 768})
+    cx.add_init_script(MOTION_OFF)
+    pg = cx.new_page()
+    login93(pg)
+    settled(pg)
+    pg.select_option("#eval-supplier", index=1)
+    pg.wait_for_timeout(60)
+    r = pg.evaluate(REVEAL)
+    check("움직임 끔: 선택 즉시 세 요소가 모두 보임(투명도 1)", all(v["vis"] == "visible" and v["op"] == 1 for v in r.values()), json.dumps(r))
+    cx.close()
+
+    # 선택 정보 상자: 높이 전환(grid-template-rows)·투명도·위쪽에서 살짝 내려옴 / 퇴장 / 대화 영역이 튀지 않음
+    REC94 = """() => new Promise((res) => { const out = []; const t0 = performance.now(); const l = document.querySelector('.chat-list'); const snap = () => { const w = document.querySelector('.chat-detail-wrap'); out.push({t: Math.round(performance.now() - t0), h: w ? w.getBoundingClientRect().height : 0, op: w ? +getComputedStyle(w).opacity : 0, org: Math.round((l.getBoundingClientRect().top - l.scrollTop) * 2) / 2, lb: Math.round(l.getBoundingClientRect().bottom), id: document.querySelectorAll('#selection-detail').length, inert: w ? w.firstElementChild.inert : null}); }; /* ResizeObserver 는 앱의 바닥 유지 보정 뒤(그려지기 직전)에 불려 사용자가 실제로 보는 상태를 잰다 */ const ro = new ResizeObserver(snap); ro.observe(l); snap(); setTimeout(() => { snap(); ro.disconnect(); res(out); }, 1000); })"""
+    for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+        cx = browser.new_context(viewport={"width": vw, "height": vh})
+        pg = cx.new_page()
+        pg.on("pageerror", lambda e: v94errs.append(str(e)))
+        demo_login(pg)
+        settled(pg)
+        ask(pg, "업체 B의 평가 근거를 정리해 줘")
+        pg.wait_for_timeout(600)
+        if vw <= 1180:
+            pg.locator(".panel-tabs button").first.click()
+            pg.wait_for_timeout(500)
+        pg.evaluate("window.__recP = (" + REC94 + ")(); 0")  # 누르기 전에 기록 시작
+        pg.locator(".panel-a .data-table tbody tr").nth(2).click()
+        if vw <= 1180:
+            pg.locator(".panel-tabs button", has_text="AI 에이전트").click()
+        rec = pg.evaluate("() => window.__recP")
+        css = pg.evaluate("() => { const c = getComputedStyle(document.querySelector('.chat-detail-wrap')); return [c.transitionProperty, c.display]; }")
+        hmax = max(x["h"] for x in rec)
+        mid = [x for x in rec if 0 < x["h"] < hmax - 2 or 0.02 < x["op"] < 0.98]
+        fin = rec[-1]
+        check(f"선택 정보 등장 모션({vw}): grid-template-rows·opacity·translate 전환, 중간 프레임 있음, 끝에서 높이>0·투명도 1·#selection-detail 1개", "grid-template-rows" in css[0] and "opacity" in css[0] and "translate" in css[0] and (len(mid) >= 2 or vw <= 1180) and fin["h"] > 40 and fin["op"] == 1 and fin["id"] == 1, f"{css} mid={len(mid)} fin={fin}")
+        # 대화 영역이 튀지 않음: 아래 경계 고정 + 바닥에서의 거리 유지 (좁은 화면은 행을 누를 때 대화 탭이 숨겨져 있어 등장 중간 프레임이 없다)
+        lbs = sorted({x["lb"] for x in rec})
+        orgs = [x["org"] for x in rec if x["lb"] > 0]
+        check(f"선택 정보 등장({vw}): 아래 대화가 튀지 않음 — 대화 글의 화면 위치(대화 영역 위 경계 − 스크롤)가 등장 내내 3px 이내로 고정(좁은 화면은 대화 탭이 숨겨진 채 선택돼 제외)", (vw <= 1180 or (len(orgs) > 3 and max(orgs) - min(orgs) <= 3)), f"lb={lbs} org={min(orgs)}~{max(orgs)}")
+        pg.wait_for_timeout(300)
+        stick = pg.evaluate("() => { const h = document.querySelector('.chat-detail .row-detail-head'); const d = document.querySelector('.chat-detail'); return h ? [getComputedStyle(h).position, getComputedStyle(d).overflowY, getComputedStyle(d).borderTopColor !== 'rgba(0, 0, 0, 0)'] : null; }")
+        check(f"선택 정보({vw}): sticky 머리·내부 스크롤·테두리 유지", stick == ["sticky", "auto", True], str(stick))
+        pg.evaluate("window.__recP = (" + REC94 + ")(); 0")
+        pg.click(".detail-clear")
+        rec2 = pg.evaluate("() => window.__recP")
+        hs = [x["h"] for x in rec2]
+        part = [x for x in rec2 if x["h"] > 0 and x["h"] < hs[0] - 2]
+        check(f"선택 정보 퇴장 모션({vw}): 높이가 부드럽게 줄어드는 중간 프레임이 있고 끝나면 사라짐, 퇴장 중 복사본은 inert·id 없음", len(part) >= 1 and rec2[-1]["h"] == 0 and any(x["inert"] and x["h"] > 0 for x in rec2) and all(x["id"] == 0 for x in rec2 if x["inert"]) and (vw <= 1180 or max(x["org"] for x in rec2) - min(x["org"] for x in rec2) <= 3) , f"hs0={hs[0]} part={len(part)} last={rec2[-1]}")
+        cx.close()
+    cx = browser.new_context(viewport={"width": 1366, "height": 768})
+    cx.add_init_script(MOTION_OFF)
+    pg = cx.new_page()
+    demo_login(pg)
+    settled(pg)
+    pg.locator(".panel-a .data-table tbody tr").nth(2).click()
+    pg.wait_for_timeout(80)
+    w = pg.evaluate("() => { const e = document.querySelector('.chat-detail-wrap'); return [e.getBoundingClientRect().height, +getComputedStyle(e).opacity]; }")
+    check("움직임 끔: 선택 정보 상자가 즉시 전체 높이·투명도 1로 표시", w[0] > 40 and w[1] == 1, str(w))
+    cx.close()
+
+    # 좌측 데이터 관리 패널 글자 크기 = 오른쪽 AI 에이전트 패널 본문 크기 (표 머리·점수 막대 글자), 13px 미만 없음, 1366 원가-계약 가로 스크롤 없음
+    FS94 = """() => { const px = (e) => parseFloat(getComputedStyle(e).fontSize); const th = document.querySelector('.panel-a .data-table th'); const td = document.querySelector('.panel-a .data-table td:not(.no-col)'); const bl = document.querySelector('.panel-a .eval-bar-label'); const bv = document.querySelector('.panel-a .eval-bar-val'); return {th: px(th), td: px(td), bl: px(bl), bv: px(bv), title: px(document.querySelector('.panel-a .panel-title')), min: Math.min(...[...document.querySelectorAll('.panel-a *')].filter((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && e.getBoundingClientRect().width && getComputedStyle(e).visibility !== 'hidden' && !e.closest('svg') && !e.classList.contains('sr-only') && !e.classList.contains('step-mini-label')).map(px))}; }"""
+    for theme in ("light", "dark"):
+        for vw, vh in [(1366, 768), (1920, 1080), (390, 844)]:
+            cx = browser.new_context(viewport={"width": vw, "height": vh})
+            pg = cx.new_page()
+            pg.on("pageerror", lambda e: v94errs.append(str(e)))
+            demo_login(pg)
+            if theme == "dark":
+                pg.locator(".theme-seg [aria-label='어둡게']").click()
+            settled(pg)
+            ask(pg, "업체 A의 평가 근거를 정리해 줘")
+            body_fs = pg.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.panel-c .ans-lead') || document.querySelector('.panel-c .msg-ai p')).fontSize)")
+            ctitle_fs = pg.evaluate("() => parseFloat(getComputedStyle(document.querySelector('.panel-c .panel-title')).fontSize)")
+            if vw <= 1180:
+                pg.locator(".panel-tabs button").first.click()
+                pg.wait_for_timeout(400)
+            f = pg.evaluate(FS94)
+            f["body"], f["ctitle"] = body_fs, ctitle_fs
+            check(f"글자 크기({theme} {vw}): 좌측 표 머리·본문·점수 막대 글자 = 우측 본문(15px), 제목끼리 같음, 좌측 최소 13px 이상", f["th"] == f["body"] == f["bl"] == f["bv"] == f["td"] and f["title"] == f["ctitle"] and f["min"] >= 13, json.dumps(f))
+            if vw == 1366 and theme == "light":
+                pg.click("#tab-contracts")
+                settled(pg)
+                sw = pg.evaluate("() => { const w = document.querySelector('.data-table-wrap'); return [w.scrollWidth, w.clientWidth]; }")
+                check("1366 원가-계약: 머리글 15px 로 키워도 표가 가로 스크롤 없이 들어감", sw[0] <= sw[1], str(sw))
+            cx.close()
+
+    # 챗봇 머리: 'i' 버튼 삭제 후에도 도구 줄이 한 줄·44px 터치·잘림 없음 (390 / 1366 / 1920)
+    for vw, vh in [(390, 844), (1366, 768), (1920, 1080)]:
+        cx = browser.new_context(viewport={"width": vw, "height": vh}, has_touch=(vw == 390))
+        pg = cx.new_page()
+        demo_login(pg)
+        settled(pg)
+        pg.locator(".panel-a .data-table tbody tr").nth(2).click()  # 선택이 있어도(예전엔 이때 'i' 버튼이 생겼다) 없음
+        pg.wait_for_timeout(500)
+        open_chat(pg)
+        H = pg.evaluate("() => { const bs = [...document.querySelectorAll('.chat-tools .btn')].map((e) => e.getBoundingClientRect()); const h = document.querySelector('.chat-head').getBoundingClientRect(); return {n: bs.length, info: document.querySelectorAll('.detail-toggle, .chat-tools .icon-btn').length, same: Math.max(...bs.map((r) => r.top)) - Math.min(...bs.map((r) => r.top)) < 3, inside: bs.every((r) => r.left >= h.left - 1 && r.right <= h.right + 1), minH: Math.min(...bs.map((r) => r.height)), hs: document.documentElement.scrollWidth > innerWidth}; }")
+        check(f"챗봇 머리({vw}): 'i' 정보 버튼 없음, 도구 3개가 한 줄·패널 안, 가로 스크롤 없음" + (", 터치 높이 44px 이상" if vw == 390 else ""), H["n"] == 3 and H["info"] == 0 and H["same"] and H["inside"] and not H["hs"] and (vw != 390 or H["minH"] >= 43.5), json.dumps(H))
+        cx.close()
+    check("v0.9.4 시나리오 전체에서 콘솔·페이지 오류 0건", not v94errs, "; ".join(v94errs[:3]))
 
     cbrowser.close()
     tctx.close()
